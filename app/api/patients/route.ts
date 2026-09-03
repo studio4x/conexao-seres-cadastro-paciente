@@ -293,6 +293,40 @@ async function configureWhatsappOnly(
   }
 }
 
+async function updateCustomerGroup(
+  baseUrl: string,
+  customerId: string,
+  groupName: "Adultos" | "Crianças",
+  headers: ReturnType<typeof asaasHeaders>,
+) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+
+  try {
+    const response = await fetch(`${baseUrl}/customers/${encodeURIComponent(customerId)}`, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ groupName }),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      console.error("Asaas customer group update failed", {
+        status: response.status,
+        errors: await asaasErrorDetails(response),
+      });
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("Asaas customer group configuration failed", {
+      timedOut: error instanceof Error && error.name === "AbortError",
+    });
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function patientReference(patientName: string, patientCpf: string) {
   const normalizedName = patientName
     .normalize("NFD")
@@ -392,6 +426,7 @@ export async function POST(request: Request) {
 
   const patient = parsed.data;
   const patientAge = calculateAge(patient.patientBirthDate)!;
+  const customerGroup = patientAge >= 18 ? "Adultos" : "Crianças";
   const holder = patient.hasResponsible ? "responsible" : "patient";
   const externalReference = await patientReference(patient.patientName, patient.patientCpf);
   const headers = asaasHeaders(apiKey);
@@ -424,7 +459,15 @@ export async function POST(request: Request) {
     }
     const existing = (await existingResponse.json()) as AsaasCustomerList;
     if (existing.data?.length) {
-      const notificationsConfigured = await configureWhatsappOnly(baseUrl, existing.data[0].id, headers);
+      const existingCustomerId = existing.data[0].id;
+      const groupConfigured = await updateCustomerGroup(baseUrl, existingCustomerId, customerGroup, headers);
+      if (!groupConfigured) {
+        return NextResponse.json(
+          { message: "O cadastro foi localizado, mas não conseguimos atualizar o grupo no Asaas. Tente novamente em instantes." },
+          { status: 502 },
+        );
+      }
+      const notificationsConfigured = await configureWhatsappOnly(baseUrl, existingCustomerId, headers);
       if (!notificationsConfigured) {
         return NextResponse.json(
           { message: "O cadastro foi localizado, mas não conseguimos finalizar as notificações. Tente novamente em instantes." },
@@ -448,6 +491,7 @@ export async function POST(request: Request) {
         : {}),
       province: clean(patient[`${holder}Province`]),
       externalReference,
+      groupName: customerGroup,
       notificationDisabled: false,
       ...(patientAge < 18 ? { company: clean(patient.patientName) } : {}),
       ...(observations ? { observations } : {}),

@@ -408,6 +408,7 @@ $externalReference = 'cs-paciente-' . substr(
     0,
     24
 );
+$customerGroup = $patientAge >= 18 ? 'Adultos' : 'Crianças';
 
 $lookupUrl = $baseUrl . '/customers?' . http_build_query([
     'externalReference' => $externalReference,
@@ -425,7 +426,20 @@ if ($lookup['error'] !== '' || $lookup['status'] < 200 || $lookup['status'] >= 3
 
 if (!empty($lookup['data']['data'])) {
     $existingCustomerId = trim((string) ($lookup['data']['data'][0]['id'] ?? ''));
-    if ($existingCustomerId === '' || !configure_whatsapp_only($baseUrl, $existingCustomerId, $apiKey)) {
+    if ($existingCustomerId === '') {
+        respond(['message' => 'Não conseguimos confirmar o cadastro no Asaas. Tente novamente em instantes.'], 502);
+    }
+    $groupUpdated = asaas_request(
+        'PUT',
+        $baseUrl . '/customers/' . rawurlencode($existingCustomerId),
+        $apiKey,
+        ['groupName' => $customerGroup]
+    );
+    if ($groupUpdated['error'] !== '' || $groupUpdated['status'] < 200 || $groupUpdated['status'] >= 300) {
+        error_log('Asaas customer group update failed. HTTP ' . $groupUpdated['status']);
+        respond(['message' => 'O cadastro foi localizado, mas não conseguimos atualizar o grupo no Asaas. Tente novamente em instantes.'], 502);
+    }
+    if (!configure_whatsapp_only($baseUrl, $existingCustomerId, $apiKey)) {
         respond(['message' => 'O cadastro foi localizado, mas não conseguimos finalizar as notificações. Tente novamente em instantes.'], 502);
     }
     respond(['success' => true, 'existing' => true]);
@@ -442,6 +456,7 @@ $customer = [
     'addressNumber' => clean_text($values[$holder . 'AddressNumber']),
     'province' => clean_text($values[$holder . 'Province']),
     'externalReference' => $externalReference,
+    'groupName' => $customerGroup,
     'notificationDisabled' => false,
 ];
 
