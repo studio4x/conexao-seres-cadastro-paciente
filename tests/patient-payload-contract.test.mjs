@@ -345,8 +345,63 @@ test("resolves the configured municipal service and builds the fiscal payload", 
     assert.match(webhook, /updatePayment[\s\S]{0,12}false/);
     assert.match(webhook, /effectiveDate/);
   }
-  assert.match(typescriptFiscalWebhook, /services\.length === 0/);
-  assert.match(phpFiscalWebhook, /count\(\$serviceList\) === 0/);
+  assert.match(typescriptFiscalWebhook, /servicesResult\.services/);
+  assert.match(phpFiscalWebhook, /list_municipal_services/);
+});
+
+test("paginates all municipal-service pages with the Asaas offset contract", () => {
+  for (const webhook of [typescriptFiscalWebhook, phpFiscalWebhook]) {
+    assert.match(webhook, /offset/);
+    assert.match(webhook, /limit/);
+    assert.match(webhook, /100/);
+    assert.match(webhook, /hasMore/);
+    assert.match(webhook, /totalCount/);
+  }
+  assert.match(typescriptFiscalWebhook, /offset \+= page\.length/);
+  assert.match(phpFiscalWebhook, /\$offset \+= count\(\$page\)/);
+});
+
+test("uses municipalServiceId for one exact service and never invents it in fallback", () => {
+  for (const webhook of [typescriptFiscalWebhook, phpFiscalWebhook]) {
+    assert.match(webhook, /municipalServiceId/);
+    assert.match(webhook, /municipalServiceCode/);
+    assert.match(webhook, /configured-code/);
+    assert.match(webhook, /04510/);
+  }
+  assert.match(typescriptFiscalWebhook, /service\.id \? \{ municipalServiceId: service\.id \}/);
+  assert.match(phpFiscalWebhook, /if \(!empty\(\$service\['id'\]\)\)/);
+});
+
+test("falls back to the confirmed municipal code when all pages have no exact service", () => {
+  for (const webhook of [typescriptFiscalWebhook, phpFiscalWebhook]) {
+    assert.match(webhook, /was not returned; using configured municipalServiceCode/);
+    assert.match(webhook, /municipalServiceCode/);
+    assert.match(webhook, /04510/);
+    assert.match(webhook, /municipalServiceName/);
+  }
+});
+
+test("keeps an empty municipal-service list on the same safe code fallback", () => {
+  assert.match(typescriptFiscalWebhook, /if \(!service\)/);
+  assert.match(phpFiscalWebhook, /if \(!\$service\)/);
+  assert.match(typescriptFiscalWebhook, /configured-code/);
+  assert.match(phpFiscalWebhook, /configured-code/);
+});
+
+test("aborts rather than choosing arbitrarily when exact services are ambiguous", () => {
+  for (const webhook of [typescriptFiscalWebhook, phpFiscalWebhook]) {
+    assert.match(webhook, /matched multiple services; invoice was not created/);
+    assert.match(webhook, /matches/);
+    assert.match(webhook, /slice\(0, 5\)|array_slice\(\$services, 0, 5\)/);
+  }
+});
+
+test("allows cash-received fallback to reach the invoice POST path", () => {
+  for (const webhook of [typescriptFiscalWebhook, phpFiscalWebhook]) {
+    assert.match(webhook, /RECEIVED_IN_CASH/);
+    assert.match(webhook, /configured municipalServiceCode/);
+    assert.match(webhook, /\/invoices/);
+  }
 });
 
 test("distinguishes retryable failures from permanent failures and reconciles uncertain posts", () => {

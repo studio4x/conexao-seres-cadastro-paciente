@@ -26,6 +26,10 @@ type SelectedService = {
   name: string;
   source: "asaas-id" | "asaas-code" | "configured-code";
 };
+type ServiceSelection = {
+  service: SelectedService | null;
+  matches: FiscalService[];
+};
 
 function sanitizeLogText(value: string) {
   return value
@@ -125,22 +129,64 @@ function serviceName(service: FiscalService) {
   return service.municipalServiceName?.trim() || service.description?.trim() || service.name?.trim() || MUNICIPAL_SERVICE_NAME;
 }
 
-function selectMunicipalService(services: FiscalService[]) {
-  const candidates = services.filter((service) => {
-    const code = normalizeCode(service.code ?? service.municipalServiceCode);
-    const description = serviceName(service).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-    return code === normalizeCode(MUNICIPAL_SERVICE_CODE) || (description.includes("terapia ocupacional") && description.includes("4.08"));
+function normalizedServiceDescription(service: FiscalService) {
+  return serviceName(service).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+function selectMunicipalService(services: FiscalService[]): ServiceSelection {
+  const configuredCode = normalizeCode(MUNICIPAL_SERVICE_CODE);
+  const codeMatches = services.filter(
+    (service) => normalizeCode(service.code ?? service.municipalServiceCode) === configuredCode,
+  );
+  const descriptionMatches = services.filter((service) => {
+    const description = normalizedServiceDescription(service);
+    return description.includes("04510") && description.includes("4.08") && description.includes("terapia ocupacional");
   });
-  const defaults = candidates.filter((service) => service.isDefault === true || service.default === true);
-  const selected = defaults.length === 1 ? defaults[0] : candidates.length === 1 ? candidates[0] : undefined;
-  if (!selected) return null;
+  const matches = codeMatches.length > 0 ? codeMatches : descriptionMatches;
+  if (matches.length !== 1) return { service: null, matches };
+  const selected = matches[0];
   const id = typeof selected.id === "string" ? selected.id.trim() : "";
   const code = selected.code?.trim() || selected.municipalServiceCode?.trim() || "";
-  return id
-    ? { id, name: serviceName(selected), source: "asaas-id" as const }
-    : code
-      ? { code, name: serviceName(selected), source: "asaas-code" as const }
-      : null;
+  return {
+    service: id
+      ? { id, name: serviceName(selected), source: "asaas-id" as const }
+      : code
+        ? { code, name: serviceName(selected), source: "asaas-code" as const }
+        : null,
+    matches,
+  };
+}
+
+function serviceDiagnostics(services: FiscalService[]) {
+  return services.slice(0, 5).map((service) => ({
+    id: typeof service.id === "string" ? service.id.trim().slice(0, 80) : undefined,
+    description: serviceName(service).slice(0, 160),
+  }));
+}
+
+async function listMunicipalServices(baseUrl: string, apiKey: string) {
+  const services: FiscalService[] = [];
+  const limit = 100;
+  let offset = 0;
+  while (true) {
+    const result = await requestAsaas(
+      baseUrl,
+      `/fiscalInfo/services?offset=${offset}&limit=${limit}`,
+      "GET",
+      apiKey,
+    );
+    if (result.status < 200 || result.status >= 300) {
+      logAsaasFailure("Asaas municipal service lookup failed", result, { offset, limit });
+      return { services: [], failed: true, retry: isTransientAsaasFailure(result) };
+    }
+    const page = dataArray(result.data) as FiscalService[];
+    services.push(...page);
+    const totalCount = typeof result.data.totalCount === "number" ? result.data.totalCount : null;
+    const hasMore = result.data.hasMore === true || (totalCount !== null && offset + page.length < totalCount);
+    if (!hasMore || page.length === 0) break;
+    offset += page.length;
+  }
+  return { services, failed: false, retry: false };
 }
 
 function effectiveDateFromPayment(payment: JsonRecord, now = new Date()) {
@@ -231,21 +277,25 @@ async function processPaymentEvent(
     return { retry: isTransientAsaasFailure(fiscalInfo) };
   }
 
-  const servicesResult = await requestAsaas(baseUrl, "/fiscalInfo/services?limit=100", "GET", apiKey);
-  if (servicesResult.status < 200 || servicesResult.status >= 300) {
-    logAsaasFailure("Asaas municipal service lookup failed", servicesResult, { event, paymentId, customerId, externalReference });
-    return { retry: isTransientAsaasFailure(servicesResult) };
-  }
-  const services = dataArray(servicesResult.data) as FiscalService[];
-  const selectedService = selectMunicipalService(services);
-  let service = selectedService;
-  if (!service && services.length === 0) {
-    service = { code: MUNICIPAL_SERVICE_CODE, name: MUNICIPAL_SERVICE_NAME, source: "configured-code" as const };
-    console.warn("Asaas municipal service list was empty; using configured service code without inventing an ID", { paymentId });
+  const servicesResult = await listMunicipalServices(baseUrl, apiKey);
+  if (servicesResult.failed) return { retry: servicesResult.retry };
+  const selection = selectMunicipalService(servicesResult.services);
+  let service = selection.service;
+  if (!service && selection.matches.length > 1) {
+    console.error("Asaas municipal service 04510 matched multiple services; invoice was not created", {
+      paymentId,
+      customerId,
+      matches: serviceDiagnostics(selection.matches),
+    });
+    return { retry: false };
   }
   if (!service) {
-    console.error("Asaas municipal service 04510 was not uniquely found; invoice was not created", { paymentId, customerId });
-    return { retry: false };
+    service = { code: MUNICIPAL_SERVICE_CODE, name: MUNICIPAL_SERVICE_NAME, source: "configured-code" as const };
+    console.warn("Asaas municipal service 04510 was not returned; using configured municipalServiceCode", { paymentId });
+  } else if (service.id) {
+    console.info("Asaas municipal service selected by id", { paymentId, municipalServiceId: service.id });
+  } else {
+    console.info("Asaas municipal service selected by code", { paymentId, municipalServiceCode: service.code });
   }
 
   console.info("Asaas invoice creation requested", { event, paymentId });

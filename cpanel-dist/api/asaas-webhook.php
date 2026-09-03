@@ -115,7 +115,8 @@ function service_name(array $service): string
 
 function select_municipal_service(array $services): ?array
 {
-    $candidates = [];
+    $codeMatches = [];
+    $descriptionMatches = [];
     foreach ($services as $service) {
         if (!is_array($service)) {
             continue;
@@ -125,15 +126,17 @@ function select_municipal_service(array $services): ?array
         $description = function_exists('iconv')
             ? strtolower((string) (iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $description) ?: $description))
             : $description;
-        if ($code === normalize_code('04510') || (str_contains($description, 'terapia ocupacional') && str_contains($description, '4.08'))) {
-            $candidates[] = $service;
+        if ($code === normalize_code('04510')) {
+            $codeMatches[] = $service;
+        } elseif (str_contains($description, '04510') && str_contains($description, '4.08') && str_contains($description, 'terapia ocupacional')) {
+            $descriptionMatches[] = $service;
         }
     }
-    $defaults = array_values(array_filter(
-        $candidates,
-        static fn (array $service): bool => ($service['isDefault'] ?? false) === true || ($service['default'] ?? false) === true
-    ));
-    $selected = count($defaults) === 1 ? $defaults[0] : (count($candidates) === 1 ? $candidates[0] : null);
+    $candidates = count($codeMatches) > 0 ? $codeMatches : $descriptionMatches;
+    if (count($candidates) !== 1) {
+        return null;
+    }
+    $selected = $candidates[0];
     if (!is_array($selected)) {
         return null;
     }
@@ -143,6 +146,49 @@ function select_municipal_service(array $services): ?array
         return ['id' => $id, 'name' => service_name($selected), 'source' => 'asaas-id'];
     }
     return $code !== '' ? ['code' => $code, 'name' => service_name($selected), 'source' => 'asaas-code'] : null;
+}
+
+function service_diagnostics(array $services): array
+{
+    $diagnostics = [];
+    foreach (array_slice($services, 0, 5) as $service) {
+        if (!is_array($service)) {
+            continue;
+        }
+        $diagnostics[] = [
+            'id' => substr(trim((string) ($service['id'] ?? '')), 0, 80),
+            'description' => substr(service_name($service), 0, 160),
+        ];
+    }
+    return $diagnostics;
+}
+
+function list_municipal_services(string $baseUrl, string $apiKey): array
+{
+    $services = [];
+    $limit = 100;
+    $offset = 0;
+    while (true) {
+        $result = asaas_request(
+            'GET',
+            $baseUrl . '/fiscalInfo/services?' . http_build_query(['offset' => $offset, 'limit' => $limit]),
+            $apiKey
+        );
+        if ($result['error'] !== '' || $result['status'] < 200 || $result['status'] >= 300) {
+            log_asaas_failure('Asaas municipal service lookup failed', $result, ['offset' => $offset, 'limit' => $limit]);
+            return ['services' => [], 'failed' => true, 'retry' => is_transient_asaas_failure($result)];
+        }
+        $page = is_array($result['data']['data'] ?? null) ? $result['data']['data'] : [];
+        $services = array_merge($services, $page);
+        $totalCount = is_numeric($result['data']['totalCount'] ?? null) ? (int) $result['data']['totalCount'] : null;
+        $hasMore = ($result['data']['hasMore'] ?? false) === true
+            || ($totalCount !== null && $offset + count($page) < $totalCount);
+        if (!$hasMore || count($page) === 0) {
+            break;
+        }
+        $offset += count($page);
+    }
+    return ['services' => $services, 'failed' => false, 'retry' => false];
 }
 
 function effective_date_from_payment(array $payment): string
@@ -234,30 +280,48 @@ function process_payment_event(string $baseUrl, string $apiKey, array $payment, 
         return is_transient_asaas_failure($fiscalInfo);
     }
 
-    $services = asaas_request('GET', $baseUrl . '/fiscalInfo/services?limit=100', $apiKey);
-    if ($services['error'] !== '' || $services['status'] < 200 || $services['status'] >= 300) {
-        log_asaas_failure('Asaas municipal service lookup failed', $services, [
-            'event' => $event,
+    $servicesResult = list_municipal_services($baseUrl, $apiKey);
+    if ($servicesResult['failed']) {
+        return (bool) $servicesResult['retry'];
+    }
+    $serviceList = $servicesResult['services'];
+    $service = select_municipal_service($serviceList);
+    $codeMatches = array_values(array_filter($serviceList, static function (mixed $candidate): bool {
+        return is_array($candidate)
+            && normalize_code($candidate['code'] ?? $candidate['municipalServiceCode'] ?? '') === normalize_code('04510');
+    }));
+    $descriptionMatches = array_values(array_filter($serviceList, static function (mixed $candidate): bool {
+        if (!is_array($candidate)) {
+            return false;
+        }
+        $description = strtolower(service_name($candidate));
+        $description = function_exists('iconv')
+            ? strtolower((string) (iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $description) ?: $description))
+            : $description;
+        return str_contains($description, '04510')
+            && str_contains($description, '4.08')
+            && str_contains($description, 'terapia ocupacional');
+    }));
+    $matches = count($codeMatches) > 0 ? $codeMatches : $descriptionMatches;
+    if (!$service && count($matches) > 1) {
+        error_log('Asaas municipal service 04510 matched multiple services; invoice was not created. ' . json_encode([
             'paymentId' => $paymentId,
             'customerId' => $customerId,
-            'externalReference' => $externalReference,
-        ]);
-        return is_transient_asaas_failure($services);
+            'matches' => service_diagnostics($matches),
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        return false;
     }
-    $serviceList = is_array($services['data']['data'] ?? null) ? $services['data']['data'] : [];
-    $selected = select_municipal_service($serviceList);
-    $service = $selected;
-    if (!$service && count($serviceList) === 0) {
+    if (!$service) {
         $service = [
             'code' => '04510',
             'name' => '04510 | 4.08 - Terapia ocupacional.',
             'source' => 'configured-code',
         ];
-        error_log('Asaas municipal service list was empty; using configured service code without inventing an ID. Payment ' . $paymentId);
-    }
-    if (!is_array($service)) {
-        error_log('Asaas municipal service 04510 was not uniquely found; invoice was not created. Payment ' . $paymentId . ' Customer ' . $customerId);
-        return false;
+        error_log('Asaas municipal service 04510 was not returned; using configured municipalServiceCode. Payment ' . $paymentId);
+    } elseif (!empty($service['id'])) {
+        error_log('Asaas municipal service selected by id. Payment ' . $paymentId . ' Service ' . substr((string) $service['id'], 0, 80));
+    } else {
+        error_log('Asaas municipal service selected by code. Payment ' . $paymentId . ' Service ' . substr((string) ($service['code'] ?? ''), 0, 80));
     }
 
     error_log('Asaas invoice creation requested. Event ' . $event . ' Payment ' . $paymentId);
