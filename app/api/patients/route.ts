@@ -367,6 +367,11 @@ function clean(value: string) {
   return value.trim().replace(/[\r\n]+/g, " ");
 }
 
+function formatBirthDate(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
+}
+
 function fullAddress(patient: Patient, prefix: "patient" | "responsible") {
   const address = clean(patient[`${prefix}Address`]);
   const number = clean(patient[`${prefix}AddressNumber`]);
@@ -388,14 +393,14 @@ function buildObservations(patient: Patient) {
   const lines = [
     `Pessoa atendida: ${clean(patient.patientName)}`,
     `CPF da pessoa atendida: ${onlyDigits(patient.patientCpf)}`,
-    `Nascimento da pessoa atendida: ${patient.patientBirthDate}`,
+    `Nascimento da pessoa atendida: ${formatBirthDate(patient.patientBirthDate)}`,
   ];
   if (patientAge !== null && patientAge >= 18) {
     lines.push(`Contato da pessoa atendida: ${onlyDigits(patient.patientPhone)} | ${clean(patient.patientEmail)}`);
     lines.push(`Endereço da pessoa atendida: ${fullAddress(patient, "patient")}`);
   }
   if (patient.hasResponsible) {
-    lines.push(`Nascimento do responsável: ${patient.responsibleBirthDate}`);
+    lines.push(`Nascimento do responsável: ${formatBirthDate(patient.responsibleBirthDate)}`);
   }
   return lines.join("\n");
 }
@@ -511,7 +516,7 @@ export async function POST(request: Request) {
       externalReference,
       groupName: customerGroup,
       notificationDisabled: false,
-      ...(patientAge < 18 ? { company: clean(patient.patientName) } : {}),
+      ...(patient.hasResponsible ? { company: clean(patient.patientName) } : {}),
       ...(observations ? { observations } : {}),
     };
 

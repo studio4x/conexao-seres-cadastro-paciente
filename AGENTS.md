@@ -137,9 +137,10 @@ Não conclua uma alteração funcional modificando apenas um backend quando a me
 ### 2. Pessoa atendida maior de 18 anos com responsável
 
 - O responsável legal ou financeiro passa a ser o titular do cliente no Asaas.
+- O nome da pessoa atendida deve ser enviado no campo `company`.
 - Os dados da pessoa atendida devem ser preservados em `observations`.
 - As observações incluem os dados de contato e endereço da pessoa atendida, pois esses campos existem para adultos.
-- A data de nascimento do responsável também é registrada nas observações.
+- As datas de nascimento da pessoa atendida e do responsável são registradas nas observações no formato `DD/MM/AAAA`.
 - Grupo: `Adultos`.
 
 ### 3. Pessoa atendida menor de 18 anos
@@ -148,7 +149,7 @@ Não conclua uma alteração funcional modificando apenas um backend quando a me
 - O responsável é o titular do cliente no Asaas.
 - O nome da pessoa atendida deve ser enviado no campo `company`.
 - Os dados de identificação da pessoa atendida devem ser enviados em `observations`.
-- A data de nascimento do responsável também deve ser registrada em `observations`.
+- As datas de nascimento da pessoa atendida e do responsável devem ser registradas em `observations` no formato `DD/MM/AAAA`.
 - Grupo: `Crianças`.
 - Não exigir contato ou endereço próprios do menor enquanto o formulário não solicitar esses dados.
 
@@ -473,7 +474,7 @@ Para mudanças no formulário ou integração com o Asaas, valide sempre que rel
 10. Cliente novo no Asaas.
 11. Cliente já existente pelo `externalReference`.
 12. Grupo `Adultos`/`Crianças`.
-13. Campo `company` para menor.
+13. Campo `company` com o nome da pessoa atendida sempre que houver responsável.
 14. Conteúdo de `observations`.
 15. Configuração de notificações por WhatsApp.
 

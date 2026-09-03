@@ -71,6 +71,8 @@ Adultos
 
 Quando o adulto informa um responsável legal ou financeiro, o **responsável passa a ser o titular do cliente cadastrado no Asaas**.
 
+O campo `company` recebe o nome da pessoa que será atendida.
+
 Os dados da pessoa que receberá o atendimento são preservados no campo de observações, incluindo:
 
 - nome;
@@ -79,7 +81,7 @@ Os dados da pessoa que receberá o atendimento são preservados no campo de obse
 - contato;
 - endereço.
 
-Também é registrada a data de nascimento do responsável.
+As datas de nascimento da pessoa atendida e do responsável são registradas nas observações no formato `DD/MM/AAAA`.
 
 O cliente continua pertencendo ao grupo:
 
@@ -96,7 +98,7 @@ No Asaas:
 - o **cliente** é criado com os dados do responsável;
 - o campo `company` recebe o nome da pessoa que será atendida;
 - o campo `observations` recebe os dados de identificação da pessoa atendida;
-- a data de nascimento do responsável também é registrada nas observações;
+- as datas de nascimento da pessoa atendida e do responsável são registradas nas observações no formato `DD/MM/AAAA`;
 - o cliente recebe o grupo `Crianças`.
 
 Como o formulário não solicita contato e endereço próprios do menor, esses dados não são adicionados às observações nesse cenário.

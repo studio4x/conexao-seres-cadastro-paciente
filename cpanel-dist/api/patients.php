@@ -156,6 +156,15 @@ function full_address(array $values, string $prefix): string
         . ' — CEP ' . $postalCode;
 }
 
+function format_birth_date(string $value): string
+{
+    if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $parts) !== 1) {
+        return $value;
+    }
+
+    return $parts[3] . '/' . $parts[2] . '/' . $parts[1];
+}
+
 function build_observations(array $values, int $patientAge): ?string
 {
     if ($patientAge >= 18 && !$values['hasResponsible']) {
@@ -165,7 +174,7 @@ function build_observations(array $values, int $patientAge): ?string
     $lines = [
         'Pessoa atendida: ' . clean_text($values['patientName']),
         'CPF da pessoa atendida: ' . digits($values['patientCpf']),
-        'Nascimento da pessoa atendida: ' . $values['patientBirthDate'],
+        'Nascimento da pessoa atendida: ' . format_birth_date($values['patientBirthDate']),
     ];
 
     if ($patientAge >= 18) {
@@ -175,7 +184,7 @@ function build_observations(array $values, int $patientAge): ?string
     }
 
     if ($values['hasResponsible']) {
-        $lines[] = 'Nascimento do responsável: ' . $values['responsibleBirthDate'];
+        $lines[] = 'Nascimento do responsável: ' . format_birth_date($values['responsibleBirthDate']);
     }
 
     return implode("\n", $lines);
@@ -520,7 +529,7 @@ $complement = clean_text($values[$holder . 'Complement']);
 if ($complement !== '') {
     $customer['complement'] = $complement;
 }
-if ($patientAge < 18) {
+if ($values['hasResponsible']) {
     $customer['company'] = clean_text($values['patientName']);
 }
 $observations = build_observations($values, $patientAge);
