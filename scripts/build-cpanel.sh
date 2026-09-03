@@ -12,6 +12,7 @@ cp cpanel-server/api/.htaccess cpanel-dist/api/.htaccess
 cp cpanel-server/api/cep.php cpanel-dist/api/cep.php
 cp cpanel-server/api/patients.php cpanel-dist/api/patients.php
 cp cpanel-server/api/turnstile.php cpanel-dist/api/turnstile.php
+cp cpanel-server/api/deploy-webhook.php cpanel-dist/api/deploy-webhook.php
 cp cpanel-server/api/config.example.php cpanel-dist/api/config.example.php
 
 echo "Pacote para o cPanel criado em cpanel-dist/"
