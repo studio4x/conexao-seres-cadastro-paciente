@@ -78,6 +78,7 @@ app/api/turnstile/route.ts
 cpanel-server/api/patients.php
 cpanel-server/api/cep.php
 cpanel-server/api/turnstile.php
+cpanel-server/api/deploy-webhook.php
 cpanel-server/api/config.example.php
 cpanel-server/.htaccess
 cpanel-server/api/.htaccess
@@ -352,27 +353,21 @@ O incremento automático é executado por:
 scripts/bump-build.mjs
 ```
 
-Regras obrigatórias:
-
 ### Proibição de encerrar sem build
 
 - **É proibido encerrar uma tarefa que tenha alterado código sem executar uma build bem-sucedida.**
-- Alterações apenas documentais (`README.md`, `AGENTS.md`, `CPANEL.md` e outros arquivos sem efeito no código executável) não exigem nova build, salvo se a própria tarefa pedir validação por build.
-- Se a build falhar, a tarefa **não deve ser apresentada como concluída**. O agente deve corrigir a falha quando ela estiver dentro do escopo ou informar claramente que a entrega ficou bloqueada pela build.
-- Não é permitido substituir a build por apenas `lint`, testes parciais, análise estática ou inspeção manual. Essas verificações podem complementar a build, mas não a substituem.
-- A build deve ser executada **depois da última alteração de código**. Uma build feita antes de modificações posteriores não satisfaz esta regra.
-- O agente deve confirmar o valor final de `BUILD_VERSION` em `components/layout/AppVersion.tsx` após a build.
-- A resposta final deve declarar explicitamente a build resultante no formato `Build vX.Y.Z`.
-
-- toda build local incrementa automaticamente o último número da versão (`patch`);
-- exemplo: `1.0.7` passa para `1.0.8`;
-- `npm run build:dev`, `npm run build` e `npm run build:cpanel` executam o bump antes da compilação;
-- em ambiente de CI, quando `CI=true` ou `CI=1`, o bump é ignorado por padrão para evitar incremento duplo ou alterações efêmeras que não existem no Git;
-- para forçar o incremento em CI, use `CONEXAO_SERES_BUMP_IN_CI=1`;
-- não crie outra fonte paralela de versão;
-- não hardcode a versão diretamente em `app/page.tsx`;
-- alterações no componente ou script de versionamento devem preservar a compatibilidade tanto com a build Sites/Vinext quanto com a build Vite do cPanel;
-- ao concluir qualquer tarefa com mudança de código, execute uma build apropriada e informe na resposta final o `Build vX.Y.Z` resultante.
+- Alterações apenas documentais não exigem nova build, salvo solicitação específica.
+- Se a build falhar, a tarefa não deve ser apresentada como concluída.
+- `lint`, testes parciais, análise estática ou inspeção manual não substituem a build.
+- A build deve ser executada depois da última alteração de código.
+- O agente deve confirmar `BUILD_VERSION` após a build.
+- A resposta final deve declarar `Build vX.Y.Z`.
+- Toda build local incrementa automaticamente o patch.
+- `npm run build:dev`, `npm run build` e `npm run build:cpanel` executam o bump antes da compilação.
+- Em `CI=true` ou `CI=1`, o bump é ignorado por padrão.
+- Para forçar incremento em CI, use `CONEXAO_SERES_BUMP_IN_CI=1`.
+- Não crie outra fonte paralela de versão.
+- Não hardcode a versão diretamente em `app/page.tsx`.
 
 Comandos de build versionados:
 
@@ -382,26 +377,84 @@ npm run build
 npm run build:cpanel
 ```
 
-`npm test` chama `npm run build`; portanto, em ambiente local ele também provoca um incremento de build. Isso é esperado porque houve uma compilação local.
+`npm test` chama `npm run build`; em ambiente local ele também provoca incremento de build.
 
 ## Build e artefatos do cPanel
-
-O script:
 
 ```bash
 npm run build:cpanel
 ```
 
-usa `vite.cpanel.config.ts`, gera o frontend estático e copia os arquivos de `cpanel-server/` para `cpanel-dist/`.
+usa `vite.cpanel.config.ts`, gera o frontend estático e copia os arquivos de `cpanel-server/` para `cpanel-dist/`, incluindo `deploy-webhook.php`.
 
 Consequências:
 
-- alterações diretas em `cpanel-dist/` podem ser sobrescritas;
-- alterações de PHP devem ser feitas primeiro em `cpanel-server/`;
-- alterações de frontend devem ser feitas na fonte compartilhada;
-- antes de entregar arquivos para publicação no cPanel, regenere `cpanel-dist/`.
+- não edite `cpanel-dist/` como fonte principal;
+- alterações de PHP devem começar em `cpanel-server/`;
+- alterações de frontend devem começar na fonte compartilhada;
+- antes de entregar uma versão para o cPanel, regenere `cpanel-dist/`.
 
-Como `cpanel-dist/` é mantido no repositório para permitir publicação direta, uma tarefa que altere a versão destinada ao cPanel deve incluir a build regenerada quando aplicável.
+## Deploy automático do cPanel
+
+O mecanismo primário de publicação do cPanel é um **webhook HTTPS do GitHub**, e não SSH externo.
+
+Endpoint público:
+
+```text
+https://cadastro.conexaoseres.com.br/api/deploy-webhook.php
+```
+
+Fonte versionada:
+
+```text
+cpanel-server/api/deploy-webhook.php
+```
+
+Artefato publicado:
+
+```text
+cpanel-dist/api/deploy-webhook.php
+```
+
+Após cada `push` na branch `main`, o GitHub envia um `POST` assinado. O endpoint deve:
+
+- validar `X-Hub-Signature-256` com HMAC SHA-256;
+- aceitar `ping` somente para teste;
+- aceitar deploy somente em evento `push`;
+- exigir `studio4x/conexao-seres-cadastro-paciente`;
+- exigir `refs/heads/main`;
+- usar lock para evitar deploys simultâneos;
+- executar somente:
+
+```bash
+/usr/bin/git -C /home/conexaoseres/cadastro.conexaoseres.com.br pull --ff-only origin main
+```
+
+Não substitua `pull --ff-only` por `reset --hard` sem autorização explícita.
+
+O segredo do webhook existe apenas no servidor em:
+
+```text
+/home/conexaoseres/.github-deploy-secret
+```
+
+Nunca leia, imprima, copie para resposta, commit ou log o conteúdo desse arquivo.
+
+Logs do deploy:
+
+```text
+/home/conexaoseres/github-deploy.log
+```
+
+Lock:
+
+```text
+/home/conexaoseres/.github-deploy.lock
+```
+
+O cron que executa `git pull` pode existir como fallback em frequência menor, mas o webhook é o mecanismo primário de atualização imediata.
+
+Ao concluir um push destinado à produção, quando houver acesso à evidência do deploy, confirme que o cPanel avançou para o commit de `origin/main`. Não afirme que produção foi atualizada se apenas o push ao GitHub foi confirmado.
 
 ## Execução local
 
@@ -425,16 +478,12 @@ npm run dev
 
 ## Validação antes de concluir
 
-Escolha as verificações compatíveis com a alteração feita, mas não entregue código sem validar o caminho afetado.
-
 ### Builds principais
 
 ```bash
 npm run build:dev
 npm run build
 ```
-
-Ambos executam o bump automático antes da compilação. Use o comando compatível com o fluxo da tarefa e confirme a versão resultante em `components/layout/AppVersion.tsx`.
 
 ### Lint
 
@@ -450,17 +499,15 @@ npm test
 
 ### Build cPanel
 
-Quando a alteração afetar a versão publicada no cPanel:
-
 ```bash
 npm run build:cpanel
 ```
 
-Depois da build, confirme que os arquivos esperados existem em `cpanel-dist/`.
+Depois da build, confirme que os arquivos esperados existem em `cpanel-dist/`, inclusive `api/deploy-webhook.php`.
 
 ## Checklist funcional recomendado
 
-Para mudanças no formulário ou integração com o Asaas, valide sempre que relevante:
+Para mudanças no formulário ou integração com o Asaas, valide quando relevante:
 
 1. Adulto sem responsável.
 2. Adulto com responsável.
@@ -478,42 +525,21 @@ Para mudanças no formulário ou integração com o Asaas, valide sempre que rel
 14. Conteúdo de `observations`.
 15. Configuração de notificações por WhatsApp.
 
-Quando houver acesso somente ao código e não ao ambiente externo, deixe explícito quais verificações de integração não puderam ser executadas.
-
 ## Tratamento de erros
 
-- Não retorne ao navegador respostas brutas da API do Asaas contendo detalhes internos desnecessários.
-- Registre detalhes técnicos no servidor quando forem úteis para diagnóstico.
-- Preserve mensagens amigáveis para o usuário.
-- Diferencie erros de validação, configuração, autenticação externa, timeout e indisponibilidade quando isso puder ser feito sem expor segredos.
-- Considere que um cliente pode ter sido criado no Asaas antes de uma etapa secundária falhar; não introduza retries que possam criar duplicidades.
-
-## Mudanças no payload do Asaas
-
-Antes de modificar o payload, revise o efeito sobre:
-
-- titular do cliente;
-- CPF/CNPJ;
-- e-mail;
-- telefone;
-- endereço;
-- `company`;
-- `observations`;
-- `externalReference`;
-- `groupName`;
-- `notificationDisabled`.
-
-Não presuma que uma propriedade aceita em criação tenha exatamente o mesmo comportamento em atualização. Quando uma alteração depender do comportamento atual da API do Asaas, consulte a documentação oficial antes de implementá-la.
+- Não retorne respostas brutas do Asaas ao navegador com detalhes internos desnecessários.
+- Registre detalhes técnicos no servidor quando úteis.
+- Preserve mensagens amigáveis ao usuário.
+- Considere que um cliente pode ter sido criado antes de uma etapa secundária falhar; não introduza retries que possam duplicar clientes.
 
 ## Dependências e arquitetura
 
-- Evite adicionar dependências para tarefas simples que podem ser resolvidas com a stack existente.
+- Evite dependências desnecessárias.
 - Preserve React/TypeScript no frontend compartilhado.
-- Preserve a compatibilidade do frontend com a build Vite usada pelo cPanel.
-- Não introduza APIs exclusivas do runtime Next.js em componentes que também são importados pela build cPanel.
-- Código específico de servidor deve permanecer separado dos componentes reutilizados pelo Vite.
+- Preserve compatibilidade com Vite/cPanel.
+- Não introduza APIs exclusivas do Next.js em componentes reutilizados pelo Vite.
 
-## Arquivos gerados e arquivos privados
+## Arquivos gerados e privados
 
 ### Não editar como fonte principal
 
@@ -532,24 +558,12 @@ node_modules/
 dist/
 .wrangler/
 .sites-runtime/
+error_log
 ```
-
-Consulte `.gitignore` antes de adicionar novos arquivos temporários ou sensíveis.
 
 ## Documentação
 
-Quando uma mudança alterar:
-
-- processo de instalação;
-- variáveis de ambiente;
-- estrutura de diretórios;
-- regras de negócio;
-- integração com Asaas;
-- Turnstile;
-- processo de build;
-- processo de deploy;
-
-atualize também `README.md` e/ou `CPANEL.md` quando necessário.
+Quando uma mudança alterar instalação, ambiente, arquitetura, regra de negócio, Asaas, Turnstile, build ou deploy, atualize também `README.md` e/ou `CPANEL.md`.
 
 ## Fechamento da tarefa
 
@@ -558,15 +572,15 @@ Antes de encerrar:
 1. Revise o diff.
 2. Confirme que nenhum segredo foi adicionado.
 3. **Se houve qualquer alteração de código, execute uma build bem-sucedida depois da última modificação. É proibido encerrar a tarefa sem isso.**
-4. Confirme o `Build vX.Y.Z` resultante em `components/layout/AppVersion.tsx`.
-5. Execute as demais validações relevantes, como lint e testes.
+4. Confirme o `Build vX.Y.Z`.
+5. Execute validações adicionais relevantes.
 6. Regenere `cpanel-dist/` quando aplicável.
-7. Execute `git status`.
+7. Execute `git status` quando houver acesso local ao repositório.
 8. Garanta que somente arquivos intencionais façam parte da entrega.
 9. Faça commit com mensagem descritiva.
-10. Faça push para o destino definido para a tarefa.
-11. Informe de forma objetiva o que foi alterado, quais verificações foram executadas e o número da build gerada.
-
+10. Faça push para o destino definido.
+11. Quando aplicável, confirme o deploy via webhook.
+12. Informe o que mudou, validações, build e estado de commit/push/deploy.
 
 ## Resposta final do agente
 
@@ -575,4 +589,5 @@ Quando houver alteração de código, a resposta final deve informar no mínimo:
 - resumo do que foi alterado;
 - validações/builds executadas;
 - número atual da build, no formato `Build vX.Y.Z`;
-- estado do commit/push quando a tarefa incluir escrita no repositório.
+- estado do commit/push;
+- estado do deploy quando a tarefa envolver publicação no cPanel.
