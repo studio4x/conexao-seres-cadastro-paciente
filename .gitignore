@@ -26,6 +26,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+error_log
 
 # env files (can opt-in for committing if needed)
 .env*
@@ -45,3 +46,7 @@ next-env.d.ts
 /cpanel-package.zip
 /cpanel-server/api/config.php
 /cpanel-dist/api/config.php
+
+# Temporary migration guard: the production webhook was created manually first.
+# Remove this line after cpanel-dist/api/deploy-webhook.php becomes tracked.
+/cpanel-dist/api/deploy-webhook.php
