@@ -13,6 +13,30 @@ function respond(array $payload, int $status = 200): never
     exit;
 }
 
+set_exception_handler(static function (Throwable $exception): void {
+    error_log('Unhandled patient registration error: ' . $exception->getMessage());
+    if (headers_sent()) {
+        exit;
+    }
+    respond(
+        ['message' => 'Não conseguimos concluir o cadastro agora. Tente novamente em instantes.'],
+        500
+    );
+});
+
+function finish_response_and_continue(array $payload, int $status): bool
+{
+    if (!function_exists('fastcgi_finish_request')) {
+        return false;
+    }
+
+    ignore_user_abort(true);
+    http_response_code($status);
+    echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    fastcgi_finish_request();
+    return true;
+}
+
 function digits(string $value): string
 {
     return preg_replace('/\D+/', '', $value) ?? '';
@@ -248,6 +272,16 @@ function configure_whatsapp_only(string $baseUrl, string $customerId, string $ap
     return true;
 }
 
+function configure_whatsapp_only_safely(string $baseUrl, string $customerId, string $apiKey): bool
+{
+    try {
+        return configure_whatsapp_only($baseUrl, $customerId, $apiKey);
+    } catch (Throwable $exception) {
+        error_log('Asaas notification configuration failed: ' . $exception->getMessage());
+        return false;
+    }
+}
+
 function turnstile_is_valid(string $secret, string $token, string $expectedHostname): bool
 {
     $remoteIp = trim((string) ($_SERVER['HTTP_CF_CONNECTING_IP'] ?? $_SERVER['REMOTE_ADDR'] ?? ''));
@@ -429,6 +463,7 @@ if (!empty($lookup['data']['data'])) {
     if ($existingCustomerId === '') {
         respond(['message' => 'Não conseguimos confirmar o cadastro no Asaas. Tente novamente em instantes.'], 502);
     }
+    $responseFinished = finish_response_and_continue(['success' => true, 'existing' => true], 200);
     $groupUpdated = asaas_request(
         'PUT',
         $baseUrl . '/customers/' . rawurlencode($existingCustomerId),
@@ -437,10 +472,12 @@ if (!empty($lookup['data']['data'])) {
     );
     if ($groupUpdated['error'] !== '' || $groupUpdated['status'] < 200 || $groupUpdated['status'] >= 300) {
         error_log('Asaas customer group update failed. HTTP ' . $groupUpdated['status']);
-        respond(['message' => 'O cadastro foi localizado, mas não conseguimos atualizar o grupo no Asaas. Tente novamente em instantes.'], 502);
     }
-    if (!configure_whatsapp_only($baseUrl, $existingCustomerId, $apiKey)) {
-        respond(['message' => 'O cadastro foi localizado, mas não conseguimos finalizar as notificações. Tente novamente em instantes.'], 502);
+    if (!configure_whatsapp_only_safely($baseUrl, $existingCustomerId, $apiKey)) {
+        error_log('Existing Asaas customer found, but notification configuration was not completed. Customer ' . $existingCustomerId);
+    }
+    if ($responseFinished) {
+        exit;
     }
     respond(['success' => true, 'existing' => true]);
 }
@@ -482,8 +519,15 @@ if ($created['error'] !== '' || $created['status'] < 200 || $created['status'] >
 }
 
 $createdCustomerId = trim((string) ($created['data']['id'] ?? ''));
-if ($createdCustomerId === '' || !configure_whatsapp_only($baseUrl, $createdCustomerId, $apiKey)) {
-    respond(['message' => 'O cadastro foi recebido, mas não conseguimos finalizar as notificações. Tente novamente em instantes.'], 502);
+if ($createdCustomerId === '') {
+    respond(['message' => 'Não conseguimos confirmar o cadastro no Asaas. Tente novamente em instantes.'], 502);
+}
+$responseFinished = finish_response_and_continue(['success' => true, 'existing' => false], 201);
+if (!configure_whatsapp_only_safely($baseUrl, $createdCustomerId, $apiKey)) {
+    error_log('Asaas customer was created, but notification configuration was not completed. Customer ' . $createdCustomerId);
+}
+if ($responseFinished) {
+    exit;
 }
 
 respond(['success' => true, 'existing' => false], 201);

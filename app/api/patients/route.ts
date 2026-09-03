@@ -462,17 +462,15 @@ export async function POST(request: Request) {
       const existingCustomerId = existing.data[0].id;
       const groupConfigured = await updateCustomerGroup(baseUrl, existingCustomerId, customerGroup, headers);
       if (!groupConfigured) {
-        return NextResponse.json(
-          { message: "O cadastro foi localizado, mas não conseguimos atualizar o grupo no Asaas. Tente novamente em instantes." },
-          { status: 502 },
-        );
+        console.error("Existing Asaas customer found, but group configuration was not completed", {
+          existingCustomerId,
+        });
       }
       const notificationsConfigured = await configureWhatsappOnly(baseUrl, existingCustomerId, headers);
       if (!notificationsConfigured) {
-        return NextResponse.json(
-          { message: "O cadastro foi localizado, mas não conseguimos finalizar as notificações. Tente novamente em instantes." },
-          { status: 502 },
-        );
+        console.error("Existing Asaas customer found, but notification configuration was not completed", {
+          existingCustomerId,
+        });
       }
       return NextResponse.json({ success: true, existing: true });
     }
@@ -521,11 +519,17 @@ export async function POST(request: Request) {
     }
 
     const created = (await createResponse.json()) as AsaasCustomer;
-    if (!created.id || !(await configureWhatsappOnly(baseUrl, created.id, headers))) {
+    if (!created.id) {
       return NextResponse.json(
-        { message: "O cadastro foi recebido, mas não conseguimos finalizar as notificações. Tente novamente em instantes." },
+        { message: "Não conseguimos confirmar o cadastro no Asaas. Tente novamente em instantes." },
         { status: 502 },
       );
+    }
+    const notificationsConfigured = await configureWhatsappOnly(baseUrl, created.id, headers);
+    if (!notificationsConfigured) {
+      console.error("Asaas customer was created, but notification configuration was not completed", {
+        customerId: created.id,
+      });
     }
     return NextResponse.json({ success: true, existing: false }, { status: 201 });
   } catch (error) {

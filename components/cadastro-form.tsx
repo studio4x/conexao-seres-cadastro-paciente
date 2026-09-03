@@ -107,7 +107,7 @@ const formSchema = z
     responsibleProvince: z.string(),
     responsibleCity: z.string(),
     responsibleState: z.string(),
-    consent: z.literal(true, { error: "Confirme a autorização para continuar." }),
+    consent: z.boolean().refine((value) => value, "Confirme a autorização para continuar."),
     website: z.string().max(0),
   })
   .superRefine((value, context) => {
@@ -733,7 +733,17 @@ export function CadastroForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...parsed.data, turnstileToken }),
       });
-      const result = (await response.json()) as { message?: string };
+      const responseBody = await response.text();
+      let result: { message?: string } = {};
+      if (responseBody) {
+        try {
+          result = JSON.parse(responseBody) as { message?: string };
+        } catch {
+          throw new Error(
+            "Não conseguimos confirmar a resposta do servidor. O cadastro pode já ter sido recebido; aguarde alguns instantes antes de tentar novamente.",
+          );
+        }
+      }
       if (!response.ok) throw new Error(result.message || "Não foi possível concluir o cadastro.");
       setStatus("success");
     } catch (error) {
