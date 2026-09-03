@@ -70,6 +70,7 @@ Não mantenha uma segunda cópia manual do formulário para cPanel.
 app/api/patients/route.ts
 app/api/cep/route.ts
 app/api/turnstile/route.ts
+app/api/asaas/webhook/route.ts
 ```
 
 ### Backend — cPanel / PHP
@@ -78,6 +79,7 @@ app/api/turnstile/route.ts
 cpanel-server/api/patients.php
 cpanel-server/api/cep.php
 cpanel-server/api/turnstile.php
+cpanel-server/api/asaas-webhook.php
 cpanel-server/api/deploy-webhook.php
 cpanel-server/api/config.example.php
 cpanel-server/.htaccess
@@ -126,11 +128,15 @@ Sempre que uma tarefa alterar qualquer uma destas áreas, revise as duas versõe
 
 Não conclua uma alteração funcional modificando apenas um backend quando a mesma regra também for usada pelo outro ambiente.
 
-Após a criação de um novo cliente e da cobrança da primeira sessão no Asaas, os dois backends também devem preservar a notificação best-effort do evento `asaas_customer_created` para o webhook configurável do n8n. O evento só pode ser enviado depois de `customerId` e pagamento válidos e nunca no caminho de cliente existente; falhas, timeout ou configuração ausente do n8n não podem invalidar o cadastro no Asaas. Não espere o pagamento confirmado para chamar o n8n.
+Após a criação de um novo cliente e da cobrança da primeira sessão no Asaas, os dois backends também devem preservar a notificação best-effort do evento `asaas_customer_created` para o webhook configurável do n8n. O evento só pode ser enviado depois de `customerId` e pagamento válidos e nunca no caminho de cliente existente; falhas, timeout ou configuração ausente do n8n não podem invalidar o cadastro no Asaas. Não espere o pagamento confirmado nem a NFS-e para chamar o n8n.
 
-Após a criação de um cliente novo, os dois backends devem manter a cobrança avulsa idempotente da primeira sessão de Terapia Ocupacional: valor de R$ 230,00, `billingType = UNDEFINED`, vencimento no próximo dia útil em `America/Sao_Paulo`, referência `<externalReference>-sessao-1` e descrição baseada explicitamente em `patientSex` (`female` ou `male`), nome e CPF da pessoa atendida. O evento do n8n pode ser enviado após cliente e cobrança válidos, sem esperar pagamento ou NF.
+Após a criação de um cliente novo, os dois backends devem manter a cobrança avulsa idempotente da primeira sessão de Terapia Ocupacional: valor de R$ 230,00, `billingType = UNDEFINED`, vencimento no próximo dia útil em `America/Sao_Paulo`, referência `<externalReference>-sessao-1` e descrição baseada explicitamente em `patientSex` (`female` ou `male`), nome e CPF da pessoa atendida. O evento do n8n pode ser enviado após cliente e cobrança válidos, sem esperar pagamento ou NFS-e.
 
-Para a primeira sessão, não criar webhook fiscal próprio nem executar `POST /v3/invoices` depois do pagamento. A documentação pública do Asaas oferece `ON_PAYMENT_CONFIRMATION` em `POST /v3/subscriptions/{id}/invoiceSettings`, exclusivo para assinaturas; não há contrato público equivalente documentado para configurar uma cobrança avulsa criada em `/v3/payments`. Não inventar endpoint ou payload de configuração de NFS-e para payment. O n8n deve ser chamado depois de cliente e cobrança válidos, sem esperar o pagamento; a configuração fiscal automática, se disponível na conta, é uma pré-condição operacional externa ao código.
+Para a primeira sessão, a configuração fiscal da conta permanece no Asaas, mas a emissão da cobrança avulsa deve ser solicitada explicitamente pelo webhook fiscal próprio após o pagamento. As implementações são `app/api/asaas/webhook/route.ts` e `cpanel-server/api/asaas-webhook.php`, publicadas em `POST /api/asaas/webhook` e autenticadas pelo cabeçalho `asaas-access-token` com `ASAAS_WEBHOOK_TOKEN`. Aceitam `PAYMENT_CONFIRMED` com status `CONFIRMED` e `PAYMENT_RECEIVED` com status `RECEIVED`, incluindo PIX recebido diretamente, e ignoram demais eventos com 2xx.
+
+O webhook fiscal deve validar `payment.id`, `payment.customer`, valor `230` e a referência exata `cs-paciente-<24 hex>-sessao-1`. Antes do POST, deve consultar `GET /v3/invoices?payment=<paymentId>`; se não houver nota, consultar `/v3/fiscalInfo/` e `/v3/fiscalInfo/services`, selecionar sem inventar ID o serviço `04510 | 4.08 - Terapia ocupacional.` e executar `POST /v3/invoices` vinculado ao payment. O payload deve usar `externalReference` com sufixo `-nfse`, valor 230, deduções zero, data efetiva em `America/Sao_Paulo`, `updatePayment=false`, `retainIss=false` e ISS de 2%, com retenções adicionais somente quando comprovadas pela configuração fiscal. O PHP deve usar lock por hash do payment com `flock`; no runtime Edge, a consulta ao Asaas é a fonte compartilhada de idempotência.
+
+Timeout, falha de conexão, `408`, `425`, `429` e `5xx` são transitórios e devem permitir retry; autenticação, configuração fiscal ausente, serviço ambíguo e payload inválido são permanentes e não devem provocar retry infinito. Se o POST for inconclusivo ou não retornar ID, consultar novamente a nota pelo payment antes de qualquer novo processamento. Logs devem ser sanitizados, sem chaves, tokens ou CPF completo. Não inventar configuração `invoiceSettings` para payment; a documentação pública desse recurso é de assinaturas.
 
 ## Regras de negócio que devem ser preservadas
 
@@ -253,6 +259,7 @@ Opcionais:
 
 ```text
 ASAAS_API_URL
+ASAAS_WEBHOOK_TOKEN
 TURNSTILE_EXPECTED_HOSTNAME
 N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_URL
 N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_TOKEN
@@ -394,7 +401,7 @@ npm run build:cpanel
 npm run build:cpanel
 ```
 
-usa `vite.cpanel.config.ts`, gera o frontend estático e copia os arquivos de `cpanel-server/` para `cpanel-dist/`, incluindo `deploy-webhook.php`.
+usa `vite.cpanel.config.ts`, gera o frontend estático e copia os arquivos de `cpanel-server/` para `cpanel-dist/`, incluindo `asaas-webhook.php` e `deploy-webhook.php`.
 
 Consequências:
 
@@ -512,7 +519,7 @@ npm test
 npm run build:cpanel
 ```
 
-Depois da build, confirme que os arquivos esperados existem em `cpanel-dist/`, inclusive `api/deploy-webhook.php`.
+Depois da build, confirme que os arquivos esperados existem em `cpanel-dist/`, inclusive `api/asaas-webhook.php` e `api/deploy-webhook.php`.
 
 ## Checklist funcional recomendado
 

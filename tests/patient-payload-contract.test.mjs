@@ -9,6 +9,22 @@ const phpBackend = await readFile(
   new URL("../cpanel-server/api/patients.php", import.meta.url),
   "utf8",
 );
+const typescriptFiscalWebhook = await readFile(
+  new URL("../app/api/asaas/webhook/route.ts", import.meta.url),
+  "utf8",
+);
+const phpFiscalWebhook = await readFile(
+  new URL("../cpanel-server/api/asaas-webhook.php", import.meta.url),
+  "utf8",
+);
+const cpanelBuildScript = await readFile(
+  new URL("../scripts/build-cpanel.sh", import.meta.url),
+  "utf8",
+);
+const cpanelHtaccess = await readFile(
+  new URL("../cpanel-server/.htaccess", import.meta.url),
+  "utf8",
+);
 const frontend = await readFile(
   new URL("../components/cadastro-form.tsx", import.meta.url),
   "utf8",
@@ -210,7 +226,7 @@ test("defines the first-session payment contract and patient-specific descriptio
   assert.match(phpBackend, /'customer' => \$customerId,[\s\S]*?'externalReference' => \$paymentExternalReference/);
 });
 
-test("uses the next business day rule without fiscal issuance logic", () => {
+test("uses the next business day rule for the first-session payment", () => {
   assert.match(
     typescriptBackend,
     /parts\.weekday === "Fri" \? 3 : parts\.weekday === "Sat" \? 2 : parts\.weekday === "Sun" \? 1 : 1/,
@@ -225,11 +241,81 @@ test("calls n8n after the new customer payment without waiting for the invoice",
   const phpN8nIndex = phpBackend.lastIndexOf("notify_n8n_customer_created_safely");
   assert.ok(tsPaymentIndex > -1 && tsN8nIndex > tsPaymentIndex);
   assert.ok(phpPaymentIndex > -1 && phpN8nIndex > phpPaymentIndex);
-  assert.doesNotMatch(typescriptBackend, /prepareFirstSessionInvoice/);
-  assert.doesNotMatch(phpBackend, /prepare_first_session_invoice/);
+  assert.match(typescriptBackend, /paymentCreated/);
+  assert.match(phpBackend, /paymentCreated/);
+  assert.doesNotMatch(typescriptFiscalWebhook, /n8n|notifyN8n|notify_n8n/i);
+  assert.doesNotMatch(phpFiscalWebhook, /n8n|notify_n8n/i);
 });
 
-test("does not place fiscal issuance logic in either patient backend", () => {
-  assert.doesNotMatch(typescriptBackend, /\/v3\/invoices|asaas[/-]webhook|PAYMENT_CONFIRMED/);
-  assert.doesNotMatch(phpBackend, /\/v3\/invoices|asaas[/-]webhook|PAYMENT_CONFIRMED/);
+test("accepts only authenticated confirmed or received first-session payment events", () => {
+  for (const webhook of [typescriptFiscalWebhook, phpFiscalWebhook]) {
+    assert.match(webhook, /PAYMENT_CONFIRMED/);
+    assert.match(webhook, /PAYMENT_RECEIVED/);
+    assert.match(webhook, /asaas-access-token|HTTP_ASAAS_ACCESS_TOKEN/);
+    assert.match(webhook, /ASAAS_WEBHOOK_TOKEN/);
+    assert.match(webhook, /processed[\s\S]{0,20}false/);
+    assert.match(webhook, /expectedStatus/);
+  }
+  assert.match(typescriptFiscalWebhook, /secureTokenMatches/);
+  assert.match(phpFiscalWebhook, /hash_equals/);
+});
+
+test("validates the exact first-session payment identity and value", () => {
+  for (const webhook of [typescriptFiscalWebhook, phpFiscalWebhook]) {
+    assert.match(webhook, /(?:isFirstSessionPayment|is_first_session_payment)/);
+    assert.match(webhook, /cs-paciente-\[a-f0-9\]\{24\}-sessao-1/);
+    assert.match(webhook, /payment\[['"]?id|payment\.id/);
+    assert.match(webhook, /payment\[['"]?customer|payment\.customer/);
+    assert.match(webhook, /230(?:\.00)?/);
+  }
+});
+
+test("reconciles invoices by payment and serializes PHP races", () => {
+  for (const webhook of [typescriptFiscalWebhook, phpFiscalWebhook]) {
+    assert.match(webhook, /invoices\?payment|http_build_query\(\['payment'/);
+    assert.match(webhook, /findInvoiceForPayment|find_invoice_for_payment/);
+    assert.match(webhook, /invoice already exists/);
+    assert.match(webhook, /\/invoices/);
+    assert.match(webhook, /reconciled after inconclusive creation response/);
+  }
+  assert.match(phpFiscalWebhook, /process_with_payment_lock/);
+  assert.match(phpFiscalWebhook, /flock/);
+  assert.match(phpFiscalWebhook, /hash\('sha256'/);
+});
+
+test("resolves the configured municipal service and builds the fiscal payload", () => {
+  for (const webhook of [typescriptFiscalWebhook, phpFiscalWebhook]) {
+    assert.match(webhook, /fiscalInfo\//);
+    assert.match(webhook, /fiscalInfo\/services/);
+    assert.match(webhook, /04510/);
+    assert.match(webhook, /Terapia ocupacional/);
+    assert.match(webhook, /municipalServiceId/);
+    assert.match(webhook, /municipalServiceCode/);
+    assert.match(webhook, /serviceDescription/);
+    assert.match(webhook, /municipalServiceName/);
+    assert.match(webhook, /retainIss/);
+    assert.match(webhook, /iss[\s\S]{0,8}2/);
+    assert.match(webhook, /updatePayment[\s\S]{0,12}false/);
+    assert.match(webhook, /effectiveDate/);
+  }
+  assert.match(typescriptFiscalWebhook, /services\.length === 0/);
+  assert.match(phpFiscalWebhook, /count\(\$serviceList\) === 0/);
+});
+
+test("distinguishes retryable failures from permanent failures and reconciles uncertain posts", () => {
+  for (const webhook of [typescriptFiscalWebhook, phpFiscalWebhook]) {
+    assert.match(webhook, /isTransientAsaasFailure|is_transient_asaas_failure/);
+    assert.match(webhook, /408/);
+    assert.match(webhook, /429/);
+    assert.match(webhook, /status >= 500/);
+    assert.match(webhook, /HTTP 401|status: 401|401/);
+    assert.match(webhook, /HTTP 413|status: 413|413/);
+    assert.match(webhook, /temporariamente indisponível/);
+  }
+});
+
+test("publishes the fiscal webhook through the cPanel public route and generated build", () => {
+  assert.match(cpanelHtaccess, /api\/asaas\/webhook\/\?\$.*asaas-webhook\.php/);
+  assert.match(cpanelBuildScript, /cpanel-server\/api\/asaas-webhook\.php/);
+  assert.match(cpanelBuildScript, /cpanel-dist\/api\/asaas-webhook\.php/);
 });
