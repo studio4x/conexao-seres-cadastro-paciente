@@ -1,6 +1,7 @@
 import { CheckCircle2, LockKeyhole, ShieldCheck } from "lucide-react";
 
 import { CadastroForm } from "@/components/cadastro-form";
+import { AppVersion } from "@/components/layout/AppVersion";
 
 const LOGO_URL =
   "https://conexaoseres.com.br/wp-content/uploads/2024/04/LOGOTIPO-CONEXAO-SERES-HORIZONTAL-TRANSPARENTE.png";
@@ -80,7 +81,7 @@ export default function Home() {
           </div>
 
           <p className="mx-auto mt-6 max-w-4xl text-center text-xs leading-5 text-muted-foreground">
-            Conexão Seres · Terapia Ocupacional
+            Conexão Seres · Terapia Ocupacional · <AppVersion />
           </p>
         </section>
       </div>

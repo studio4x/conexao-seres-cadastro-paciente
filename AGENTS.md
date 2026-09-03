@@ -18,6 +18,11 @@ Existem dois ambientes de execução que devem permanecer funcionalmente equival
 
 ## Regras obrigatórias
 
+- Qualquer alteração em código exige concluir a tarefa com uma nova build local válida.
+- O rodapé deve exibir `Build vX.Y.Z` e a versão deve ser atualizada automaticamente a cada build local.
+- A fonte de verdade da versão é [`components/layout/AppVersion.tsx`](components/layout/AppVersion.tsx).
+- Não altere manualmente a versão para substituir o fluxo automático, salvo manutenção explícita do mecanismo de versionamento.
+- A resposta final de qualquer tarefa que altere código deve informar explicitamente o número atual do build gerado.
 - Preserve as mudanças existentes do usuário.
 - Não recrie o projeto do zero quando a tarefa puder ser resolvida alterando a implementação atual.
 - Não faça refatorações amplas, renomeações ou mudanças estruturais fora do escopo sem necessidade explícita.
@@ -322,6 +327,64 @@ O mapeamento para PHP é responsabilidade dos arquivos `.htaccess`.
 
 Não altere o frontend para chamar diretamente `patients.php`, `cep.php` ou `turnstile.php` sem uma necessidade arquitetural explícita.
 
+## Regra obrigatória de versão de build
+
+O projeto possui versão de build visível no rodapé no formato:
+
+```text
+Build vX.Y.Z
+```
+
+A fonte de verdade é:
+
+```text
+components/layout/AppVersion.tsx
+```
+
+A constante versionada é:
+
+```ts
+export const BUILD_VERSION = "X.Y.Z";
+```
+
+O incremento automático é executado por:
+
+```text
+scripts/bump-build.mjs
+```
+
+Regras obrigatórias:
+
+### Proibição de encerrar sem build
+
+- **É proibido encerrar uma tarefa que tenha alterado código sem executar uma build bem-sucedida.**
+- Alterações apenas documentais (`README.md`, `AGENTS.md`, `CPANEL.md` e outros arquivos sem efeito no código executável) não exigem nova build, salvo se a própria tarefa pedir validação por build.
+- Se a build falhar, a tarefa **não deve ser apresentada como concluída**. O agente deve corrigir a falha quando ela estiver dentro do escopo ou informar claramente que a entrega ficou bloqueada pela build.
+- Não é permitido substituir a build por apenas `lint`, testes parciais, análise estática ou inspeção manual. Essas verificações podem complementar a build, mas não a substituem.
+- A build deve ser executada **depois da última alteração de código**. Uma build feita antes de modificações posteriores não satisfaz esta regra.
+- O agente deve confirmar o valor final de `BUILD_VERSION` em `components/layout/AppVersion.tsx` após a build.
+- A resposta final deve declarar explicitamente a build resultante no formato `Build vX.Y.Z`.
+
+- toda build local incrementa automaticamente o último número da versão (`patch`);
+- exemplo: `1.0.7` passa para `1.0.8`;
+- `npm run build:dev`, `npm run build` e `npm run build:cpanel` executam o bump antes da compilação;
+- em ambiente de CI, quando `CI=true` ou `CI=1`, o bump é ignorado por padrão para evitar incremento duplo ou alterações efêmeras que não existem no Git;
+- para forçar o incremento em CI, use `CONEXAO_SERES_BUMP_IN_CI=1`;
+- não crie outra fonte paralela de versão;
+- não hardcode a versão diretamente em `app/page.tsx`;
+- alterações no componente ou script de versionamento devem preservar a compatibilidade tanto com a build Sites/Vinext quanto com a build Vite do cPanel;
+- ao concluir qualquer tarefa com mudança de código, execute uma build apropriada e informe na resposta final o `Build vX.Y.Z` resultante.
+
+Comandos de build versionados:
+
+```bash
+npm run build:dev
+npm run build
+npm run build:cpanel
+```
+
+`npm test` chama `npm run build`; portanto, em ambiente local ele também provoca um incremento de build. Isso é esperado porque houve uma compilação local.
+
 ## Build e artefatos do cPanel
 
 O script:
@@ -365,11 +428,14 @@ npm run dev
 
 Escolha as verificações compatíveis com a alteração feita, mas não entregue código sem validar o caminho afetado.
 
-### Build principal
+### Builds principais
 
 ```bash
+npm run build:dev
 npm run build
 ```
+
+Ambos executam o bump automático antes da compilação. Use o comando compatível com o fluxo da tarefa e confirme a versão resultante em `components/layout/AppVersion.tsx`.
 
 ### Lint
 
@@ -492,11 +558,22 @@ Antes de encerrar:
 
 1. Revise o diff.
 2. Confirme que nenhum segredo foi adicionado.
-3. Execute as validações relevantes.
-4. Regenere `cpanel-dist/` quando aplicável.
-5. Execute `git status`.
-6. Garanta que somente arquivos intencionais façam parte da entrega.
-7. Faça commit com mensagem descritiva.
-8. Faça push para o destino definido para a tarefa.
-9. Informe de forma objetiva o que foi alterado e quais verificações foram executadas.
+3. **Se houve qualquer alteração de código, execute uma build bem-sucedida depois da última modificação. É proibido encerrar a tarefa sem isso.**
+4. Confirme o `Build vX.Y.Z` resultante em `components/layout/AppVersion.tsx`.
+5. Execute as demais validações relevantes, como lint e testes.
+6. Regenere `cpanel-dist/` quando aplicável.
+7. Execute `git status`.
+8. Garanta que somente arquivos intencionais façam parte da entrega.
+9. Faça commit com mensagem descritiva.
+10. Faça push para o destino definido para a tarefa.
+11. Informe de forma objetiva o que foi alterado, quais verificações foram executadas e o número da build gerada.
 
+
+## Resposta final do agente
+
+Quando houver alteração de código, a resposta final deve informar no mínimo:
+
+- resumo do que foi alterado;
+- validações/builds executadas;
+- número atual da build, no formato `Build vX.Y.Z`;
+- estado do commit/push quando a tarefa incluir escrita no repositório.

@@ -359,6 +359,56 @@ cadastro.conexaoseres.com.br
 
 Quando `TURNSTILE_EXPECTED_HOSTNAME` estiver configurado, o hostname retornado pelo Cloudflare também precisa corresponder ao valor definido.
 
+## Versionamento automático de build
+
+O site exibe no rodapé uma versão no formato:
+
+```text
+Build vX.Y.Z
+```
+
+A fonte de verdade da versão é:
+
+```text
+components/layout/AppVersion.tsx
+```
+
+O arquivo exporta `BUILD_VERSION`, utilizado pelo componente `AppVersion` que é renderizado em `app/page.tsx`. Como a versão cPanel reutiliza `app/page.tsx`, o mesmo número aparece nos dois ambientes.
+
+O incremento automático é feito por:
+
+```text
+scripts/bump-build.mjs
+```
+
+Por padrão, cada build local incrementa o último número (`patch`):
+
+```text
+1.0.7 -> 1.0.8
+```
+
+Os scripts versionados são:
+
+```bash
+npm run build:dev
+npm run build
+npm run build:cpanel
+```
+
+Todos executam o bump antes da compilação.
+
+### Comportamento em CI
+
+Quando `CI=true` ou `CI=1`, o bump é ignorado por padrão. Isso evita que uma pipeline gere uma versão diferente apenas dentro do ambiente efêmero de CI ou que a mesma entrega seja incrementada duas vezes.
+
+Para forçar o bump em CI:
+
+```bash
+CONEXAO_SERES_BUMP_IN_CI=1 npm run build
+```
+
+Após uma alteração de código, a versão atual em `components/layout/AppVersion.tsx` deve fazer parte do commit junto com a mudança correspondente. Agentes que trabalham neste repositório devem informar explicitamente a build resultante ao concluir a tarefa.
+
 ## Scripts disponíveis
 
 ### Desenvolvimento
@@ -369,13 +419,21 @@ npm run dev
 
 Inicia o ambiente de desenvolvimento com Vite/Vinext.
 
+### Build de desenvolvimento
+
+```bash
+npm run build:dev
+```
+
+Executa o bump automático da versão e gera uma build validada usando o mesmo pipeline principal.
+
 ### Build principal
 
 ```bash
 npm run build
 ```
 
-Gera e valida a build destinada ao ambiente principal do projeto.
+Executa o bump automático da versão e gera/valida a build destinada ao ambiente principal do projeto.
 
 ### Build para cPanel
 
@@ -517,7 +575,9 @@ Antes de publicar uma alteração funcional, confira:
 - [ ] A validação server-side continua equivalente.
 - [ ] `app/api/patients/route.ts` e `cpanel-server/api/patients.php` permanecem sincronizados nas regras de negócio.
 - [ ] Nenhum segredo foi adicionado ao Git.
-- [ ] `npm run build` conclui sem erros.
+- [ ] Uma build versionada (`npm run build:dev` ou `npm run build`) conclui sem erros.
+- [ ] `components/layout/AppVersion.tsx` contém a nova versão gerada.
+- [ ] O rodapé exibe `Build vX.Y.Z`.
 - [ ] `npm run lint` conclui sem erros quando aplicável.
 - [ ] `npm test` foi executado quando a mudança afeta comportamento coberto pelos testes.
 - [ ] `npm run build:cpanel` foi executado quando a entrega afeta o site do cPanel.
