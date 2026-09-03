@@ -20,7 +20,6 @@ A build copia para `cpanel-dist/api/`:
 
 - `cep.php`
 - `patients.php`
-- `asaas-webhook.php`
 - `turnstile.php`
 - `deploy-webhook.php`
 - `config.example.php`
@@ -28,13 +27,11 @@ A build copia para `cpanel-dist/api/`:
 
 ## Configuração privada
 
-Dentro de `cpanel-dist/api/`, crie `config.php` com base em `config.example.php` e configure as credenciais reais do Asaas, o `asaas_webhook_token`, Cloudflare Turnstile e o webhook n8n.
+Dentro de `cpanel-dist/api/`, crie `config.php` com base em `config.example.php` e configure as credenciais reais do Asaas, Cloudflare Turnstile e o webhook n8n.
 
 Após criar um cliente, `api/patients.php` recupera as notificações do cliente, filtra configurações ativas e pertencentes ao próprio cliente, envia somente os eventos controlados no `PUT /v3/notifications/batch` e valida o resultado com uma nova consulta. Para configurações duplicadas do mesmo evento, o ID é selecionado junto do offset: `PAYMENT_DUEDATE_WARNING` usa `5` e `PAYMENT_OVERDUE` usa `1`. Em seguida, cria ou recupera a cobrança avulsa de R$ 230,00 da primeira sessão por `GET /v3/payments` + `POST /v3/payments`, usando `billingType=UNDEFINED`, vencimento no próximo dia útil e referência `<externalReference>-sessao-1`. Erros do Asaas ficam limitados e sanitizados no `error_log`; falhas não desfazem o cliente nem provocam um novo POST de cobrança sem reconciliação.
 
-Após a confirmação do pagamento, `api/asaas-webhook.php` valida a referência `cs-paciente-<hash>-sessao-1`, consulta `GET /v3/invoices?payment=...`, valida `GET /v3/fiscalInfo/`, consulta `GET /v3/fiscalInfo/services` e cria a NFS-e vinculada com `POST /v3/invoices`. O serviço `04510`/`4.08 - Terapia ocupacional` só usa `municipalServiceId` retornado de forma única pelo Asaas; lista vazia pode usar o código configurado `04510`, sem inventar ID. Uma nota existente não é duplicada.
-
-O webhook fiscal usa o header `asaas-access-token`, comparado ao `ASAAS_WEBHOOK_TOKEN` (ou `asaas_webhook_token` privado). Erros permanentes recebem `2xx` para evitar retry infinito; timeout, rate-limit (`429`) e HTTP 5xx recebem `500` para retry. O n8n é chamado após cliente e cobrança novos, sem esperar pagamento ou NFS-e.
+O Asaas não documenta endpoint público para aplicar `ON_PAYMENT_CONFIRMATION` a uma cobrança avulsa criada por `/v3/payments`. A configuração `invoiceSettings` documentada usa `/v3/subscriptions/{id}/invoiceSettings` e é exclusiva de assinaturas. Por isso, o cPanel não possui webhook fiscal próprio, não recebe `PAYMENT_CONFIRMED` para emitir nota e não executa `POST /v3/invoices` após pagamento. A configuração fiscal/operacional eventualmente disponível no painel do Asaas deve ser confirmada fora do código.
 
 Os arquivos abaixo são privados e não devem ser versionados:
 
@@ -60,19 +57,9 @@ Configure no `config.php` privado, ou por variáveis de ambiente, as chaves:
 'n8n_cadastro_webhook_token' => 'COLE_AQUI_O_TOKEN_DO_WEBHOOK_N8N',
 ```
 
-Os nomes equivalentes de ambiente são `N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_URL` e `N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_TOKEN`. Para o webhook fiscal do Asaas, use `ASAAS_API_KEY`, `ASAAS_API_URL` e `ASAAS_WEBHOOK_TOKEN`; este último deve ser o mesmo `authToken` privado configurado no Asaas. O backend envia `asaas_customer_created` somente depois que um novo cliente recebe `customerId` válido e a cobrança da primeira sessão é confirmada, usando o nome e WhatsApp do titular. Cliente existente ou cobrança ausente não dispara a mensagem.
+Os nomes equivalentes de ambiente são `N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_URL` e `N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_TOKEN`. O backend envia `asaas_customer_created` somente depois que um novo cliente recebe `customerId` válido e a cobrança da primeira sessão está pronta, usando o nome e WhatsApp do titular. Cliente existente ou cobrança ausente não dispara a mensagem; o n8n não espera o pagamento.
 
 O envio usa cURL, Bearer token e timeout curto depois que a resposta pode ser finalizada com `fastcgi_finish_request()`. Se esse recurso não estiver disponível, a chamada continua sendo best-effort; qualquer falha do n8n ou da Evolution API é registrada no servidor e não invalida nem recria o cliente Asaas.
-
-### Webhook fiscal do Asaas
-
-Cadastre no Asaas a URL pública:
-
-```text
-https://cadastro.conexaoseres.com.br/api/asaas/webhook
-```
-
-Selecione `PAYMENT_CONFIRMED`, configure um `authToken` seguro e replique o mesmo valor apenas no servidor como `ASAAS_WEBHOOK_TOKEN` ou `asaas_webhook_token`. A rota pública é mapeada pelo `.htaccess` para `api/asaas-webhook.php`.
 
 ## Deploy automático por webhook do GitHub
 
