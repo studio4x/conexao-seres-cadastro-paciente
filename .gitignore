@@ -47,6 +47,3 @@ next-env.d.ts
 /cpanel-server/api/config.php
 /cpanel-dist/api/config.php
 
-# Temporary migration guard: the production webhook was created manually first.
-# Remove this line after cpanel-dist/api/deploy-webhook.php becomes tracked.
-/cpanel-dist/api/deploy-webhook.php
