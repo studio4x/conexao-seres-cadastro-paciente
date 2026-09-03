@@ -1,237 +1,178 @@
 # Cadastro de Paciente — Conexão Seres
 
-Formulário web de cadastro de pacientes da **Conexão Seres**, integrado ao **Asaas**, com validação de dados, consulta automática de CEP, proteção por **Cloudflare Turnstile** e regras específicas para pacientes adultos, menores de idade e responsáveis legais ou financeiros.
-
-O projeto mantém uma implementação compatível com **ChatGPT Sites / Cloudflare** e uma versão preparada para publicação em hospedagem tradicional com **cPanel + PHP**.
+Formulário web de cadastro de pacientes da **Conexão Seres**, integrado ao **Asaas**, com validação de dados, consulta automática de CEP, proteção por **Cloudflare Turnstile**, versionamento automático de build e publicação em **cPanel + PHP**.
 
 ## Repositório
 
 - [studio4x/conexao-seres-cadastro-paciente](https://github.com/studio4x/conexao-seres-cadastro-paciente)
+- Branch principal: `main`
 
 ## Ambiente publicado
 
-- Cadastro: [https://cadastro.conexaoseres.com.br/](https://cadastro.conexaoseres.com.br/)
+- `https://cadastro.conexaoseres.com.br/`
 
 ## Visão geral
 
-O fluxo principal do sistema é:
+O fluxo principal é:
 
 1. A pessoa informa os dados de quem receberá o atendimento.
-2. O sistema calcula a idade a partir da data de nascimento.
-3. Para menores de 18 anos, um responsável é obrigatório.
-4. Para adultos, é possível cadastrar diretamente o próprio paciente ou adicionar um responsável legal/financeiro.
-5. CPF, WhatsApp, e-mail, CEP e endereço são validados antes do envio.
-6. O Cloudflare Turnstile valida a requisição antes do backend acessar o Asaas.
-7. O backend verifica se aquele paciente já possui cadastro relacionado no Asaas.
-8. Quando necessário, um novo cliente é criado e configurado de acordo com as regras de negócio da clínica.
+2. O sistema calcula a idade pela data de nascimento.
+3. Menores de 18 anos exigem responsável.
+4. Adultos podem ser cadastrados diretamente ou com responsável legal/financeiro.
+5. CPF, WhatsApp, e-mail, CEP e endereço são validados.
+6. O Cloudflare Turnstile protege o envio.
+7. O backend procura um cadastro existente no Asaas por `externalReference`.
+8. Quando necessário, cria um novo cliente segundo as regras da clínica.
+9. As notificações do cliente no Asaas são configuradas por evento.
 
 ## Principais recursos
 
-- Formulário responsivo em React.
+- React + TypeScript.
 - Validação de CPF brasileiro.
 - Validação de WhatsApp com DDD brasileiro.
-- Validação de e-mail.
-- Cálculo automático de idade.
-- Regras condicionais para pacientes menores e maiores de idade.
-- Cadastro opcional de responsável legal ou financeiro para adultos.
-- Consulta automática de endereço por CEP.
-- Opção para copiar o endereço do paciente para o responsável.
-- Proteção contra automação e abuso com Cloudflare Turnstile.
-- Campo honeypot adicional contra bots.
-- Integração com a API do Asaas.
-- Prevenção de cadastros duplicados por referência externa determinística.
-- Classificação automática dos clientes nos grupos `Adultos` ou `Crianças`.
-- Configuração das notificações do cliente por evento, com WhatsApp ativo e os demais canais desativados conforme a regra de negócio.
-- Build específica para publicação em cPanel sem necessidade de Node.js no servidor de produção.
+- Validação de e-mail e endereço.
+- Consulta automática de CEP.
+- Regras específicas para adultos, menores e responsáveis.
+- Cloudflare Turnstile.
+- Honeypot contra bots.
+- Integração com Asaas.
+- Deduplicação por referência externa determinística.
+- Grupos `Adultos` e `Crianças`.
+- Configuração de notificações do Asaas por evento.
+- Build estática para cPanel.
+- Build versionada no rodapé.
+- Deploy automático do cPanel por webhook HTTPS do GitHub.
 
-## Regras de negócio do cadastro
+## Regras de negócio
 
-### Paciente maior de 18 anos sem responsável
+### Adulto sem responsável
 
-O próprio paciente é cadastrado como cliente no Asaas.
+O próprio paciente é o titular do cliente no Asaas.
 
-São usados como dados principais do cliente:
+- usa os dados do paciente como dados principais;
+- não repete esses mesmos dados em `observations`;
+- grupo `Adultos`.
 
-- nome;
-- CPF;
-- e-mail;
-- WhatsApp;
-- CEP;
-- endereço.
+### Adulto com responsável
 
-Como os dados do paciente já são os dados principais do cliente, eles **não são repetidos no campo de observações**.
+O responsável passa a ser o titular do cliente no Asaas.
 
-O cliente recebe o grupo:
+- o campo `company` recebe o nome da pessoa atendida;
+- os dados da pessoa atendida ficam em `observations`;
+- contato e endereço do paciente são preservados nas observações;
+- as datas de nascimento da pessoa atendida e do responsável são registradas em `DD/MM/AAAA`;
+- grupo `Adultos`.
 
-```text
-Adultos
-```
+### Menor de 18 anos
 
-### Paciente maior de 18 anos com responsável
+O responsável é obrigatório e é o titular do cliente no Asaas.
 
-Quando o adulto informa um responsável legal ou financeiro, o **responsável passa a ser o titular do cliente cadastrado no Asaas**.
+- `company`: nome da pessoa atendida;
+- `observations`: identificação da pessoa atendida e datas de nascimento no formato `DD/MM/AAAA`;
+- grupo `Crianças`.
 
-O campo `company` recebe o nome da pessoa que será atendida.
+Como o formulário não solicita contato e endereço próprios do menor, esses dados não são exigidos nesse cenário.
 
-Os dados da pessoa que receberá o atendimento são preservados no campo de observações, incluindo:
+## Deduplicação no Asaas
 
-- nome;
-- CPF;
-- data de nascimento;
-- contato;
-- endereço.
-
-As datas de nascimento da pessoa atendida e do responsável são registradas nas observações no formato `DD/MM/AAAA`.
-
-O cliente continua pertencendo ao grupo:
-
-```text
-Adultos
-```
-
-### Paciente menor de 18 anos
-
-Para pacientes menores de idade, o responsável é obrigatório.
-
-No Asaas:
-
-- o **cliente** é criado com os dados do responsável;
-- o campo `company` recebe o nome da pessoa que será atendida;
-- o campo `observations` recebe os dados de identificação da pessoa atendida;
-- as datas de nascimento da pessoa atendida e do responsável são registradas nas observações no formato `DD/MM/AAAA`;
-- o cliente recebe o grupo `Crianças`.
-
-Como o formulário não solicita contato e endereço próprios do menor, esses dados não são adicionados às observações nesse cenário.
-
-## Prevenção de duplicidade no Asaas
-
-Antes de criar um novo cliente, o backend gera uma referência externa no formato:
+A referência externa segue o formato:
 
 ```text
 cs-paciente-<hash>
 ```
 
-O hash é derivado do **CPF da pessoa atendida + nome normalizado da pessoa atendida**.
+O hash deriva de:
 
-Essa referência é enviada ao Asaas como `externalReference` e consultada antes da criação de um novo cliente.
+```text
+CPF da pessoa atendida + nome normalizado da pessoa atendida
+```
 
-Quando um cadastro já existe:
+Quando o `externalReference` já existe:
 
-- um novo cliente não é criado;
-- o grupo `Adultos` ou `Crianças` é atualizado quando necessário;
-- as configurações de notificação são aplicadas novamente.
-
-> A referência identifica a pessoa atendida, e não necessariamente o titular financeiro cadastrado no Asaas.
+- não cria outro cliente;
+- atualiza o grupo quando necessário;
+- reaplica a configuração de notificações.
 
 ## Notificações do Asaas
 
-Depois da criação ou identificação do cliente, o sistema consulta as notificações existentes no Asaas e aplica a configuração por evento.
+O sistema configura as notificações do cliente por evento.
 
-Para o cliente, a configuração é:
+Nos eventos controlados:
 
-- WhatsApp ativo em criação de cobrança, alteração de cobrança, aviso no dia do vencimento, atraso, confirmação de pagamento e lembrete após o vencimento;
-- e-mail, SMS e ligação automática desativados nesses eventos;
-- linha digitável com e-mail e SMS desativados;
-- aviso antes do vencimento configurado para 5 dias antes, com WhatsApp ativo e demais canais desativados;
-- lembrete de cobrança vencida configurado para 1 dia após o vencimento, com WhatsApp ativo e demais canais desativados.
+- WhatsApp permanece ativo nos avisos previstos pela regra de negócio;
+- e-mail, SMS e ligação permanecem desativados;
+- aviso antes do vencimento usa `scheduleOffset = 5`;
+- lembrete após vencimento usa `scheduleOffset = 1`;
+- `SEND_LINHA_DIGITAVEL` permanece com WhatsApp desativado.
 
-Falhas na configuração das notificações são registradas no servidor, mas não desfazem um cliente que já tenha sido criado com sucesso no Asaas.
+Falha ao configurar notificações não invalida um cliente que já tenha sido criado com sucesso.
 
 ## Arquitetura
 
-O projeto possui um frontend compartilhado e dois backends equivalentes para ambientes diferentes.
+O projeto compartilha o frontend entre dois ambientes.
 
-### Frontend compartilhado
-
-Os principais arquivos são:
-
-- `app/page.tsx`: página principal.
-- `app/globals.css`: estilos globais.
-- `components/cadastro-form.tsx`: formulário, validações e fluxo de envio.
-- `components/turnstile-widget.tsx`: integração do frontend com o Cloudflare Turnstile.
-- `components/ui/`: componentes reutilizáveis de interface.
-
-A versão cPanel reutiliza o mesmo frontend através de:
-
-- `cpanel-src/index.html`
-- `cpanel-src/main.tsx`
-
-`cpanel-src/main.tsx` importa diretamente a página principal e os estilos do projeto, evitando manter uma segunda cópia do formulário.
-
-### Backend para ChatGPT Sites / Cloudflare
-
-Endpoints principais:
-
-- `app/api/patients/route.ts`: validação e integração com o Asaas.
-- `app/api/cep/route.ts`: consulta de CEP.
-- `app/api/turnstile/route.ts`: entrega da chave pública do Turnstile ao frontend.
-
-Essa implementação usa runtime Edge e variáveis disponibilizadas pelo ambiente Cloudflare.
-
-### Backend para cPanel / PHP
-
-Arquivos-fonte:
-
-- `cpanel-server/api/patients.php`
-- `cpanel-server/api/cep.php`
-- `cpanel-server/api/turnstile.php`
-- `cpanel-server/api/config.example.php`
-- `cpanel-server/.htaccess`
-- `cpanel-server/api/.htaccess`
-
-O `.htaccess` mantém os endpoints públicos com o mesmo formato utilizado pelo frontend:
+### Frontend
 
 ```text
-/api/patients
-/api/cep
-/api/turnstile
+app/page.tsx
+app/globals.css
+components/cadastro-form.tsx
+components/turnstile-widget.tsx
+components/layout/AppVersion.tsx
+components/ui/
 ```
 
-Internamente, no cPanel, essas URLs são encaminhadas para os respectivos arquivos PHP.
+A versão cPanel reutiliza a mesma interface através de:
 
-### Regra importante de manutenção
+```text
+cpanel-src/index.html
+cpanel-src/main.tsx
+```
 
-As regras de negócio do backend existem em duas implementações:
+### Backend — ChatGPT Sites / Cloudflare
 
 ```text
 app/api/patients/route.ts
-cpanel-server/api/patients.php
+app/api/cep/route.ts
+app/api/turnstile/route.ts
 ```
 
-Qualquer alteração funcional na integração com o Asaas, validações server-side, responsáveis, observações, grupos, deduplicação ou notificações deve ser analisada nas **duas implementações**, para que o comportamento do ChatGPT Sites e do cPanel permaneça sincronizado.
+### Backend — cPanel / PHP
+
+```text
+cpanel-server/api/patients.php
+cpanel-server/api/cep.php
+cpanel-server/api/turnstile.php
+cpanel-server/api/deploy-webhook.php
+cpanel-server/api/config.example.php
+cpanel-server/.htaccess
+cpanel-server/api/.htaccess
+```
+
+As regras funcionais do cadastro existem em TypeScript e PHP. Mudanças em validação, responsável, payload do Asaas, `company`, `observations`, `externalReference`, grupos ou notificações devem revisar os dois backends.
 
 ## Estrutura principal
 
 ```text
 .
 ├── app/
-│   ├── api/
-│   │   ├── cep/route.ts
-│   │   ├── patients/route.ts
-│   │   └── turnstile/route.ts
-│   ├── globals.css
-│   ├── layout.tsx
-│   └── page.tsx
 ├── components/
-│   ├── cadastro-form.tsx
-│   ├── turnstile-widget.tsx
-│   └── ui/
+│   └── layout/AppVersion.tsx
 ├── cpanel-src/
-│   ├── index.html
-│   └── main.tsx
 ├── cpanel-server/
-│   ├── .htaccess
 │   └── api/
-│       ├── .htaccess
 │       ├── cep.php
-│       ├── config.example.php
 │       ├── patients.php
-│       └── turnstile.php
+│       ├── turnstile.php
+│       ├── deploy-webhook.php
+│       └── config.example.php
 ├── cpanel-dist/
 ├── scripts/
 ├── tests/
 ├── public/
+├── AGENTS.md
 ├── CPANEL.md
+├── README.md
 ├── package.json
 ├── vite.config.ts
 └── vite.cpanel.config.ts
@@ -243,376 +184,224 @@ Qualquer alteração funcional na integração com o Asaas, validações server-
 
 - Node.js `>= 22.13.0`
 - npm
-- ambiente compatível com os scripts Bash do projeto
+- Bash compatível com os scripts do projeto
 
-Os scripts de build utilizados pelo projeto foram preparados para Linux e dependem de ferramentas como `bash`, `flock` e GNU `timeout`.
+### cPanel
 
-### Hospedagem cPanel
-
-- PHP 8.1 ou superior;
-- extensão PHP `curl` habilitada;
-- suporte a JSON no PHP;
-- Apache com `mod_rewrite`;
-- HTTPS configurado no domínio;
-- acesso de saída HTTPS para Asaas, Cloudflare Turnstile e serviço de CEP.
+- PHP 8.1+
+- `curl` e JSON
+- `exec` disponível para o webhook de deploy
+- Apache com `mod_rewrite`
+- HTTPS válido
+- Git instalado
 
 ## Instalação local
-
-Clone o repositório:
 
 ```bash
 git clone https://github.com/studio4x/conexao-seres-cadastro-paciente.git
 cd conexao-seres-cadastro-paciente
-```
-
-Instale as dependências:
-
-```bash
 npm ci
-```
-
-Configure as variáveis necessárias no ambiente local e inicie:
-
-```bash
 npm run dev
 ```
 
-## Variáveis de ambiente — ChatGPT Sites / Cloudflare
+## Variáveis de ambiente — Sites / Cloudflare
 
-### Obrigatórias
+Obrigatórias:
 
-```bash
-ASAAS_API_KEY=...
-TURNSTILE_SITE_KEY=...
-TURNSTILE_SECRET_KEY=...
+```text
+ASAAS_API_KEY
+TURNSTILE_SITE_KEY
+TURNSTILE_SECRET_KEY
 ```
 
-### Opcionais
+Opcionais:
 
-```bash
-ASAAS_API_URL=https://api.asaas.com/v3
-TURNSTILE_EXPECTED_HOSTNAME=cadastro.conexaoseres.com.br
+```text
+ASAAS_API_URL
+TURNSTILE_EXPECTED_HOSTNAME
 ```
 
-### Descrição
+Nunca exponha `ASAAS_API_KEY` ou `TURNSTILE_SECRET_KEY` no frontend.
 
-- `ASAAS_API_KEY`: chave privada utilizada pelo backend para acessar a API do Asaas.
-- `ASAAS_API_URL`: URL base da API; por padrão é `https://api.asaas.com/v3`.
-- `TURNSTILE_SITE_KEY`: chave pública utilizada para renderizar o widget.
-- `TURNSTILE_SECRET_KEY`: chave privada utilizada pelo backend para validar o token.
-- `TURNSTILE_EXPECTED_HOSTNAME`: quando definida, exige que o hostname retornado pelo Turnstile seja exatamente o esperado.
+## Configuração privada do cPanel
 
-Nunca exponha `ASAAS_API_KEY` ou `TURNSTILE_SECRET_KEY` no frontend ou no repositório.
-
-## Configuração — cPanel
-
-A versão PHP pode usar variáveis de ambiente do servidor ou um arquivo privado `config.php`.
-
-O modelo está em:
+Modelo:
 
 ```text
 cpanel-server/api/config.example.php
 ```
 
-Para publicação manual, copie para:
-
-```text
-api/config.php
-```
-
-E configure:
-
-```php
-return [
-    'asaas_api_key' => '...',
-    'asaas_api_url' => 'https://api.asaas.com/v3',
-    'turnstile_site_key' => '...',
-    'turnstile_secret_key' => '...',
-    'turnstile_expected_hostname' => 'cadastro.conexaoseres.com.br',
-];
-```
-
-`config.php` contém segredos e **não deve ser versionado**.
-
-O `.gitignore` já exclui:
+Arquivo real:
 
 ```text
 cpanel-server/api/config.php
+```
+
+ou na distribuição:
+
+```text
 cpanel-dist/api/config.php
 ```
 
+Esses `config.php` reais são ignorados pelo Git e não devem ser commitados.
+
 ## Cloudflare Turnstile
 
-O widget usa a ação:
+A action utilizada é:
 
 ```text
 cadastro_paciente
 ```
 
-O backend somente aceita tokens válidos para essa ação.
-
-No painel do Cloudflare Turnstile, certifique-se de que o domínio publicado esteja autorizado, especialmente:
+O domínio de produção deve estar autorizado no Cloudflare:
 
 ```text
 cadastro.conexaoseres.com.br
 ```
 
-Quando `TURNSTILE_EXPECTED_HOSTNAME` estiver configurado, o hostname retornado pelo Cloudflare também precisa corresponder ao valor definido.
+## Regra obrigatória de versão de build
 
-## Versionamento automático de build
-
-O site exibe no rodapé uma versão no formato:
+O rodapé exibe:
 
 ```text
 Build vX.Y.Z
 ```
 
-A fonte de verdade da versão é:
+Fonte de verdade:
 
 ```text
 components/layout/AppVersion.tsx
 ```
 
-O arquivo exporta `BUILD_VERSION`, utilizado pelo componente `AppVersion` que é renderizado em `app/page.tsx`. Como a versão cPanel reutiliza `app/page.tsx`, o mesmo número aparece nos dois ambientes.
-
-O incremento automático é feito por:
+Incremento automático:
 
 ```text
 scripts/bump-build.mjs
 ```
 
-Por padrão, cada build local incrementa o último número (`patch`):
+Comandos versionados:
+
+```bash
+npm run build:dev
+npm run build
+npm run build:cpanel
+```
+
+Cada build local incrementa o patch, por exemplo:
 
 ```text
 1.0.7 -> 1.0.8
 ```
 
-Os scripts versionados são:
+Em `CI=true` ou `CI=1`, o bump é ignorado por padrão. Para forçar:
 
 ```bash
-npm run build:dev
-npm run build
+CONEXAO_SERES_BUMP_IN_CI=1 npm run build:cpanel
+```
+
+Qualquer tarefa com alteração de código deve terminar com uma build bem-sucedida executada depois da última alteração. A resposta final do agente deve informar `Build vX.Y.Z`.
+
+## Build para cPanel
+
+```bash
 npm run build:cpanel
 ```
 
-Todos executam o bump antes da compilação.
+A build gera `cpanel-dist/` e copia os endpoints PHP, inclusive:
 
-### Comportamento em CI
-
-Quando `CI=true` ou `CI=1`, o bump é ignorado por padrão. Isso evita que uma pipeline gere uma versão diferente apenas dentro do ambiente efêmero de CI ou que a mesma entrega seja incrementada duas vezes.
-
-Para forçar o bump em CI:
-
-```bash
-CONEXAO_SERES_BUMP_IN_CI=1 npm run build
+```text
+cpanel-dist/api/deploy-webhook.php
 ```
 
-Após uma alteração de código, a versão atual em `components/layout/AppVersion.tsx` deve fazer parte do commit junto com a mudança correspondente. Agentes que trabalham neste repositório devem informar explicitamente a build resultante ao concluir a tarefa.
+Não use `cpanel-dist/` como fonte principal. Modifique `cpanel-server/`, `cpanel-src/` ou o frontend compartilhado e gere novamente.
 
-## Scripts disponíveis
+## Deploy automático do cPanel
 
-### Desenvolvimento
+A produção não depende mais de SSH externo nem de um GitHub Actions de deploy.
+
+O mecanismo primário é um **webhook HTTPS do GitHub**.
+
+Após cada `push` em `main`, o GitHub chama:
+
+```text
+https://cadastro.conexaoseres.com.br/api/deploy-webhook.php
+```
+
+O endpoint:
+
+1. aceita apenas `POST`;
+2. valida `X-Hub-Signature-256` com HMAC SHA-256;
+3. aceita o evento `ping` para teste;
+4. para deploy, aceita apenas evento `push`;
+5. exige o repositório `studio4x/conexao-seres-cadastro-paciente`;
+6. exige `refs/heads/main`;
+7. usa lock para impedir deploys concorrentes;
+8. executa:
+
+```bash
+/usr/bin/git -C /home/conexaoseres/cadastro.conexaoseres.com.br pull --ff-only origin main
+```
+
+### Segredo do webhook
+
+Fica somente no servidor:
+
+```text
+/home/conexaoseres/.github-deploy-secret
+```
+
+O mesmo valor é configurado no campo `Secret` do webhook no GitHub. Nunca deve ser versionado.
+
+### Log do deploy
+
+```text
+/home/conexaoseres/github-deploy.log
+```
+
+Consulta:
+
+```bash
+tail -n 20 /home/conexaoseres/github-deploy.log
+```
+
+### Cron de contingência
+
+O cron pode permanecer apenas como fallback, preferencialmente em frequência menor:
+
+```bash
+/usr/bin/git -C /home/conexaoseres/cadastro.conexaoseres.com.br pull --ff-only origin main >/dev/null
+```
+
+O webhook é o mecanismo primário e normalmente atualiza o cPanel segundos após o push.
+
+## Arquivos gerados pelo servidor
+
+Arquivos chamados `error_log` não fazem parte do projeto e são ignorados pelo Git.
+
+## Scripts
 
 ```bash
 npm run dev
-```
-
-Inicia o ambiente de desenvolvimento com Vite/Vinext.
-
-### Build de desenvolvimento
-
-```bash
 npm run build:dev
-```
-
-Executa o bump automático da versão e gera uma build validada usando o mesmo pipeline principal.
-
-### Build principal
-
-```bash
 npm run build
-```
-
-Executa o bump automático da versão e gera/valida a build destinada ao ambiente principal do projeto.
-
-### Build para cPanel
-
-```bash
 npm run build:cpanel
-```
-
-Gera o frontend estático e reúne os arquivos PHP necessários dentro de:
-
-```text
-cpanel-dist/
-```
-
-A build faz, entre outras etapas:
-
-1. build do frontend com `vite.cpanel.config.ts`;
-2. criação de `cpanel-dist/api/`;
-3. cópia dos `.htaccess`;
-4. cópia de `cep.php`;
-5. cópia de `patients.php`;
-6. cópia de `turnstile.php`;
-7. cópia de `config.example.php`.
-
-Por isso, **não use `cpanel-dist/` como fonte de verdade para alterações manuais**. Modifique `cpanel-server/`, `cpanel-src/` ou o frontend compartilhado e gere novamente a build.
-
-### Testes
-
-```bash
 npm test
-```
-
-O script executa a build e os testes definidos em `tests/*.test.mjs`.
-
-### Lint
-
-```bash
 npm run lint
-```
-
-Executa o ESLint ignorando artefatos de build relevantes.
-
-### Drizzle
-
-```bash
 npm run db:generate
 ```
 
-Gera migrations quando houver alterações no schema do Drizzle. O projeto atual não depende desse banco para o fluxo principal de cadastro no Asaas.
+## Checklist de entrega
 
-## Publicação no cPanel
-
-Para gerar os arquivos de produção:
-
-```bash
-npm run build:cpanel
-```
-
-Depois:
-
-1. Acesse `cpanel-dist/`.
-2. Crie `api/config.php` com base em `api/config.example.php` ou configure as variáveis de ambiente diretamente no servidor.
-3. Preencha as credenciais reais apenas no ambiente de produção.
-4. Envie **o conteúdo de `cpanel-dist/`** para a pasta pública do subdomínio.
-5. Confirme PHP 8.1+ e extensão `curl`.
-6. Confirme que o Turnstile autoriza o domínio publicado.
-7. Teste `/api/turnstile`, a busca de CEP e um cadastro completo.
-8. Confirme no Asaas se o cliente foi criado com titular, grupo, empresa, observações e notificações esperados.
-
-Consulte também:
-
-- [`CPANEL.md`](CPANEL.md)
-
-## Fluxo das APIs
-
-### `GET /api/turnstile`
-
-Retorna ao frontend apenas a chave pública do Cloudflare Turnstile.
-
-A chave secreta nunca deve ser retornada ao navegador.
-
-### `GET /api/cep?cep=00000000`
-
-Consulta o CEP e devolve os campos usados para preencher o endereço no formulário.
-
-### `POST /api/patients`
-
-Responsável por:
-
-1. limitar o tamanho da requisição;
-2. validar o JSON recebido;
-3. validar os campos obrigatórios;
-4. validar CPF, idade, WhatsApp, e-mail e endereço;
-5. validar consentimento e honeypot;
-6. validar o token do Turnstile;
-7. carregar a credencial do Asaas;
-8. gerar o `externalReference`;
-9. consultar cliente existente;
-10. atualizar grupo/notificações quando já existe;
-11. montar o titular correto;
-12. criar um cliente quando necessário;
-13. configurar notificações.
-
-## Segurança
-
-### Segredos
-
-Nunca faça commit de:
-
-- chave da API do Asaas;
-- chave secreta do Turnstile;
-- `config.php` de produção;
-- arquivos `.env` reais;
-- tokens ou credenciais de teste que tenham acesso a dados reais.
-
-### Validação duplicada
-
-A validação existente no navegador melhora a experiência do usuário, mas **não substitui a validação server-side**.
-
-Mudanças em regras críticas devem continuar sendo validadas no backend mesmo que já sejam verificadas no React.
-
-### Proteções existentes
-
-O fluxo atualmente possui:
-
-- validação server-side;
-- limite de tamanho da requisição;
-- honeypot `website`;
-- Cloudflare Turnstile;
-- verificação da ação do Turnstile;
-- verificação opcional de hostname;
-- timeouts nas chamadas externas;
-- mensagens de erro genéricas para não expor detalhes internos ou credenciais.
-
-## Checklist após alterações
-
-Antes de publicar uma alteração funcional, confira:
-
-- [ ] O frontend continua validando corretamente os campos.
-- [ ] A validação server-side continua equivalente.
-- [ ] `app/api/patients/route.ts` e `cpanel-server/api/patients.php` permanecem sincronizados nas regras de negócio.
 - [ ] Nenhum segredo foi adicionado ao Git.
-- [ ] Uma build versionada (`npm run build:dev` ou `npm run build`) conclui sem erros.
-- [ ] `components/layout/AppVersion.tsx` contém a nova versão gerada.
-- [ ] O rodapé exibe `Build vX.Y.Z`.
-- [ ] `npm run lint` conclui sem erros quando aplicável.
-- [ ] `npm test` foi executado quando a mudança afeta comportamento coberto pelos testes.
-- [ ] `npm run build:cpanel` foi executado quando a entrega afeta o site do cPanel.
-- [ ] `cpanel-dist/` representa a versão que será publicada.
-- [ ] O Turnstile funciona no domínio de destino.
-- [ ] O cadastro foi testado sem responsável, quando aplicável.
-- [ ] O cadastro foi testado com responsável.
-- [ ] O fluxo de menor de idade foi testado.
-- [ ] O resultado final foi conferido no Asaas.
-
-## Observações para desenvolvimento
-
-- Preserve a estrutura atual sempre que possível.
-- O frontend é compartilhado entre os dois ambientes; evite criar versões paralelas desnecessárias.
-- Não altere arquivos gerados em `cpanel-dist/` como solução definitiva.
-- Ao alterar regras de cadastro, avalie primeiro o impacto sobre pacientes adultos, menores e responsáveis.
-- Ao alterar o payload do Asaas, confira tanto a criação de novos clientes quanto o fluxo de clientes já existentes.
-- Evite mudar a geração de `externalReference` sem planejar a compatibilidade com cadastros existentes.
-- Não remova as proteções do Turnstile apenas para contornar problemas de ambiente; corrija as chaves, hostname ou configuração do servidor.
-
-## Tecnologias principais
-
-- React 19
-- Next.js 16
-- TypeScript
-- Vite
-- Vinext
-- Cloudflare Workers
-- Tailwind CSS
-- Zod
-- PHP 8.1+
-- Cloudflare Turnstile
-- API Asaas
+- [ ] Os dois backends foram revisados quando a regra é compartilhada.
+- [ ] A build foi executada depois da última alteração de código.
+- [ ] `Build vX.Y.Z` foi confirmado.
+- [ ] `cpanel-dist/` foi regenerado quando aplicável.
+- [ ] O webhook de produção respondeu com sucesso ao push.
+- [ ] O commit publicado no cPanel corresponde a `origin/main`.
+- [ ] O formulário e integração com Asaas foram testados quando aplicável.
 
 ## Documentação adicional
 
-- [`AGENTS.md`](AGENTS.md): regras para agentes e automações que modificam o repositório.
-- [`CPANEL.md`](CPANEL.md): instruções resumidas de publicação no cPanel.
+- [`AGENTS.md`](AGENTS.md): regras obrigatórias para agentes.
+- [`CPANEL.md`](CPANEL.md): operação e publicação no cPanel.
