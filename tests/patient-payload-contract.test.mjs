@@ -254,7 +254,7 @@ test("accepts only authenticated confirmed or received first-session payment eve
     assert.match(webhook, /asaas-access-token|HTTP_ASAAS_ACCESS_TOKEN/);
     assert.match(webhook, /ASAAS_WEBHOOK_TOKEN/);
     assert.match(webhook, /processed[\s\S]{0,20}false/);
-    assert.match(webhook, /expectedStatus/);
+    assert.match(webhook, /allowedStatuses/);
   }
   assert.match(typescriptFiscalWebhook, /secureTokenMatches/);
   assert.match(phpFiscalWebhook, /hash_equals/);
@@ -268,6 +268,53 @@ test("validates the exact first-session payment identity and value", () => {
     assert.match(webhook, /payment\[['"]?customer|payment\.customer/);
     assert.match(webhook, /230(?:\.00)?/);
   }
+});
+
+test("allows PAYMENT_RECEIVED with RECEIVED", () => {
+  for (const webhook of [typescriptFiscalWebhook, phpFiscalWebhook]) {
+    assert.match(webhook, /PAYMENT_RECEIVED/);
+    assert.match(webhook, /allowedStatuses[\s\S]{0,100}RECEIVED/);
+  }
+});
+
+test("allows PAYMENT_RECEIVED with RECEIVED_IN_CASH", () => {
+  for (const webhook of [typescriptFiscalWebhook, phpFiscalWebhook]) {
+    assert.match(webhook, /RECEIVED_IN_CASH/);
+    assert.match(webhook, /PAYMENT_RECEIVED/);
+  }
+});
+
+test("keeps PAYMENT_CONFIRMED restricted to CONFIRMED", () => {
+  for (const webhook of [typescriptFiscalWebhook, phpFiscalWebhook]) {
+    assert.match(webhook, /PAYMENT_CONFIRMED[\s\S]{0,100}CONFIRMED/);
+    assert.match(webhook, /allowedStatuses/);
+  }
+});
+
+test("does not accept an arbitrary paid status for PAYMENT_RECEIVED", () => {
+  for (const webhook of [typescriptFiscalWebhook, phpFiscalWebhook]) {
+    assert.doesNotMatch(webhook, /status\s*===\s*["']PAID["']/);
+    assert.doesNotMatch(webhook, /status\s*===\s*expectedStatus/);
+    assert.match(webhook, /\[.?["']RECEIVED["'][\s\S]*["']RECEIVED_IN_CASH["']/);
+  }
+});
+
+test("keeps RECEIVED_IN_CASH restricted to the exact sessao-1 payment", () => {
+  for (const webhook of [typescriptFiscalWebhook, phpFiscalWebhook]) {
+    assert.match(webhook, /cs-paciente-\[a-f0-9\]\{24\}-sessao-1/);
+    assert.match(webhook, /payment(?:\.id|\[['"]?id)/);
+    assert.match(webhook, /payment(?:\.customer|\[['"]?customer)/);
+    assert.match(webhook, /RECEIVED_IN_CASH/);
+  }
+});
+
+test("does not duplicate an invoice for a repeated cash-received webhook", () => {
+  for (const webhook of [typescriptFiscalWebhook, phpFiscalWebhook]) {
+    assert.match(webhook, /findInvoiceForPayment|find_invoice_for_payment/);
+    assert.match(webhook, /invoice already exists/);
+    assert.match(webhook, /payment/);
+  }
+  assert.match(phpFiscalWebhook, /flock/);
 });
 
 test("reconciles invoices by payment and serializes PHP races", () => {

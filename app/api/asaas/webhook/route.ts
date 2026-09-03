@@ -106,11 +106,11 @@ function isFirstSessionPayment(payment: JsonRecord, event: "PAYMENT_CONFIRMED" |
   const externalReference = typeof payment.externalReference === "string" ? payment.externalReference.trim() : "";
   const status = typeof payment.status === "string" ? payment.status : "";
   const value = typeof payment.value === "number" ? payment.value : Number(payment.value);
-  const expectedStatus = event === "PAYMENT_CONFIRMED" ? "CONFIRMED" : "RECEIVED";
+  const allowedStatuses = event === "PAYMENT_CONFIRMED" ? ["CONFIRMED"] : ["RECEIVED", "RECEIVED_IN_CASH"];
   return Boolean(
     id &&
       customer &&
-      status === expectedStatus &&
+      allowedStatuses.includes(status) &&
       value === FIRST_SESSION_VALUE &&
       FIRST_SESSION_REFERENCE.test(externalReference),
   );

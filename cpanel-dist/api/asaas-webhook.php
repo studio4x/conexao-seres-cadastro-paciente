@@ -91,8 +91,8 @@ function is_first_session_payment(array $payment): bool
 
 function is_first_session_payment_event(array $payment, string $event): bool
 {
-    $expectedStatus = $event === 'PAYMENT_CONFIRMED' ? 'CONFIRMED' : 'RECEIVED';
-    return is_first_session_payment($payment) && ($payment['status'] ?? '') === $expectedStatus;
+    $allowedStatuses = $event === 'PAYMENT_CONFIRMED' ? ['CONFIRMED'] : ['RECEIVED', 'RECEIVED_IN_CASH'];
+    return is_first_session_payment($payment) && in_array(($payment['status'] ?? ''), $allowedStatuses, true);
 }
 
 function normalize_code(mixed $value): string
