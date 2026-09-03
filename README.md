@@ -1,105 +1,559 @@
 # Cadastro de Paciente — Conexão Seres
 
-Formulário de cadastro de pacientes integrado ao Asaas. O projeto mantém a versão utilizada no ChatGPT Sites e também pode gerar um pacote compatível com uma pasta pública do cPanel.
+Formulário web de cadastro de pacientes da **Conexão Seres**, integrado ao **Asaas**, com validação de dados, consulta automática de CEP, proteção por **Cloudflare Turnstile** e regras específicas para pacientes adultos, menores de idade e responsáveis legais ou financeiros.
 
-Para publicar em `cadastro.conexaoseres.com.br`, consulte [CPANEL.md](CPANEL.md).
+O projeto mantém uma implementação compatível com **ChatGPT Sites / Cloudflare** e uma versão preparada para publicação em hospedagem tradicional com **cPanel + PHP**.
 
-Na hospedagem do Sites, configure `ASAAS_API_KEY`, `TURNSTILE_SITE_KEY` e
-`TURNSTILE_SECRET_KEY`. Opcionalmente, defina `ASAAS_API_URL` e
-`TURNSTILE_EXPECTED_HOSTNAME`; quando informado, o hostname retornado pelo
-Cloudflare também será conferido no servidor.
+## Repositório
 
-## Estrutura original do projeto
+- [studio4x/conexao-seres-cadastro-paciente](https://github.com/studio4x/conexao-seres-cadastro-paciente)
 
-A clean full-stack starter running on [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and Drizzle support.
+## Ambiente publicado
 
-## Prerequisites
+- Cadastro: [https://cadastro.conexaoseres.com.br/](https://cadastro.conexaoseres.com.br/)
 
-- Node.js `>=22.13.0`
-- Linux with `flock`, `curl`, and GNU `timeout`
+## Visão geral
 
-## Sites Lifecycle
+O fluxo principal do sistema é:
 
-The Sites lifecycle CLI runs the locked dependency install before returning this checkout. Edit the source under `app/`, then checkpoint when a coherent milestone is ready to inspect or share. The remote Sites builder runs `npm run build` against the pushed commit. Do not repeat install or build as a normal pre-checkpoint step.
+1. A pessoa informa os dados de quem receberá o atendimento.
+2. O sistema calcula a idade a partir da data de nascimento.
+3. Para menores de 18 anos, um responsável é obrigatório.
+4. Para adultos, é possível cadastrar diretamente o próprio paciente ou adicionar um responsável legal/financeiro.
+5. CPF, WhatsApp, e-mail, CEP e endereço são validados antes do envio.
+6. O Cloudflare Turnstile valida a requisição antes do backend acessar o Asaas.
+7. O backend verifica se aquele paciente já possui cadastro relacionado no Asaas.
+8. Quando necessário, um novo cliente é criado e configurado de acordo com as regras de negócio da clínica.
 
-This starter does not use `wrangler.jsonc`.
+## Principais recursos
 
-`install:ci` is intentionally a single, non-retrying `npm ci`. It refuses a concurrent install for the same project, consumes a matching image-seeded npm cache with `--prefer-offline` while retaining registry fallback for a missing cache object, otherwise downloads and verifies the complete vinext tarball recorded in `package-lock.json`, limits npm to one socket, and terminates a stalled install. `build` applies a short timeout. These helpers target Linux and use GNU `timeout`; they are not native macOS scripts.
+- Formulário responsivo em React.
+- Validação de CPF brasileiro.
+- Validação de WhatsApp com DDD brasileiro.
+- Validação de e-mail.
+- Cálculo automático de idade.
+- Regras condicionais para pacientes menores e maiores de idade.
+- Cadastro opcional de responsável legal ou financeiro para adultos.
+- Consulta automática de endereço por CEP.
+- Opção para copiar o endereço do paciente para o responsável.
+- Proteção contra automação e abuso com Cloudflare Turnstile.
+- Campo honeypot adicional contra bots.
+- Integração com a API do Asaas.
+- Prevenção de cadastros duplicados por referência externa determinística.
+- Classificação automática dos clientes nos grupos `Adultos` ou `Crianças`.
+- Configuração das notificações do cliente para WhatsApp.
+- Build específica para publicação em cPanel sem necessidade de Node.js no servidor de produção.
 
-Scripts that need writable project-scoped home, npm, XDG, and temporary paths use `scripts/sites-env.sh`. The `dev` and `start` scripts honor the caller's runtime environment and keep Wrangler logs inside the checkout. The generated `.sites-runtime/` directory is disposable and ignored by Git.
+## Regras de negócio do cadastro
 
-## Included Shape
+### Paciente maior de 18 anos sem responsável
 
-- edit site code under `app/`
-- `app/chatgpt-auth.ts` provides optional dispatch-owned ChatGPT sign-in helpers
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/index.ts` reads the D1 binding from the Cloudflare Worker environment
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
+O próprio paciente é cadastrado como cliente no Asaas.
 
-## Workspace Auth Headers
+São usados como dados principais do cliente:
 
-OpenAI workspace sites can read the current user's email from `oai-authenticated-user-email`.
+- nome;
+- CPF;
+- e-mail;
+- WhatsApp;
+- CEP;
+- endereço.
 
-SIWC-authenticated workspace sites may also receive `oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty `name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by `oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
+Como os dados do paciente já são os dados principais do cliente, eles **não são repetidos no campo de observações**.
 
-Treat the full name as optional and fall back to email when it is absent:
+O cliente recebe o grupo:
 
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
+```text
+Adultos
 ```
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+### Paciente maior de 18 anos com responsável
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs optional or required ChatGPT sign-in:
+Quando o adulto informa um responsável legal ou financeiro, o **responsável passa a ser o titular do cliente cadastrado no Asaas**.
 
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send anonymous visitors through Sign in with ChatGPT.
-- In a Server Component, start sign-in with `<a href={chatGPTSignInPath(returnTo)} target="_top">`. The auth helper module is server-only; do not import it into a Client Component.
-- Do not use `fetch`, XHR, a client-side router, or a framework link that can prefetch the sign-in route. SIWC must start as a top-level navigation.
-- Never request the AuthAPI authorization endpoint directly. The dispatch-owned `/signin-with-chatgpt` route must start the SIWC flow.
-- Use `chatGPTSignOutPath(returnTo)` for browser sign-out links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because they depend on per-request identity headers.
+Os dados da pessoa que receberá o atendimento são preservados no campo de observações, incluindo:
 
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the OAuth cookies, and identity header injection. Do not implement app routes for those reserved paths. Routes that do not import and call the helper remain anonymous-compatible.
+- nome;
+- CPF;
+- data de nascimento;
+- contato;
+- endereço.
 
-SIWC establishes identity only; it does not prove workspace membership. Use the Sites hosting platform's access policy controls for workspace-wide restrictions, or enforce explicit server-side membership or allowlist checks.
+Também é registrada a data de nascimento do responsável.
 
-Use SIWC for account pages, user-specific dashboards, saved records, and write actions tied to the current ChatGPT user. Leave public content anonymous.
+O cliente continua pertencendo ao grupo:
 
-## Diagnostic Commands
+```text
+Adultos
+```
 
-- `npm run install:ci`: perform the one bounded lockfile install
-- `npm run dev`: start the Vite/Vinext development server
-- `npm run build`: build the deployable Sites artifact
-- `npm run build:cpanel`: gerar a versão pronta para uma pasta pública do cPanel
-- `npm run start`: start the built Vinext application
-- `npm test`: build and verify the rendered development-preview metadata
-- `npm run db:generate`: generate Drizzle migrations after schema changes
+### Paciente menor de 18 anos
 
-Use build commands for targeted diagnosis after a remote failure, not as part of the normal checkpoint path.
+Para pacientes menores de idade, o responsável é obrigatório.
 
-The timeout defaults can be overridden for a controlled canary with `SITES_INSTALL_TIMEOUT`, `SITES_INSTALL_KILL_AFTER`, `SITES_BUILD_TIMEOUT`, and `SITES_BUILD_KILL_AFTER`. A timeout fails the command; the helpers never retry an unchanged install or build.
+No Asaas:
 
-## Learn More
+- o **cliente** é criado com os dados do responsável;
+- o campo `company` recebe o nome da pessoa que será atendida;
+- o campo `observations` recebe os dados de identificação da pessoa atendida;
+- a data de nascimento do responsável também é registrada nas observações;
+- o cliente recebe o grupo `Crianças`.
 
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+Como o formulário não solicita contato e endereço próprios do menor, esses dados não são adicionados às observações nesse cenário.
+
+## Prevenção de duplicidade no Asaas
+
+Antes de criar um novo cliente, o backend gera uma referência externa no formato:
+
+```text
+cs-paciente-<hash>
+```
+
+O hash é derivado do **CPF da pessoa atendida + nome normalizado da pessoa atendida**.
+
+Essa referência é enviada ao Asaas como `externalReference` e consultada antes da criação de um novo cliente.
+
+Quando um cadastro já existe:
+
+- um novo cliente não é criado;
+- o grupo `Adultos` ou `Crianças` é atualizado quando necessário;
+- as configurações de notificação são aplicadas novamente.
+
+> A referência identifica a pessoa atendida, e não necessariamente o titular financeiro cadastrado no Asaas.
+
+## Notificações do Asaas
+
+Depois da criação ou identificação do cliente, o sistema consulta as notificações existentes no Asaas e tenta manter o envio ao cliente habilitado apenas por **WhatsApp**.
+
+A configuração aplicada desabilita, para o cliente:
+
+- e-mail;
+- SMS;
+- ligação telefônica.
+
+E mantém habilitado:
+
+- WhatsApp.
+
+Falhas na configuração das notificações são registradas no servidor, mas não desfazem um cliente que já tenha sido criado com sucesso no Asaas.
+
+## Arquitetura
+
+O projeto possui um frontend compartilhado e dois backends equivalentes para ambientes diferentes.
+
+### Frontend compartilhado
+
+Os principais arquivos são:
+
+- `app/page.tsx`: página principal.
+- `app/globals.css`: estilos globais.
+- `components/cadastro-form.tsx`: formulário, validações e fluxo de envio.
+- `components/turnstile-widget.tsx`: integração do frontend com o Cloudflare Turnstile.
+- `components/ui/`: componentes reutilizáveis de interface.
+
+A versão cPanel reutiliza o mesmo frontend através de:
+
+- `cpanel-src/index.html`
+- `cpanel-src/main.tsx`
+
+`cpanel-src/main.tsx` importa diretamente a página principal e os estilos do projeto, evitando manter uma segunda cópia do formulário.
+
+### Backend para ChatGPT Sites / Cloudflare
+
+Endpoints principais:
+
+- `app/api/patients/route.ts`: validação e integração com o Asaas.
+- `app/api/cep/route.ts`: consulta de CEP.
+- `app/api/turnstile/route.ts`: entrega da chave pública do Turnstile ao frontend.
+
+Essa implementação usa runtime Edge e variáveis disponibilizadas pelo ambiente Cloudflare.
+
+### Backend para cPanel / PHP
+
+Arquivos-fonte:
+
+- `cpanel-server/api/patients.php`
+- `cpanel-server/api/cep.php`
+- `cpanel-server/api/turnstile.php`
+- `cpanel-server/api/config.example.php`
+- `cpanel-server/.htaccess`
+- `cpanel-server/api/.htaccess`
+
+O `.htaccess` mantém os endpoints públicos com o mesmo formato utilizado pelo frontend:
+
+```text
+/api/patients
+/api/cep
+/api/turnstile
+```
+
+Internamente, no cPanel, essas URLs são encaminhadas para os respectivos arquivos PHP.
+
+### Regra importante de manutenção
+
+As regras de negócio do backend existem em duas implementações:
+
+```text
+app/api/patients/route.ts
+cpanel-server/api/patients.php
+```
+
+Qualquer alteração funcional na integração com o Asaas, validações server-side, responsáveis, observações, grupos, deduplicação ou notificações deve ser analisada nas **duas implementações**, para que o comportamento do ChatGPT Sites e do cPanel permaneça sincronizado.
+
+## Estrutura principal
+
+```text
+.
+├── app/
+│   ├── api/
+│   │   ├── cep/route.ts
+│   │   ├── patients/route.ts
+│   │   └── turnstile/route.ts
+│   ├── globals.css
+│   ├── layout.tsx
+│   └── page.tsx
+├── components/
+│   ├── cadastro-form.tsx
+│   ├── turnstile-widget.tsx
+│   └── ui/
+├── cpanel-src/
+│   ├── index.html
+│   └── main.tsx
+├── cpanel-server/
+│   ├── .htaccess
+│   └── api/
+│       ├── .htaccess
+│       ├── cep.php
+│       ├── config.example.php
+│       ├── patients.php
+│       └── turnstile.php
+├── cpanel-dist/
+├── scripts/
+├── tests/
+├── public/
+├── CPANEL.md
+├── package.json
+├── vite.config.ts
+└── vite.cpanel.config.ts
+```
+
+## Pré-requisitos
+
+### Desenvolvimento
+
+- Node.js `>= 22.13.0`
+- npm
+- ambiente compatível com os scripts Bash do projeto
+
+Os scripts de build utilizados pelo projeto foram preparados para Linux e dependem de ferramentas como `bash`, `flock` e GNU `timeout`.
+
+### Hospedagem cPanel
+
+- PHP 8.1 ou superior;
+- extensão PHP `curl` habilitada;
+- suporte a JSON no PHP;
+- Apache com `mod_rewrite`;
+- HTTPS configurado no domínio;
+- acesso de saída HTTPS para Asaas, Cloudflare Turnstile e serviço de CEP.
+
+## Instalação local
+
+Clone o repositório:
+
+```bash
+git clone https://github.com/studio4x/conexao-seres-cadastro-paciente.git
+cd conexao-seres-cadastro-paciente
+```
+
+Instale as dependências:
+
+```bash
+npm ci
+```
+
+Configure as variáveis necessárias no ambiente local e inicie:
+
+```bash
+npm run dev
+```
+
+## Variáveis de ambiente — ChatGPT Sites / Cloudflare
+
+### Obrigatórias
+
+```bash
+ASAAS_API_KEY=...
+TURNSTILE_SITE_KEY=...
+TURNSTILE_SECRET_KEY=...
+```
+
+### Opcionais
+
+```bash
+ASAAS_API_URL=https://api.asaas.com/v3
+TURNSTILE_EXPECTED_HOSTNAME=cadastro.conexaoseres.com.br
+```
+
+### Descrição
+
+- `ASAAS_API_KEY`: chave privada utilizada pelo backend para acessar a API do Asaas.
+- `ASAAS_API_URL`: URL base da API; por padrão é `https://api.asaas.com/v3`.
+- `TURNSTILE_SITE_KEY`: chave pública utilizada para renderizar o widget.
+- `TURNSTILE_SECRET_KEY`: chave privada utilizada pelo backend para validar o token.
+- `TURNSTILE_EXPECTED_HOSTNAME`: quando definida, exige que o hostname retornado pelo Turnstile seja exatamente o esperado.
+
+Nunca exponha `ASAAS_API_KEY` ou `TURNSTILE_SECRET_KEY` no frontend ou no repositório.
+
+## Configuração — cPanel
+
+A versão PHP pode usar variáveis de ambiente do servidor ou um arquivo privado `config.php`.
+
+O modelo está em:
+
+```text
+cpanel-server/api/config.example.php
+```
+
+Para publicação manual, copie para:
+
+```text
+api/config.php
+```
+
+E configure:
+
+```php
+return [
+    'asaas_api_key' => '...',
+    'asaas_api_url' => 'https://api.asaas.com/v3',
+    'turnstile_site_key' => '...',
+    'turnstile_secret_key' => '...',
+    'turnstile_expected_hostname' => 'cadastro.conexaoseres.com.br',
+];
+```
+
+`config.php` contém segredos e **não deve ser versionado**.
+
+O `.gitignore` já exclui:
+
+```text
+cpanel-server/api/config.php
+cpanel-dist/api/config.php
+```
+
+## Cloudflare Turnstile
+
+O widget usa a ação:
+
+```text
+cadastro_paciente
+```
+
+O backend somente aceita tokens válidos para essa ação.
+
+No painel do Cloudflare Turnstile, certifique-se de que o domínio publicado esteja autorizado, especialmente:
+
+```text
+cadastro.conexaoseres.com.br
+```
+
+Quando `TURNSTILE_EXPECTED_HOSTNAME` estiver configurado, o hostname retornado pelo Cloudflare também precisa corresponder ao valor definido.
+
+## Scripts disponíveis
+
+### Desenvolvimento
+
+```bash
+npm run dev
+```
+
+Inicia o ambiente de desenvolvimento com Vite/Vinext.
+
+### Build principal
+
+```bash
+npm run build
+```
+
+Gera e valida a build destinada ao ambiente principal do projeto.
+
+### Build para cPanel
+
+```bash
+npm run build:cpanel
+```
+
+Gera o frontend estático e reúne os arquivos PHP necessários dentro de:
+
+```text
+cpanel-dist/
+```
+
+A build faz, entre outras etapas:
+
+1. build do frontend com `vite.cpanel.config.ts`;
+2. criação de `cpanel-dist/api/`;
+3. cópia dos `.htaccess`;
+4. cópia de `cep.php`;
+5. cópia de `patients.php`;
+6. cópia de `turnstile.php`;
+7. cópia de `config.example.php`.
+
+Por isso, **não use `cpanel-dist/` como fonte de verdade para alterações manuais**. Modifique `cpanel-server/`, `cpanel-src/` ou o frontend compartilhado e gere novamente a build.
+
+### Testes
+
+```bash
+npm test
+```
+
+O script executa a build e os testes definidos em `tests/*.test.mjs`.
+
+### Lint
+
+```bash
+npm run lint
+```
+
+Executa o ESLint ignorando artefatos de build relevantes.
+
+### Drizzle
+
+```bash
+npm run db:generate
+```
+
+Gera migrations quando houver alterações no schema do Drizzle. O projeto atual não depende desse banco para o fluxo principal de cadastro no Asaas.
+
+## Publicação no cPanel
+
+Para gerar os arquivos de produção:
+
+```bash
+npm run build:cpanel
+```
+
+Depois:
+
+1. Acesse `cpanel-dist/`.
+2. Crie `api/config.php` com base em `api/config.example.php` ou configure as variáveis de ambiente diretamente no servidor.
+3. Preencha as credenciais reais apenas no ambiente de produção.
+4. Envie **o conteúdo de `cpanel-dist/`** para a pasta pública do subdomínio.
+5. Confirme PHP 8.1+ e extensão `curl`.
+6. Confirme que o Turnstile autoriza o domínio publicado.
+7. Teste `/api/turnstile`, a busca de CEP e um cadastro completo.
+8. Confirme no Asaas se o cliente foi criado com titular, grupo, empresa, observações e notificações esperados.
+
+Consulte também:
+
+- [`CPANEL.md`](CPANEL.md)
+
+## Fluxo das APIs
+
+### `GET /api/turnstile`
+
+Retorna ao frontend apenas a chave pública do Cloudflare Turnstile.
+
+A chave secreta nunca deve ser retornada ao navegador.
+
+### `GET /api/cep?cep=00000000`
+
+Consulta o CEP e devolve os campos usados para preencher o endereço no formulário.
+
+### `POST /api/patients`
+
+Responsável por:
+
+1. limitar o tamanho da requisição;
+2. validar o JSON recebido;
+3. validar os campos obrigatórios;
+4. validar CPF, idade, WhatsApp, e-mail e endereço;
+5. validar consentimento e honeypot;
+6. validar o token do Turnstile;
+7. carregar a credencial do Asaas;
+8. gerar o `externalReference`;
+9. consultar cliente existente;
+10. atualizar grupo/notificações quando já existe;
+11. montar o titular correto;
+12. criar um cliente quando necessário;
+13. configurar notificações.
+
+## Segurança
+
+### Segredos
+
+Nunca faça commit de:
+
+- chave da API do Asaas;
+- chave secreta do Turnstile;
+- `config.php` de produção;
+- arquivos `.env` reais;
+- tokens ou credenciais de teste que tenham acesso a dados reais.
+
+### Validação duplicada
+
+A validação existente no navegador melhora a experiência do usuário, mas **não substitui a validação server-side**.
+
+Mudanças em regras críticas devem continuar sendo validadas no backend mesmo que já sejam verificadas no React.
+
+### Proteções existentes
+
+O fluxo atualmente possui:
+
+- validação server-side;
+- limite de tamanho da requisição;
+- honeypot `website`;
+- Cloudflare Turnstile;
+- verificação da ação do Turnstile;
+- verificação opcional de hostname;
+- timeouts nas chamadas externas;
+- mensagens de erro genéricas para não expor detalhes internos ou credenciais.
+
+## Checklist após alterações
+
+Antes de publicar uma alteração funcional, confira:
+
+- [ ] O frontend continua validando corretamente os campos.
+- [ ] A validação server-side continua equivalente.
+- [ ] `app/api/patients/route.ts` e `cpanel-server/api/patients.php` permanecem sincronizados nas regras de negócio.
+- [ ] Nenhum segredo foi adicionado ao Git.
+- [ ] `npm run build` conclui sem erros.
+- [ ] `npm run lint` conclui sem erros quando aplicável.
+- [ ] `npm test` foi executado quando a mudança afeta comportamento coberto pelos testes.
+- [ ] `npm run build:cpanel` foi executado quando a entrega afeta o site do cPanel.
+- [ ] `cpanel-dist/` representa a versão que será publicada.
+- [ ] O Turnstile funciona no domínio de destino.
+- [ ] O cadastro foi testado sem responsável, quando aplicável.
+- [ ] O cadastro foi testado com responsável.
+- [ ] O fluxo de menor de idade foi testado.
+- [ ] O resultado final foi conferido no Asaas.
+
+## Observações para desenvolvimento
+
+- Preserve a estrutura atual sempre que possível.
+- O frontend é compartilhado entre os dois ambientes; evite criar versões paralelas desnecessárias.
+- Não altere arquivos gerados em `cpanel-dist/` como solução definitiva.
+- Ao alterar regras de cadastro, avalie primeiro o impacto sobre pacientes adultos, menores e responsáveis.
+- Ao alterar o payload do Asaas, confira tanto a criação de novos clientes quanto o fluxo de clientes já existentes.
+- Evite mudar a geração de `externalReference` sem planejar a compatibilidade com cadastros existentes.
+- Não remova as proteções do Turnstile apenas para contornar problemas de ambiente; corrija as chaves, hostname ou configuração do servidor.
+
+## Tecnologias principais
+
+- React 19
+- Next.js 16
+- TypeScript
+- Vite
+- Vinext
+- Cloudflare Workers
+- Tailwind CSS
+- Zod
+- PHP 8.1+
+- Cloudflare Turnstile
+- API Asaas
+
+## Documentação adicional
+
+- [`AGENTS.md`](AGENTS.md): regras para agentes e automações que modificam o repositório.
+- [`CPANEL.md`](CPANEL.md): instruções resumidas de publicação no cPanel.
+
