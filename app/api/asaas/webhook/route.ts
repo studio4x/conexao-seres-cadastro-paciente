@@ -171,6 +171,9 @@ async function notifyN8nFirstSessionPaid(
     });
     return false;
   }
+  const mobilePhone = typeof customerResult.data.mobilePhone === "string" ? customerResult.data.mobilePhone.trim() : "";
+  const phone = typeof customerResult.data.phone === "string" ? customerResult.data.phone.trim() : "";
+  const customerWhatsapp = mobilePhone || phone;
 
   let invoiceNumber = optionalPaymentString(payment, "invoiceNumber");
   let invoiceUrl = optionalPaymentString(payment, "invoiceUrl");
@@ -202,6 +205,7 @@ async function notifyN8nFirstSessionPaid(
     paymentId,
     asaasCustomerId: customerId,
     customerName,
+    customerWhatsapp,
     invoiceNumber,
     invoiceUrl,
     value: typeof payment.value === "number" ? payment.value : Number(payment.value),

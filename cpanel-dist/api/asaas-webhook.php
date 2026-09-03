@@ -128,6 +128,9 @@ function notify_n8n_first_session_paid_safely(
         error_log('n8n first-session-paid customer lookup failed. Payment ' . $paymentId . ' Event ' . $event . ' HTTP ' . (int) ($customer['status'] ?? 0));
         return false;
     }
+    $mobilePhone = is_string($customer['data']['mobilePhone'] ?? null) ? trim($customer['data']['mobilePhone']) : '';
+    $phone = is_string($customer['data']['phone'] ?? null) ? trim($customer['data']['phone']) : '';
+    $customerWhatsapp = $mobilePhone !== '' ? $mobilePhone : $phone;
 
     $invoiceNumber = optional_payment_string($payment, 'invoiceNumber');
     $invoiceUrl = optional_payment_string($payment, 'invoiceUrl');
@@ -156,6 +159,7 @@ function notify_n8n_first_session_paid_safely(
         'paymentId' => $paymentId,
         'asaasCustomerId' => $customerId,
         'customerName' => $customerName,
+        'customerWhatsapp' => $customerWhatsapp,
         'invoiceNumber' => $invoiceNumber,
         'invoiceUrl' => $invoiceUrl,
         'value' => is_numeric($payment['value'] ?? null) ? (float) $payment['value'] : 0,

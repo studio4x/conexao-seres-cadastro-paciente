@@ -299,6 +299,33 @@ test("forwards invoice number and the official invoice URL to n8n", () => {
   assert.match(phpFiscalWebhook, /optional_payment_string\(\$paymentDetails\['data'\], 'invoiceUrl'\)/);
 });
 
+test("forwards the Asaas customer WhatsApp using mobilePhone and phone fallback", () => {
+  for (const webhook of [typescriptFiscalWebhook, phpFiscalWebhook]) {
+    assert.match(webhook, /mobilePhone/);
+    assert.match(webhook, /phone/);
+    assert.match(webhook, /customerWhatsapp/);
+    assert.match(webhook, /customerName/);
+  }
+  assert.match(
+    typescriptFiscalWebhook,
+    /const mobilePhone = typeof customerResult\.data\.mobilePhone === "string"[\s\S]*?const phone = typeof customerResult\.data\.phone === "string"[\s\S]*?const customerWhatsapp = mobilePhone \|\| phone/,
+  );
+  assert.match(
+    phpFiscalWebhook,
+    /\$mobilePhone = is_string\(\$customer\['data'\]\['mobilePhone'\] \?\? null\)[\s\S]*?\$phone = is_string\(\$customer\['data'\]\['phone'\] \?\? null\)[\s\S]*?\$customerWhatsapp = \$mobilePhone !== '' \? \$mobilePhone : \$phone/,
+  );
+});
+
+test("keeps customer WhatsApp optional without blocking the payment flow", () => {
+  assert.match(typescriptFiscalWebhook, /const customerWhatsapp = mobilePhone \|\| phone/);
+  assert.match(phpFiscalWebhook, /\$customerWhatsapp = \$mobilePhone !== '' \? \$mobilePhone : \$phone/);
+  for (const webhook of [typescriptFiscalWebhook, phpFiscalWebhook]) {
+    assert.match(webhook, /customerWhatsapp/);
+    assert.match(webhook, /asaas_first_session_paid/);
+    assert.match(webhook, /processPaymentEvent|process_with_payment_lock/);
+  }
+});
+
 test("uses event invoice fields without an extra payment lookup when both are present", () => {
   assert.match(
     typescriptFiscalWebhook,

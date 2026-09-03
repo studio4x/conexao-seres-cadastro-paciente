@@ -80,7 +80,7 @@ O envio usa cURL, Bearer token e timeout curto depois que a resposta pode ser fi
 
 ### Webhook n8n de primeira sessão paga
 
-O endpoint `api/asaas-webhook.php` encaminha ao n8n as cobranças válidas da primeira sessão nos eventos `PAYMENT_CONFIRMED` e `PAYMENT_RECEIVED`, respeitando os status já validados pelo webhook fiscal. O payload inclui `paymentId` para que o workflow faça a deduplicação por cobrança. O nome é consultado diretamente no Asaas por `GET /v3/customers/{customerId}`; o backend não usa o nome do formulário nesta etapa. Também são enviados `invoiceNumber` e `invoiceUrl`, primeiro aproveitando os campos do evento e, se algum faltar, consultando `GET /v3/payments/{paymentId}`. A URL nunca é construída manualmente; campos ausentes permanecem como strings vazias sem interromper o n8n ou a NFS-e.
+O endpoint `api/asaas-webhook.php` encaminha ao n8n as cobranças válidas da primeira sessão nos eventos `PAYMENT_CONFIRMED` e `PAYMENT_RECEIVED`, respeitando os status já validados pelo webhook fiscal. O payload inclui `paymentId` para que o workflow faça a deduplicação por cobrança. O nome e o telefone são consultados diretamente no Asaas por `GET /v3/customers/{customerId}`; `customerWhatsapp` prioriza `mobilePhone` e usa `phone` quando necessário, permanecendo vazio se ambos faltarem. Também são enviados `invoiceNumber` e `invoiceUrl`, primeiro aproveitando os campos do evento e, se algum faltar, consultando `GET /v3/payments/{paymentId}`. A URL nunca é construída manualmente; campos ausentes permanecem como strings vazias sem interromper o n8n ou a NFS-e.
 
 No `config.php` privado, configure:
 
