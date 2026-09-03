@@ -663,13 +663,6 @@ async function createFirstSessionPayment(
   }
 }
 
-function prepareFirstSessionInvoice() {
-  const reason =
-    "A API de nota fiscal do Asaas exige serviço municipal e tributos fiscais; não há configuração segura disponível no formulário para inferir esses dados.";
-  console.warn("Asaas first-session invoice scheduling skipped", { reason });
-  return { configured: false, reason };
-}
-
 function fullAddress(patient: Patient, prefix: "patient" | "responsible") {
   const address = clean(patient[`${prefix}Address`]);
   const number = clean(patient[`${prefix}AddressNumber`]);
@@ -869,23 +862,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const invoice = prepareFirstSessionInvoice();
-    if (!invoice.configured) {
-      return NextResponse.json(
-        {
-          success: true,
-          existing: false,
-          partial: true,
-          paymentCreated: true,
-          paymentId: payment.paymentId,
-          invoiceConfigured: false,
-          message:
-            "Seu cadastro e a cobrança da primeira sessão foram registrados. A emissão fiscal será concluída pela equipe da Conexão Seres antes do envio das instruções.",
-        },
-        { status: 201 },
-      );
-    }
-
     await notifyN8nCustomerCreated({
       eventType: "asaas_customer_created",
       customerName: customer.name,
@@ -893,10 +869,7 @@ export async function POST(request: Request) {
       asaasCustomerId: createdCustomerId,
       externalReference,
     });
-    return NextResponse.json(
-      { success: true, existing: false, paymentCreated: true, invoiceConfigured: true },
-      { status: 201 },
-    );
+    return NextResponse.json({ success: true, existing: false, paymentCreated: true }, { status: 201 });
   } catch (error) {
     const timedOut = error instanceof Error && error.name === "AbortError";
     return NextResponse.json(

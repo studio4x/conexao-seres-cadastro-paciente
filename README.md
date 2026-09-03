@@ -25,7 +25,8 @@ O fluxo principal é:
 8. Quando necessário, cria um novo cliente segundo as regras da clínica.
 9. Depois de confirmar um novo `customerId`, configura as notificações do cliente no Asaas.
 10. Para cliente novo, cria ou recupera de forma idempotente a cobrança avulsa da primeira sessão.
-11. Só envia o evento ao n8n depois de a cobrança e a etapa fiscal estarem confirmadas.
+11. Envia o evento ao n8n depois de confirmar o cliente novo e a cobrança.
+12. Após o pagamento, o webhook fiscal valida a cobrança e cria/agende a NFS-e vinculada.
 
 ## Principais recursos
 
@@ -43,7 +44,8 @@ O fluxo principal é:
 - Deduplicação por referência externa determinística.
 - Grupos `Adultos` e `Crianças`.
 - Configuração de notificações do Asaas por evento.
-- Notificação best-effort ao n8n somente após a criação de um novo cliente no Asaas.
+- Notificação best-effort ao n8n somente após cliente e cobrança novos confirmados.
+- Webhook fiscal autenticado para `PAYMENT_CONFIRMED` e emissão idempotente de NFS-e.
 - Build estática para cPanel.
 - Build versionada no rodapé.
 - Deploy automático do cPanel por webhook HTTPS do GitHub.
@@ -131,13 +133,21 @@ Somente depois de criar um cliente novo, os dois backends consultam `GET /v3/pay
 
 Se a criação responder com erro, timeout ou payload inconclusivo, o backend faz apenas uma reconciliação pela mesma referência e não repete o `POST`. Cliente existente continua retornando `409` e não cria cobrança.
 
-### Nota fiscal
+## Automação fiscal após o pagamento
 
-O agendamento de nota fiscal para uma cobrança avulsa não é inferido pelo formulário. A API do Asaas exige serviço municipal, tributos e demais dados fiscais; como esses valores dependem da configuração real da conta e não estão disponíveis de forma segura neste fluxo, nenhum payload fiscal inventado é enviado. O cadastro e a cobrança podem ficar em sucesso parcial para recuperação pela equipe, mas o n8n não é chamado enquanto a etapa fiscal não estiver confirmada.
+O endpoint público recebe `POST /api/asaas/webhook` e processa fiscalmente apenas `PAYMENT_CONFIRMED`. O Asaas envia o evento com `event` e o objeto `payment`; o endpoint valida o header privado `asaas-access-token` antes de aceitar o payload.
+
+O processamento exige `payment.id`, `payment.customer`, status `CONFIRMED`, valor `230` e a referência exata `cs-paciente-<hash>-sessao-1`. Outras cobranças de R$ 230,00 não são suficientes para entrar no fluxo.
+
+Antes de criar a NFS-e, consulta `GET /v3/invoices?payment=<paymentId>` e não cria outra nota quando já existe uma nota vinculada. Depois valida `GET /v3/fiscalInfo/` e consulta `GET /v3/fiscalInfo/services`. O serviço correspondente a `04510`/`4.08 - Terapia ocupacional` é selecionado somente quando único ou marcado como padrão; em lista vazia, usa o código configurado `04510` sem inventar `municipalServiceId`. Ambiguidade ou serviço não encontrado não escolhe um ID arbitrariamente.
+
+A criação usa `POST /v3/invoices`, vinculada ao `payment`, com valor `230`, `deductions: 0`, `updatePayment: false`, descrição fiscal `04510 | 4.08 - Terapia ocupacional.`, `effectiveDate` baseada em `confirmedDate` (ou `paymentDate`/data de processamento em `America/Sao_Paulo`) e `taxes` com `retainIss: false`, `iss: 2` e demais retenções numéricas zeradas conforme a configuração informada da conta. O agendamento não é confundido com autorização: a confirmação fiscal posterior depende do processamento do Asaas.
+
+Falhas permanentes de configuração, serviço ou payload recebem `2xx` para evitar retries inúteis e ficam registradas com dados sanitizados. Timeout, rate-limit (`429`), indisponibilidade e HTTP 5xx recebem `500`, permitindo retry; a consulta por `payment` antes de cada tentativa evita duplicação. Não há emissão real durante testes locais.
 
 ## Integração com n8n e WhatsApp
 
-Depois que o Asaas confirma um cliente novo, a cobrança da primeira sessão e a etapa fiscal, o backend tenta fazer um `POST` para:
+Depois que o Asaas confirma um cliente novo e a cobrança da primeira sessão, o backend tenta fazer um `POST` para:
 
 ```text
 https://webhook.studio4x.com.br/webhook/conexao-seres-cadastro-realizado
@@ -155,7 +165,7 @@ A URL pode ser substituída pela configuração do ambiente. O webhook recebe JS
 }
 ```
 
-`customerName` e `whatsapp` são os mesmos dados do titular usado no cliente Asaas: paciente quando o adulto não tem responsável; responsável legal/financeiro quando houver responsável ou quando a pessoa atendida for menor. Clientes já existentes, falhas de cobrança e cobranças sem etapa fiscal confirmada não disparam esse evento.
+`customerName` e `whatsapp` são os mesmos dados do titular usado no cliente Asaas: paciente quando o adulto não tem responsável; responsável legal/financeiro quando houver responsável ou quando a pessoa atendida for menor. Clientes já existentes ou falhas de cobrança não disparam esse evento. O n8n não espera o pagamento nem a emissão da NFS-e.
 
 ### Configuração do n8n — Sites / Cloudflare
 
@@ -168,7 +178,7 @@ N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_TOKEN
 
 Configure os mesmos valores por variáveis de ambiente ou no arquivo privado `api/config.php`, usando as chaves `n8n_cadastro_webhook_url` e `n8n_cadastro_webhook_token`. O modelo está em `cpanel-server/api/config.example.php`.
 
-A chamada é best-effort, com timeout curto e sem retries agressivos. URL ou token ausente não impedem o cadastro; falha HTTP, indisponibilidade ou timeout do n8n/Evolution API não transformam em erro um cliente, cobrança ou nota fiscal já confirmados. O backend não chama a Evolution API diretamente.
+A chamada é best-effort, com timeout curto e sem retries agressivos. URL ou token ausente não impedem o cadastro; falha HTTP, indisponibilidade ou timeout do n8n/Evolution API não transformam em erro um cliente ou cobrança já confirmados. O backend não chama a Evolution API diretamente.
 
 ## Arquitetura
 
@@ -204,6 +214,7 @@ app/api/turnstile/route.ts
 
 ```text
 cpanel-server/api/patients.php
+cpanel-server/api/asaas-webhook.php
 cpanel-server/api/cep.php
 cpanel-server/api/turnstile.php
 cpanel-server/api/deploy-webhook.php
@@ -281,12 +292,15 @@ Opcionais:
 
 ```text
 ASAAS_API_URL
+ASAAS_WEBHOOK_TOKEN
 TURNSTILE_EXPECTED_HOSTNAME
 N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_URL
 N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_TOKEN
 ```
 
 Nunca exponha `ASAAS_API_KEY` ou `TURNSTILE_SECRET_KEY` no frontend.
+
+Configure `ASAAS_WEBHOOK_TOKEN` no Asaas como `authToken` do webhook de cobranças. O token deve permanecer privado e ser enviado pelo Asaas no header `asaas-access-token`. Cadastre o evento `PAYMENT_CONFIRMED` para a URL pública `/api/asaas/webhook`.
 
 ## Configuração privada do cPanel
 

@@ -126,9 +126,11 @@ Sempre que uma tarefa alterar qualquer uma destas áreas, revise as duas versõe
 
 Não conclua uma alteração funcional modificando apenas um backend quando a mesma regra também for usada pelo outro ambiente.
 
-Após a criação de um novo cliente no Asaas, os dois backends também devem preservar a notificação best-effort do evento `asaas_customer_created` para o webhook configurável do n8n. O evento só pode ser enviado depois de um `customerId` válido e nunca no caminho de cliente existente; falhas, timeout ou configuração ausente do n8n não podem invalidar o cadastro no Asaas.
+Após a criação de um novo cliente e da cobrança da primeira sessão no Asaas, os dois backends também devem preservar a notificação best-effort do evento `asaas_customer_created` para o webhook configurável do n8n. O evento só pode ser enviado depois de `customerId` e pagamento válidos e nunca no caminho de cliente existente; falhas, timeout ou configuração ausente do n8n não podem invalidar o cadastro no Asaas.
 
-Após a criação de um cliente novo, os dois backends devem manter a cobrança avulsa idempotente da primeira sessão de Terapia Ocupacional: valor de R$ 230,00, `billingType = UNDEFINED`, vencimento no próximo dia útil em `America/Sao_Paulo`, referência `<externalReference>-sessao-1` e descrição baseada explicitamente em `patientSex` (`female` ou `male`), nome e CPF da pessoa atendida. O evento do n8n só pode ser enviado depois da cobrança e da etapa fiscal estarem confirmadas; não invente dados fiscais para forçar o envio.
+Após a criação de um cliente novo, os dois backends devem manter a cobrança avulsa idempotente da primeira sessão de Terapia Ocupacional: valor de R$ 230,00, `billingType = UNDEFINED`, vencimento no próximo dia útil em `America/Sao_Paulo`, referência `<externalReference>-sessao-1` e descrição baseada explicitamente em `patientSex` (`female` ou `male`), nome e CPF da pessoa atendida. O evento do n8n pode ser enviado após cliente e cobrança válidos, sem esperar pagamento ou NF.
+
+O endpoint `app/api/asaas/webhook/route.ts` e o equivalente `cpanel-server/api/asaas-webhook.php` devem aceitar webhook autenticado pelo header `asaas-access-token` e processar fiscalmente somente `PAYMENT_CONFIRMED`. Nunca emitir NF para qualquer cobrança indiscriminadamente: validar `payment.id`, `customer`, status, valor e `externalReference` `sessao-1`; consultar `GET /v3/invoices?payment=...` antes de criar; manter uma NF por payment; consultar `GET /v3/fiscalInfo/` e `GET /v3/fiscalInfo/services`; preservar o serviço de Terapia Ocupacional `04510`/`4.08` sem inventar `municipalServiceId`; e criar a invoice vinculada por `POST /v3/invoices` somente com payload fiscal confirmado. Eventos duplicados devem ser seguros e falhas permanentes não devem gerar retry infinito.
 
 ## Regras de negócio que devem ser preservadas
 
@@ -251,6 +253,7 @@ Opcionais:
 
 ```text
 ASAAS_API_URL
+ASAAS_WEBHOOK_TOKEN
 TURNSTILE_EXPECTED_HOSTNAME
 N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_URL
 N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_TOKEN

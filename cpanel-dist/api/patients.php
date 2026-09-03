@@ -289,13 +289,6 @@ function create_first_session_payment(
     ];
 }
 
-function prepare_first_session_invoice(): array
-{
-    $reason = 'A API de nota fiscal do Asaas exige serviço municipal e tributos fiscais; não há configuração segura disponível no formulário para inferir esses dados.';
-    error_log('Asaas first-session invoice scheduling skipped. ' . $reason);
-    return ['configured' => false, 'reason' => $reason];
-}
-
 function build_observations(array $values, int $patientAge): ?string
 {
     if ($patientAge >= 18 && !$values['hasResponsible']) {
@@ -866,24 +859,10 @@ if (!is_string($payment['paymentId'] ?? null) || $payment['paymentId'] === '') {
     ], 201);
 }
 
-$invoice = prepare_first_session_invoice();
-if (($invoice['configured'] ?? false) !== true) {
-    respond([
-        'success' => true,
-        'existing' => false,
-        'partial' => true,
-        'paymentCreated' => true,
-        'paymentId' => $payment['paymentId'],
-        'invoiceConfigured' => false,
-        'message' => 'Seu cadastro e a cobrança da primeira sessão foram registrados. A emissão fiscal será concluída pela equipe da Conexão Seres antes do envio das instruções.',
-    ], 201);
-}
-
 $responsePayload = [
     'success' => true,
     'existing' => false,
     'paymentCreated' => true,
-    'invoiceConfigured' => true,
 ];
 $responseFinished = finish_response_and_continue($responsePayload, 201);
 $n8nNotified = notify_n8n_customer_created_safely($n8nWebhookUrl, $n8nWebhookToken, [
