@@ -21,6 +21,33 @@ test("sends the patient name as company whenever there is a responsible party", 
   );
 });
 
+test("uses the selected holder's complement when creating or updating an Asaas customer", () => {
+  assert.match(
+    typescriptBackend,
+    /const holderComplement = clean\(patient\[`\$\{holder\}Complement`\]\);/,
+  );
+  assert.match(
+    typescriptBackend,
+    /holderComplement,\s*\n\s*\);/,
+  );
+  assert.match(
+    typescriptBackend,
+    /\.\.\.\(holderComplement \? \{ complement: holderComplement \} : \{\}\)/,
+  );
+  assert.match(
+    phpBackend,
+    /\$holderComplement = clean_text\(\$values\[\$holder \. 'Complement'\]\);/,
+  );
+  assert.match(
+    phpBackend,
+    /\$customerUpdate\['complement'\] = \$holderComplement;/,
+  );
+  assert.match(
+    phpBackend,
+    /\$customer\['complement'\] = \$holderComplement;/,
+  );
+});
+
 test("formats patient and responsible birth dates in observations", () => {
   assert.match(
     typescriptBackend,

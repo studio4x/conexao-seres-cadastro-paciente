@@ -318,6 +318,7 @@ async function updateCustomerGroup(
   customerId: string,
   groupName: "Adultos" | "Crianças",
   headers: ReturnType<typeof asaasHeaders>,
+  complement: string,
 ) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
@@ -326,7 +327,10 @@ async function updateCustomerGroup(
     const response = await fetch(`${baseUrl}/customers/${encodeURIComponent(customerId)}`, {
       method: "PUT",
       headers,
-      body: JSON.stringify({ groupName }),
+      body: JSON.stringify({
+        groupName,
+        ...(complement ? { complement } : {}),
+      }),
       signal: controller.signal,
     });
     if (!response.ok) {
@@ -453,6 +457,7 @@ export async function POST(request: Request) {
   const patientAge = calculateAge(patient.patientBirthDate)!;
   const customerGroup = patientAge >= 18 ? "Adultos" : "Crianças";
   const holder = patient.hasResponsible ? "responsible" : "patient";
+  const holderComplement = clean(patient[`${holder}Complement`]);
   const externalReference = await patientReference(patient.patientName, patient.patientCpf);
   const headers = asaasHeaders(apiKey);
   const controller = new AbortController();
@@ -485,7 +490,13 @@ export async function POST(request: Request) {
     const existing = (await existingResponse.json()) as AsaasCustomerList;
     if (existing.data?.length) {
       const existingCustomerId = existing.data[0].id;
-      const groupConfigured = await updateCustomerGroup(baseUrl, existingCustomerId, customerGroup, headers);
+      const groupConfigured = await updateCustomerGroup(
+        baseUrl,
+        existingCustomerId,
+        customerGroup,
+        headers,
+        holderComplement,
+      );
       if (!groupConfigured) {
         console.error("Existing Asaas customer found, but group configuration was not completed", {
           existingCustomerId,
@@ -509,9 +520,7 @@ export async function POST(request: Request) {
       postalCode: onlyDigits(patient[`${holder}PostalCode`]),
       address: clean(patient[`${holder}Address`]),
       addressNumber: clean(patient[`${holder}AddressNumber`]),
-      ...(patient[`${holder}Complement`]
-        ? { complement: clean(patient[`${holder}Complement`]) }
-        : {}),
+      ...(holderComplement ? { complement: holderComplement } : {}),
       province: clean(patient[`${holder}Province`]),
       externalReference,
       groupName: customerGroup,

@@ -471,6 +471,8 @@ $externalReference = 'cs-paciente-' . substr(
     24
 );
 $customerGroup = $patientAge >= 18 ? 'Adultos' : 'Crianças';
+$holder = $values['hasResponsible'] ? 'responsible' : 'patient';
+$holderComplement = clean_text($values[$holder . 'Complement']);
 
 $lookupUrl = $baseUrl . '/customers?' . http_build_query([
     'externalReference' => $externalReference,
@@ -492,11 +494,15 @@ if (!empty($lookup['data']['data'])) {
         respond(['message' => 'Não conseguimos confirmar o cadastro no Asaas. Tente novamente em instantes.'], 502);
     }
     $responseFinished = finish_response_and_continue(['success' => true, 'existing' => true], 200);
+    $customerUpdate = ['groupName' => $customerGroup];
+    if ($holderComplement !== '') {
+        $customerUpdate['complement'] = $holderComplement;
+    }
     $groupUpdated = asaas_request(
         'PUT',
         $baseUrl . '/customers/' . rawurlencode($existingCustomerId),
         $apiKey,
-        ['groupName' => $customerGroup]
+        $customerUpdate
     );
     if ($groupUpdated['error'] !== '' || $groupUpdated['status'] < 200 || $groupUpdated['status'] >= 300) {
         error_log('Asaas customer group update failed. HTTP ' . $groupUpdated['status']);
@@ -510,7 +516,6 @@ if (!empty($lookup['data']['data'])) {
     respond(['success' => true, 'existing' => true]);
 }
 
-$holder = $values['hasResponsible'] ? 'responsible' : 'patient';
 $customer = [
     'name' => clean_text($values[$holder . 'Name']),
     'cpfCnpj' => digits($values[$holder . 'Cpf']),
@@ -525,9 +530,8 @@ $customer = [
     'notificationDisabled' => false,
 ];
 
-$complement = clean_text($values[$holder . 'Complement']);
-if ($complement !== '') {
-    $customer['complement'] = $complement;
+if ($holderComplement !== '') {
+    $customer['complement'] = $holderComplement;
 }
 if ($values['hasResponsible']) {
     $customer['company'] = clean_text($values['patientName']);
