@@ -160,7 +160,12 @@ const patientSchema = z
 type Patient = z.infer<typeof patientSchema>;
 type AsaasCustomerList = { data?: Array<{ id: string }> };
 type AsaasCustomer = { id?: string };
-type AsaasNotificationList = { data?: Array<{ id?: string }> };
+type AsaasNotification = {
+  id?: string;
+  event?: string;
+  scheduleOffset?: number;
+};
+type AsaasNotificationList = { data?: AsaasNotification[] };
 
 type TurnstileVerification = {
   success?: boolean;
@@ -227,7 +232,31 @@ async function asaasErrorDetails(response: Response) {
   }
 }
 
-async function configureWhatsappOnly(
+function buildNotificationUpdate(notification: AsaasNotification & { id: string }) {
+  const event = notification.event || "";
+  const scheduleOffset = notification.scheduleOffset ?? 0;
+  const isBeforeDueDateReminder = event === "PAYMENT_DUEDATE_WARNING" && scheduleOffset !== 0;
+  const isOverdueReminder = event === "PAYMENT_OVERDUE" && scheduleOffset !== 0;
+  const isDigitalLineNotification = event === "SEND_LINHA_DIGITAVEL";
+
+  return {
+    id: notification.id,
+    enabled: true,
+    emailEnabledForProvider: false,
+    smsEnabledForProvider: false,
+    emailEnabledForCustomer: false,
+    smsEnabledForCustomer: false,
+    phoneCallEnabledForCustomer: false,
+    whatsappEnabledForCustomer: !isDigitalLineNotification,
+    ...(isBeforeDueDateReminder
+      ? { scheduleOffset: 5 }
+      : isOverdueReminder
+        ? { scheduleOffset: 1 }
+        : {}),
+  };
+}
+
+async function configureCustomerNotifications(
   baseUrl: string,
   customerId: string,
   headers: ReturnType<typeof asaasHeaders>,
@@ -251,17 +280,8 @@ async function configureWhatsappOnly(
 
     const list = (await listResponse.json()) as AsaasNotificationList;
     const notifications = (list.data || [])
-      .filter((notification): notification is { id: string } => Boolean(notification.id))
-      .map((notification) => ({
-        id: notification.id,
-        enabled: true,
-        emailEnabledForProvider: false,
-        smsEnabledForProvider: false,
-        emailEnabledForCustomer: false,
-        smsEnabledForCustomer: false,
-        phoneCallEnabledForCustomer: false,
-        whatsappEnabledForCustomer: true,
-      }));
+      .filter((notification): notification is AsaasNotification & { id: string } => Boolean(notification.id))
+      .map(buildNotificationUpdate);
 
     if (!notifications.length) {
       console.error("Asaas notification lookup returned no notification IDs", { customerId });
@@ -466,7 +486,7 @@ export async function POST(request: Request) {
           existingCustomerId,
         });
       }
-      const notificationsConfigured = await configureWhatsappOnly(baseUrl, existingCustomerId, headers);
+      const notificationsConfigured = await configureCustomerNotifications(baseUrl, existingCustomerId, headers);
       if (!notificationsConfigured) {
         console.error("Existing Asaas customer found, but notification configuration was not completed", {
           existingCustomerId,
@@ -525,7 +545,7 @@ export async function POST(request: Request) {
         { status: 502 },
       );
     }
-    const notificationsConfigured = await configureWhatsappOnly(baseUrl, created.id, headers);
+    const notificationsConfigured = await configureCustomerNotifications(baseUrl, created.id, headers);
     if (!notificationsConfigured) {
       console.error("Asaas customer was created, but notification configuration was not completed", {
         customerId: created.id,

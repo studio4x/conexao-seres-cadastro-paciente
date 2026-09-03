@@ -41,7 +41,7 @@ O fluxo principal do sistema é:
 - Integração com a API do Asaas.
 - Prevenção de cadastros duplicados por referência externa determinística.
 - Classificação automática dos clientes nos grupos `Adultos` ou `Crianças`.
-- Configuração das notificações do cliente para WhatsApp.
+- Configuração das notificações do cliente por evento, com WhatsApp ativo e os demais canais desativados conforme a regra de negócio.
 - Build específica para publicação em cPanel sem necessidade de Node.js no servidor de produção.
 
 ## Regras de negócio do cadastro
@@ -123,17 +123,15 @@ Quando um cadastro já existe:
 
 ## Notificações do Asaas
 
-Depois da criação ou identificação do cliente, o sistema consulta as notificações existentes no Asaas e tenta manter o envio ao cliente habilitado apenas por **WhatsApp**.
+Depois da criação ou identificação do cliente, o sistema consulta as notificações existentes no Asaas e aplica a configuração por evento.
 
-A configuração aplicada desabilita, para o cliente:
+Para o cliente, a configuração é:
 
-- e-mail;
-- SMS;
-- ligação telefônica.
-
-E mantém habilitado:
-
-- WhatsApp.
+- WhatsApp ativo em criação de cobrança, alteração de cobrança, aviso no dia do vencimento, atraso, confirmação de pagamento e lembrete após o vencimento;
+- e-mail, SMS e ligação automática desativados nesses eventos;
+- linha digitável com e-mail e SMS desativados;
+- aviso antes do vencimento configurado para 5 dias antes, com WhatsApp ativo e demais canais desativados;
+- lembrete de cobrança vencida configurado para 1 dia após o vencimento, com WhatsApp ativo e demais canais desativados.
 
 Falhas na configuração das notificações são registradas no servidor, mas não desfazem um cliente que já tenha sido criado com sucesso no Asaas.
 
@@ -616,4 +614,3 @@ Antes de publicar uma alteração funcional, confira:
 
 - [`AGENTS.md`](AGENTS.md): regras para agentes e automações que modificam o repositório.
 - [`CPANEL.md`](CPANEL.md): instruções resumidas de publicação no cPanel.
-

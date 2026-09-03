@@ -225,7 +225,35 @@ function asaas_request(string $method, string $url, string $apiKey, ?array $payl
     ];
 }
 
-function configure_whatsapp_only(string $baseUrl, string $customerId, string $apiKey): bool
+function build_notification_update(array $notification): array
+{
+    $event = trim((string) ($notification['event'] ?? ''));
+    $scheduleOffset = (int) ($notification['scheduleOffset'] ?? 0);
+    $isBeforeDueDateReminder = $event === 'PAYMENT_DUEDATE_WARNING' && $scheduleOffset !== 0;
+    $isOverdueReminder = $event === 'PAYMENT_OVERDUE' && $scheduleOffset !== 0;
+    $isDigitalLineNotification = $event === 'SEND_LINHA_DIGITAVEL';
+
+    $update = [
+        'id' => trim((string) ($notification['id'] ?? '')),
+        'enabled' => true,
+        'emailEnabledForProvider' => false,
+        'smsEnabledForProvider' => false,
+        'emailEnabledForCustomer' => false,
+        'smsEnabledForCustomer' => false,
+        'phoneCallEnabledForCustomer' => false,
+        'whatsappEnabledForCustomer' => !$isDigitalLineNotification,
+    ];
+
+    if ($isBeforeDueDateReminder) {
+        $update['scheduleOffset'] = 5;
+    } elseif ($isOverdueReminder) {
+        $update['scheduleOffset'] = 1;
+    }
+
+    return $update;
+}
+
+function configure_customer_notifications(string $baseUrl, string $customerId, string $apiKey): bool
 {
     $list = asaas_request(
         'GET',
@@ -243,16 +271,7 @@ function configure_whatsapp_only(string $baseUrl, string $customerId, string $ap
         if ($notificationId === '') {
             continue;
         }
-        $notifications[] = [
-            'id' => $notificationId,
-            'enabled' => true,
-            'emailEnabledForProvider' => false,
-            'smsEnabledForProvider' => false,
-            'emailEnabledForCustomer' => false,
-            'smsEnabledForCustomer' => false,
-            'phoneCallEnabledForCustomer' => false,
-            'whatsappEnabledForCustomer' => true,
-        ];
+        $notifications[] = build_notification_update($notification);
     }
 
     if ($notifications === []) {
@@ -272,10 +291,10 @@ function configure_whatsapp_only(string $baseUrl, string $customerId, string $ap
     return true;
 }
 
-function configure_whatsapp_only_safely(string $baseUrl, string $customerId, string $apiKey): bool
+function configure_customer_notifications_safely(string $baseUrl, string $customerId, string $apiKey): bool
 {
     try {
-        return configure_whatsapp_only($baseUrl, $customerId, $apiKey);
+        return configure_customer_notifications($baseUrl, $customerId, $apiKey);
     } catch (Throwable $exception) {
         error_log('Asaas notification configuration failed: ' . $exception->getMessage());
         return false;
@@ -473,7 +492,7 @@ if (!empty($lookup['data']['data'])) {
     if ($groupUpdated['error'] !== '' || $groupUpdated['status'] < 200 || $groupUpdated['status'] >= 300) {
         error_log('Asaas customer group update failed. HTTP ' . $groupUpdated['status']);
     }
-    if (!configure_whatsapp_only_safely($baseUrl, $existingCustomerId, $apiKey)) {
+    if (!configure_customer_notifications_safely($baseUrl, $existingCustomerId, $apiKey)) {
         error_log('Existing Asaas customer found, but notification configuration was not completed. Customer ' . $existingCustomerId);
     }
     if ($responseFinished) {
@@ -523,7 +542,7 @@ if ($createdCustomerId === '') {
     respond(['message' => 'Não conseguimos confirmar o cadastro no Asaas. Tente novamente em instantes.'], 502);
 }
 $responseFinished = finish_response_and_continue(['success' => true, 'existing' => false], 201);
-if (!configure_whatsapp_only_safely($baseUrl, $createdCustomerId, $apiKey)) {
+if (!configure_customer_notifications_safely($baseUrl, $createdCustomerId, $apiKey)) {
     error_log('Asaas customer was created, but notification configuration was not completed. Customer ' . $createdCustomerId);
 }
 if ($responseFinished) {

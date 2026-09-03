@@ -185,21 +185,19 @@ Mudanças no fluxo de criação também devem considerar o fluxo de cliente já 
 
 ## Notificações do Asaas
 
-O comportamento atual tenta manter notificações para o cliente apenas por WhatsApp.
+O comportamento atual configura as notificações do cliente por evento, com WhatsApp ativo nos avisos de cobrança e os demais canais desativados conforme a regra de negócio.
 
-A configuração aplicada deve manter:
+Para o cliente, a configuração deve manter `whatsappEnabledForCustomer = true` em criação, alteração, vencimento, atraso, confirmação e lembretes de cobrança. Para `SEND_LINHA_DIGITAVEL`, o WhatsApp também deve permanecer desativado.
 
-```text
-whatsappEnabledForCustomer = true
-```
-
-E desabilitar para o cliente:
+Nos eventos controlados, deve desabilitar para o cliente:
 
 ```text
 emailEnabledForCustomer = false
 smsEnabledForCustomer = false
 phoneCallEnabledForCustomer = false
 ```
+
+O aviso antes do vencimento deve usar `scheduleOffset = 5`, e o lembrete após o vencimento deve usar `scheduleOffset = 1`.
 
 Também são desabilitadas as opções de e-mail/SMS para o provedor presentes no payload atual.
 
