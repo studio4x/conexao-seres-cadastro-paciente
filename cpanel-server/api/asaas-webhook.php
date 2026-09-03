@@ -95,6 +95,11 @@ function is_first_session_payment_event(array $payment, string $event): bool
     return is_first_session_payment($payment) && in_array(($payment['status'] ?? ''), $allowedStatuses, true);
 }
 
+function optional_payment_string(array $payment, string $field): string
+{
+    return is_string($payment[$field] ?? null) ? $payment[$field] : '';
+}
+
 function notify_n8n_first_session_paid_safely(
     string $baseUrl,
     string $apiKey,
@@ -124,6 +129,26 @@ function notify_n8n_first_session_paid_safely(
         return false;
     }
 
+    $invoiceNumber = optional_payment_string($payment, 'invoiceNumber');
+    $invoiceUrl = optional_payment_string($payment, 'invoiceUrl');
+    if ($invoiceNumber === '' || $invoiceUrl === '') {
+        $paymentDetails = asaas_request('GET', $baseUrl . '/payments/' . rawurlencode($paymentId), $apiKey);
+        if ($paymentDetails['status'] >= 200 && $paymentDetails['status'] < 300) {
+            if ($invoiceNumber === '') {
+                $invoiceNumber = optional_payment_string($paymentDetails['data'], 'invoiceNumber');
+            }
+            if ($invoiceUrl === '') {
+                $invoiceUrl = optional_payment_string($paymentDetails['data'], 'invoiceUrl');
+            }
+        } else {
+            error_log(
+                'n8n first-session-paid payment invoice lookup failed. Payment ' . $paymentId
+                . ' Event ' . $event . ' HTTP ' . (int) ($paymentDetails['status'] ?? 0)
+                . ' Error ' . ($paymentDetails['error'] ?? '')
+            );
+        }
+    }
+
     $payload = [
         'eventType' => 'asaas_first_session_paid',
         'asaasEventId' => $asaasEventId,
@@ -131,6 +156,8 @@ function notify_n8n_first_session_paid_safely(
         'paymentId' => $paymentId,
         'asaasCustomerId' => $customerId,
         'customerName' => $customerName,
+        'invoiceNumber' => $invoiceNumber,
+        'invoiceUrl' => $invoiceUrl,
         'value' => is_numeric($payment['value'] ?? null) ? (float) $payment['value'] : 0,
         'billingType' => trim((string) ($payment['billingType'] ?? '')),
         'status' => trim((string) ($payment['status'] ?? '')),

@@ -185,6 +185,8 @@ A chamada é best-effort, com timeout curto e sem retries agressivos. URL ou tok
 
 O webhook do Asaas também encaminha, de forma best-effort, a cobrança válida da primeira sessão quando recebe `PAYMENT_CONFIRMED` com status `CONFIRMED` ou `PAYMENT_RECEIVED` com status `RECEIVED`/`RECEIVED_IN_CASH`. O encaminhamento usa os dois eventos possíveis, sempre inclui `paymentId` para deduplicação no n8n e não depende da emissão da NFS-e. O cliente é consultado no Asaas por `GET /v3/customers/{customerId}` e `customer.name` é usado como `customerName`.
 
+O payload também inclui `invoiceNumber` e `invoiceUrl`, obtidos primeiro do objeto `payment` recebido no evento. Se algum deles estiver ausente, o backend consulta `GET /v3/payments/{paymentId}` e usa os valores retornados pelo Asaas, sem construir ou modificar a URL. Os campos são opcionais: quando indisponíveis, são enviados como strings vazias e não impedem o n8n nem o processamento fiscal.
+
 Configure:
 
 ```text
@@ -204,6 +206,8 @@ Exemplo de payload (valores fictícios):
   "paymentId": "pay_exemplo_123",
   "asaasCustomerId": "cus_exemplo_123",
   "customerName": "Nome Fictício",
+  "invoiceNumber": "00001234",
+  "invoiceUrl": "https://www.asaas.com/i/exemplo123",
   "value": 230,
   "billingType": "PIX",
   "status": "CONFIRMED",

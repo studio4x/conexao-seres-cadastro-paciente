@@ -281,6 +281,47 @@ test("forwards both valid first-session payment events to n8n with the Asaas cus
   assert.ok(phpValidationIndex > -1 && phpNotifyIndex > phpValidationIndex && phpNotifyIndex < phpFiscalIndex);
 });
 
+test("forwards invoice number and the official invoice URL to n8n", () => {
+  for (const webhook of [typescriptFiscalWebhook, phpFiscalWebhook]) {
+    assert.match(webhook, /invoiceNumber/);
+    assert.match(webhook, /invoiceUrl/);
+    assert.match(webhook, /paymentId/);
+    assert.match(webhook, /payments\//);
+    assert.match(webhook, /GET/);
+  }
+  assert.match(typescriptFiscalWebhook, /optionalPaymentString\(payment, "invoiceNumber"\)/);
+  assert.match(typescriptFiscalWebhook, /optionalPaymentString\(payment, "invoiceUrl"\)/);
+  assert.match(typescriptFiscalWebhook, /if \(!invoiceNumber \|\| !invoiceUrl\)/);
+  assert.match(typescriptFiscalWebhook, /optionalPaymentString\(paymentResult\.data, "invoiceUrl"\)/);
+  assert.match(phpFiscalWebhook, /optional_payment_string\(\$payment, 'invoiceNumber'\)/);
+  assert.match(phpFiscalWebhook, /optional_payment_string\(\$payment, 'invoiceUrl'\)/);
+  assert.match(phpFiscalWebhook, /if \(\$invoiceNumber === '' \|\| \$invoiceUrl === ''\)/);
+  assert.match(phpFiscalWebhook, /optional_payment_string\(\$paymentDetails\['data'\], 'invoiceUrl'\)/);
+});
+
+test("uses event invoice fields without an extra payment lookup when both are present", () => {
+  assert.match(
+    typescriptFiscalWebhook,
+    /let invoiceNumber = optionalPaymentString\(payment, "invoiceNumber"\);[\s\S]*?let invoiceUrl = optionalPaymentString\(payment, "invoiceUrl"\);[\s\S]*?if \(!invoiceNumber \|\| !invoiceUrl\)/,
+  );
+  assert.match(
+    phpFiscalWebhook,
+    /\$invoiceNumber = optional_payment_string\(\$payment, 'invoiceNumber'\);[\s\S]*?\$invoiceUrl = optional_payment_string\(\$payment, 'invoiceUrl'\);[\s\S]*?if \(\$invoiceNumber === '' \|\| \$invoiceUrl === ''\)/,
+  );
+});
+
+test("keeps invoice fields optional when the Asaas payment lookup is unavailable", () => {
+  for (const webhook of [typescriptFiscalWebhook, phpFiscalWebhook]) {
+    assert.match(webhook, /invoiceNumber/);
+    assert.match(webhook, /invoiceUrl/);
+    assert.match(webhook, /n8n first-session-paid payment invoice lookup failed/);
+    assert.match(webhook, /asaas_first_session_paid/);
+    assert.match(webhook, /processPaymentEvent|process_with_payment_lock/);
+  }
+  assert.match(typescriptFiscalWebhook, /invoiceNumber = optionalPaymentString\(paymentResult\.data, "invoiceNumber"\)/);
+  assert.match(phpFiscalWebhook, /\$invoiceNumber = optional_payment_string\(\$paymentDetails\['data'\], 'invoiceNumber'\)/);
+});
+
 test("accepts only authenticated confirmed or received first-session payment events", () => {
   for (const webhook of [typescriptFiscalWebhook, phpFiscalWebhook]) {
     assert.match(webhook, /PAYMENT_CONFIRMED/);

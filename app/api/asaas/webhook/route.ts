@@ -121,6 +121,10 @@ function isFirstSessionPayment(payment: JsonRecord, event: "PAYMENT_CONFIRMED" |
   );
 }
 
+function optionalPaymentString(payment: JsonRecord, field: "invoiceNumber" | "invoiceUrl") {
+  return typeof payment[field] === "string" ? payment[field] : "";
+}
+
 async function notifyN8nFirstSessionPaid(
   baseUrl: string,
   apiKey: string,
@@ -168,6 +172,28 @@ async function notifyN8nFirstSessionPaid(
     return false;
   }
 
+  let invoiceNumber = optionalPaymentString(payment, "invoiceNumber");
+  let invoiceUrl = optionalPaymentString(payment, "invoiceUrl");
+  if (!invoiceNumber || !invoiceUrl) {
+    const paymentResult = await requestAsaas(
+      baseUrl,
+      "/payments/" + encodeURIComponent(paymentId),
+      "GET",
+      apiKey,
+    );
+    if (paymentResult.status >= 200 && paymentResult.status < 300) {
+      if (!invoiceNumber) invoiceNumber = optionalPaymentString(paymentResult.data, "invoiceNumber");
+      if (!invoiceUrl) invoiceUrl = optionalPaymentString(paymentResult.data, "invoiceUrl");
+    } else {
+      console.warn("n8n first-session-paid payment invoice lookup failed", {
+        paymentId,
+        asaasEvent: event,
+        status: paymentResult.status,
+        error: paymentResult.error || undefined,
+      });
+    }
+  }
+
   const paymentDate = effectiveDateFromPayment(payment);
   const payload = {
     eventType: "asaas_first_session_paid",
@@ -176,6 +202,8 @@ async function notifyN8nFirstSessionPaid(
     paymentId,
     asaasCustomerId: customerId,
     customerName,
+    invoiceNumber,
+    invoiceUrl,
     value: typeof payment.value === "number" ? payment.value : Number(payment.value),
     billingType: typeof payment.billingType === "string" ? payment.billingType : "",
     status: typeof payment.status === "string" ? payment.status : "",
