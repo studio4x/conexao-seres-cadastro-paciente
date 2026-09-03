@@ -9,6 +9,10 @@ const phpBackend = await readFile(
   new URL("../cpanel-server/api/patients.php", import.meta.url),
   "utf8",
 );
+const frontend = await readFile(
+  new URL("../components/cadastro-form.tsx", import.meta.url),
+  "utf8",
+);
 
 test("sends the patient name as company whenever there is a responsible party", () => {
   assert.match(
@@ -77,5 +81,24 @@ test("formats patient and responsible birth dates in observations", () => {
   assert.match(
     phpBackend,
     /Nascimento do responsável: ' \. format_birth_date\(\$values\['responsibleBirthDate'\]\)/,
+  );
+});
+
+test("validates birth dates when they change and when the field loses focus", () => {
+  assert.match(
+    frontend,
+    /function birthDateError\(field: BirthDateField, value: string\)[\s\S]*?Informe uma data de nascimento válida\.[\s\S]*?O responsável deve ter 18 anos ou mais\./,
+  );
+  assert.match(
+    frontend,
+    /setFieldValidation\("patientBirthDate", birthDateError\("patientBirthDate", value\)\)/,
+  );
+  assert.match(
+    frontend,
+    /onChange=\{updateBirthDate\}[\s\S]*?onBlur=\{\(\) => validateBirthDateField\("patientBirthDate"\)\}/,
+  );
+  assert.match(
+    frontend,
+    /onChange=\{updateResponsibleBirthDate\}[\s\S]*?onBlur=\{\(\) => validateBirthDateField\("responsibleBirthDate"\)\}/,
   );
 });

@@ -80,6 +80,17 @@ function calculateAge(value: string) {
   return age;
 }
 
+type BirthDateField = "patientBirthDate" | "responsibleBirthDate";
+
+function birthDateError(field: BirthDateField, value: string) {
+  const age = calculateAge(value);
+  if (age === null) return "Informe uma data de nascimento válida.";
+  if (field === "responsibleBirthDate" && age < 18) {
+    return "O responsável deve ter 18 anos ou mais.";
+  }
+  return undefined;
+}
+
 const formSchema = z
   .object({
     patientName: z.string().trim().min(3, "Informe o nome completo do paciente."),
@@ -702,7 +713,16 @@ export function CadastroForm() {
       patientBirthDate: value,
       hasResponsible: age === null ? current.hasResponsible : age < 18,
     }));
-    setErrors((current) => ({ ...current, patientBirthDate: undefined }));
+    setFieldValidation("patientBirthDate", birthDateError("patientBirthDate", value));
+  }
+
+  function updateResponsibleBirthDate(value: string) {
+    update("responsibleBirthDate", value);
+    setFieldValidation("responsibleBirthDate", birthDateError("responsibleBirthDate", value));
+  }
+
+  function validateBirthDateField(field: BirthDateField) {
+    setFieldValidation(field, birthDateError(field, values[field]));
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -823,6 +843,7 @@ export function CadastroForm() {
             type="date"
             autoComplete="bday"
             onChange={updateBirthDate}
+            onBlur={() => validateBirthDateField("patientBirthDate")}
           />
           <InputField
             field="patientCpf"
@@ -944,7 +965,8 @@ export function CadastroForm() {
               error={errors.responsibleBirthDate}
               type="date"
               autoComplete="bday"
-              onChange={(value) => update("responsibleBirthDate", value)}
+              onChange={updateResponsibleBirthDate}
+              onBlur={() => validateBirthDateField("responsibleBirthDate")}
             />
           </div>
 

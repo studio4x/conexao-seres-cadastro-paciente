@@ -21,8 +21,8 @@ Sempre que possível, execute os testes em ambiente de homologação ou Sandbox 
 - [ ] O formulário apresenta mensagens amigáveis para erros.
 - [ ] O botão impede envios duplicados enquanto o cadastro está sendo processado.
 - [ ] O sucesso é exibido somente depois da resposta positiva do backend.
-- [ ] Nenhuma chave, token do Turnstile ou resposta técnica do Asaas aparece no navegador.
-- [ ] O cadastro não é duplicado quando o mesmo paciente é enviado novamente.
+- [OK] Nenhuma chave, token do Turnstile ou resposta técnica do Asaas aparece no navegador.
+- [OK] O cadastro não é duplicado quando o mesmo paciente é enviado novamente.
 - [OK] O rodapé exibe a versão esperada da build.
 - [OK] Formulário não é enviado sem endereço preenchido.
 
