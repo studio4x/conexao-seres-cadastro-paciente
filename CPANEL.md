@@ -13,9 +13,10 @@ O conteúdo pronto para publicação será criado na pasta `cpanel-dist/`. Essa 
 ## Configurar e publicar
 
 1. Dentro de `cpanel-dist/api/`, faça uma cópia de `config.example.php` com o nome `config.php`.
-2. Abra `config.php` e substitua o texto de exemplo pela chave da API do Asaas.
-3. Envie **o conteúdo de `cpanel-dist/`** para a pasta pública configurada para `cadastro.conexaoseres.com.br`.
-4. No cPanel, confirme que o domínio usa PHP 8.1 ou superior e que as extensões `curl` e `json` estão habilitadas.
-5. Aponte o DNS do subdomínio para a hospedagem e aguarde a propagação.
+2. Abra `config.php` e substitua os textos de exemplo pela chave da API do Asaas e pelas chaves pública e secreta do Cloudflare Turnstile.
+3. No painel do Cloudflare Turnstile, autorize o domínio `cadastro.conexaoseres.com.br` para o widget.
+4. Envie **o conteúdo de `cpanel-dist/`** para a pasta pública configurada para `cadastro.conexaoseres.com.br`.
+5. No cPanel, confirme que o domínio usa PHP 8.1 ou superior e que as extensões `curl` e `json` estão habilitadas.
+6. Aponte o DNS do subdomínio para a hospedagem e aguarde a propagação.
 
-O arquivo `api/config.php` é ignorado pelo Git e bloqueado para acesso direto pelo Apache. A chave do Asaas permanece somente no servidor.
+O arquivo `api/config.php` é ignorado pelo Git e bloqueado para acesso direto pelo Apache. As chaves secretas do Asaas e do Turnstile permanecem somente no servidor.

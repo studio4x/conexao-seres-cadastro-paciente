@@ -3,6 +3,7 @@ DirectoryIndex index.html
 
 RewriteEngine On
 RewriteRule ^api/cep/?$ api/cep.php [L,QSA]
+RewriteRule ^api/turnstile/?$ api/turnstile.php [L]
 RewriteRule ^api/patients/?$ api/patients.php [L]
 
 <IfModule mod_headers.c>

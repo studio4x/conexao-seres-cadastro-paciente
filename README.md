@@ -4,6 +4,11 @@ Formulário de cadastro de pacientes integrado ao Asaas. O projeto mantém a ver
 
 Para publicar em `cadastro.conexaoseres.com.br`, consulte [CPANEL.md](CPANEL.md).
 
+Na hospedagem do Sites, configure `ASAAS_API_KEY`, `TURNSTILE_SITE_KEY` e
+`TURNSTILE_SECRET_KEY`. Opcionalmente, defina `ASAAS_API_URL` e
+`TURNSTILE_EXPECTED_HOSTNAME`; quando informado, o hostname retornado pelo
+Cloudflare também será conferido no servidor.
+
 ## Estrutura original do projeto
 
 A clean full-stack starter running on [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and Drizzle support.

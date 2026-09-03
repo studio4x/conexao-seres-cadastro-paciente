@@ -105,6 +105,7 @@ const patientSchema = z
     responsibleState: z.string().trim().max(2),
     consent: z.literal(true),
     website: z.string().max(0),
+    turnstileToken: z.string().min(1).max(2048),
   })
   .superRefine((value, context) => {
     const add = (field: keyof typeof value) =>
@@ -158,6 +159,46 @@ const patientSchema = z
 
 type Patient = z.infer<typeof patientSchema>;
 type AsaasCustomerList = { data?: Array<{ id: string }> };
+
+type TurnstileVerification = {
+  success?: boolean;
+  hostname?: string;
+  action?: string;
+};
+
+async function verifyTurnstile(request: Request, token: string) {
+  const secret = (env.TURNSTILE_SECRET_KEY as string | undefined)?.trim();
+  if (!secret) return { configured: false, valid: false };
+
+  const remoteIp =
+    request.headers.get("cf-connecting-ip") ||
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+
+  try {
+    const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ secret, response: token, ...(remoteIp ? { remoteip: remoteIp } : {}) }),
+      signal: controller.signal,
+    });
+    if (!response.ok) return { configured: true, valid: false };
+    const result = (await response.json()) as TurnstileVerification;
+    const expectedHostname = (env.TURNSTILE_EXPECTED_HOSTNAME as string | undefined)?.trim();
+    return {
+      configured: true,
+      valid:
+        result.success === true &&
+        result.action === "cadastro_paciente" &&
+        (!expectedHostname || result.hostname === expectedHostname),
+    };
+  } catch {
+    return { configured: true, valid: false };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 function asaasHeaders(apiKey: string) {
   return {
@@ -254,6 +295,20 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json(
       { message: "Confira os dados informados e tente novamente." },
+      { status: 400 },
+    );
+  }
+
+  const turnstile = await verifyTurnstile(request, parsed.data.turnstileToken);
+  if (!turnstile.configured) {
+    return NextResponse.json(
+      { message: "A verificação de segurança ainda não foi configurada. Fale com a clínica para que possamos ajudar." },
+      { status: 503 },
+    );
+  }
+  if (!turnstile.valid) {
+    return NextResponse.json(
+      { message: "Não foi possível confirmar a verificação de segurança. Atualize a página e tente novamente." },
       { status: 400 },
     );
   }

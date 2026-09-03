@@ -201,6 +201,41 @@ function asaas_request(string $method, string $url, string $apiKey, ?array $payl
     ];
 }
 
+function turnstile_is_valid(string $secret, string $token, string $expectedHostname): bool
+{
+    $remoteIp = trim((string) ($_SERVER['HTTP_CF_CONNECTING_IP'] ?? $_SERVER['REMOTE_ADDR'] ?? ''));
+    $data = [
+        'secret' => $secret,
+        'response' => $token,
+    ];
+    if ($remoteIp !== '') {
+        $data['remoteip'] = $remoteIp;
+    }
+
+    $curl = curl_init('https://challenges.cloudflare.com/turnstile/v0/siteverify');
+    curl_setopt_array($curl, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_TIMEOUT => 8,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => http_build_query($data),
+        CURLOPT_HTTPHEADER => ['Content-Type: application/x-www-form-urlencoded'],
+    ]);
+    $body = curl_exec($curl);
+    $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+    curl_close($curl);
+
+    if (!is_string($body) || $status < 200 || $status >= 300) {
+        return false;
+    }
+
+    $result = json_decode($body, true);
+    return is_array($result)
+        && ($result['success'] ?? false) === true
+        && ($result['action'] ?? '') === 'cadastro_paciente'
+        && ($expectedHostname === '' || ($result['hostname'] ?? '') === $expectedHostname);
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     respond(['message' => 'Método não permitido.'], 405);
 }
@@ -241,6 +276,7 @@ $fieldLimits = [
     'responsibleCity' => 120,
     'responsibleState' => 2,
     'website' => 1,
+    'turnstileToken' => 2048,
 ];
 
 $values = [];
@@ -309,6 +345,15 @@ if ($apiKey === '' || $apiKey === 'COLE_AQUI_A_CHAVE_DA_API_DO_ASAAS') {
 
 if (!function_exists('curl_init')) {
     respond(['message' => 'A integração de cadastro não está disponível no servidor.'], 503);
+}
+
+$turnstileSecret = trim((string) (getenv('TURNSTILE_SECRET_KEY') ?: ($fileConfig['turnstile_secret_key'] ?? '')));
+$turnstileHostname = trim((string) (getenv('TURNSTILE_EXPECTED_HOSTNAME') ?: ($fileConfig['turnstile_expected_hostname'] ?? '')));
+if ($turnstileSecret === '' || $turnstileSecret === 'COLE_AQUI_A_CHAVE_SECRETA_DO_TURNSTILE') {
+    respond(['message' => 'A verificação de segurança ainda não foi configurada. Fale com a clínica para que possamos ajudar.'], 503);
+}
+if (!turnstile_is_valid($turnstileSecret, $values['turnstileToken'], $turnstileHostname)) {
+    respond(['message' => 'Não foi possível confirmar a verificação de segurança. Atualize a página e tente novamente.'], 400);
 }
 
 $externalReference = 'cs-paciente-' . substr(

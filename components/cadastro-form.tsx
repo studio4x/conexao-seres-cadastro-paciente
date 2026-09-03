@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TurnstileWidget } from "@/components/turnstile-widget";
 
 const onlyDigits = (value: string) => value.replace(/\D/g, "");
 
@@ -475,6 +476,8 @@ export function CadastroForm() {
   const [errors, setErrors] = useState<Errors>({});
   const [status, setStatus] = useState<"idle" | "sending" | "success">("idle");
   const [submitError, setSubmitError] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [sameAddress, setSameAddress] = useState(false);
   const [cepLookup, setCepLookup] = useState<Record<"patient" | "responsible", CepLookupState>>({
     patient: { status: "idle" },
@@ -718,18 +721,25 @@ export function CadastroForm() {
       return;
     }
 
+    if (!turnstileToken) {
+      setSubmitError("Confirme a verificação de segurança antes de enviar.");
+      return;
+    }
+
     setStatus("sending");
     try {
       const response = await fetch("/api/patients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(parsed.data),
+        body: JSON.stringify({ ...parsed.data, turnstileToken }),
       });
       const result = (await response.json()) as { message?: string };
       if (!response.ok) throw new Error(result.message || "Não foi possível concluir o cadastro.");
       setStatus("success");
     } catch (error) {
       setStatus("idle");
+      setTurnstileToken("");
+      setTurnstileResetKey((current) => current + 1);
       setSubmitError(
         error instanceof Error
           ? error.message
@@ -757,6 +767,8 @@ export function CadastroForm() {
             setErrors({});
             setSameAddress(false);
             setCepLookup({ patient: { status: "idle" }, responsible: { status: "idle" } });
+            setTurnstileToken("");
+            setTurnstileResetKey((current) => current + 1);
             setStatus("idle");
           }}
         >
@@ -1006,6 +1018,14 @@ export function CadastroForm() {
         <FieldError message={errors.consent} />
       </div>
 
+      <TurnstileWidget
+        resetKey={turnstileResetKey}
+        onTokenChange={(token) => {
+          setTurnstileToken(token);
+          if (token) setSubmitError("");
+        }}
+      />
+
       {submitError ? (
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium leading-6 text-red-700" role="alert">
           {submitError}
@@ -1016,7 +1036,7 @@ export function CadastroForm() {
         type="submit"
         size="lg"
         className="h-13 w-full rounded-md bg-primary text-base font-semibold shadow-[0_10px_24px_rgba(255,138,0,0.2)] hover:bg-[#e87d00] sm:w-auto sm:min-w-52"
-        disabled={status === "sending"}
+        disabled={status === "sending" || !turnstileToken}
       >
         {status === "sending" ? (
           <>
