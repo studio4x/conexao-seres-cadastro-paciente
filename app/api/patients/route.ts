@@ -50,6 +50,20 @@ function isValidEmail(value: string) {
   );
 }
 
+function isValidFullName(value: string) {
+  const parts = value.trim().split(/\s+/).filter(Boolean);
+  return parts.length >= 2 && parts.every((part) => /\p{L}/u.test(part));
+}
+
+function normalizedNameForComparison(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
 function calculateAge(value: string) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!match) return null;
@@ -78,7 +92,7 @@ const addressText = z.string().trim().max(120);
 
 const patientSchema = z
   .object({
-    patientName: z.string().trim().min(3).max(120),
+    patientName: z.string().trim().refine(isValidFullName).max(120),
     patientBirthDate: z.string().max(10),
     patientCpf: z.string().refine(isValidCpf),
     patientPhone: shortText,
@@ -147,7 +161,12 @@ const patientSchema = z
     if (age < 18 && !value.hasResponsible) add("hasResponsible");
 
     if (value.hasResponsible) {
-      required("responsibleName");
+      if (!isValidFullName(value.responsibleName)) add("responsibleName");
+      if (
+        normalizedNameForComparison(value.patientName) === normalizedNameForComparison(value.responsibleName)
+      ) {
+        add("responsibleName");
+      }
       if (!isValidCpf(value.responsibleCpf)) add("responsibleCpf");
       const responsibleAge = calculateAge(value.responsibleBirthDate);
       if (responsibleAge === null || responsibleAge < 18) add("responsibleBirthDate");

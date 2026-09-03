@@ -102,3 +102,42 @@ test("validates birth dates when they change and when the field loses focus", ()
     /onChange=\{updateResponsibleBirthDate\}[\s\S]*?onBlur=\{\(\) => validateBirthDateField\("responsibleBirthDate"\)\}/,
   );
 });
+
+test("requires full names and rejects equal patient and responsible names", () => {
+  assert.match(
+    frontend,
+    /function isValidFullName\(value: string\)[\s\S]*?parts\.length >= 2[\s\S]*?parts\.every/,
+  );
+  assert.match(
+    frontend,
+    /patientName: z\.string\(\)\.trim\(\)\.refine\(isValidFullName, "Informe o nome completo do paciente\."\)/,
+  );
+  assert.match(
+    frontend,
+    /O nome do responsável deve ser diferente do nome do paciente\./,
+  );
+  assert.match(
+    frontend,
+    /onBlur=\{\(\) => validateNameField\("patientName"\)\}/,
+  );
+  assert.match(
+    frontend,
+    /onBlur=\{\(\) => validateNameField\("responsibleName"\)\}/,
+  );
+  assert.match(
+    typescriptBackend,
+    /function isValidFullName\(value: string\)[\s\S]*?parts\.length >= 2[\s\S]*?parts\.every/,
+  );
+  assert.match(
+    typescriptBackend,
+    /normalizedNameForComparison\(value\.patientName\) === normalizedNameForComparison\(value\.responsibleName\)/,
+  );
+  assert.match(
+    phpBackend,
+    /function valid_full_name\(string \$value\): bool[\s\S]*?count\(\$parts\) < 2/,
+  );
+  assert.match(
+    phpBackend,
+    /normalized_name\(\$values\['patientName'\]\) === normalized_name\(\$values\['responsibleName'\]\)/,
+  );
+});

@@ -58,6 +58,20 @@ function isValidEmail(value: string) {
   );
 }
 
+function isValidFullName(value: string) {
+  const parts = value.trim().split(/\s+/).filter(Boolean);
+  return parts.length >= 2 && parts.every((part) => /\p{L}/u.test(part));
+}
+
+function normalizedNameForComparison(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
 function calculateAge(value: string) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!match) return null;
@@ -93,7 +107,7 @@ function birthDateError(field: BirthDateField, value: string) {
 
 const formSchema = z
   .object({
-    patientName: z.string().trim().min(3, "Informe o nome completo do paciente."),
+    patientName: z.string().trim().refine(isValidFullName, "Informe o nome completo do paciente."),
     patientBirthDate: z.string(),
     patientCpf: z.string().refine(isValidCpf, "Informe um CPF válido."),
     patientPhone: z.string(),
@@ -173,7 +187,13 @@ const formSchema = z
     }
 
     if (value.hasResponsible) {
-      requireText("responsibleName", "Informe o nome completo do responsável.");
+      if (!isValidFullName(value.responsibleName)) {
+        add("responsibleName", "Informe o nome completo do responsável.");
+      } else if (
+        normalizedNameForComparison(value.patientName) === normalizedNameForComparison(value.responsibleName)
+      ) {
+        add("responsibleName", "O nome do responsável deve ser diferente do nome do paciente.");
+      }
       if (!isValidCpf(value.responsibleCpf)) {
         add("responsibleCpf", "Informe um CPF válido.");
       }
@@ -526,6 +546,25 @@ export function CadastroForm() {
     setErrors((current) => ({ ...current, [field]: message }));
   }
 
+  function nameFieldError(field: "patientName" | "responsibleName", value: string) {
+    if (!isValidFullName(value)) {
+      return field === "patientName"
+        ? "Informe o nome completo do paciente."
+        : "Informe o nome completo do responsável.";
+    }
+    if (
+      field === "responsibleName" &&
+      normalizedNameForComparison(values.patientName) === normalizedNameForComparison(value)
+    ) {
+      return "O nome do responsável deve ser diferente do nome do paciente.";
+    }
+    return undefined;
+  }
+
+  function validateNameField(field: "patientName" | "responsibleName") {
+    setFieldValidation(field, nameFieldError(field, values[field]));
+  }
+
   function updateCpf(field: "patientCpf" | "responsibleCpf", value: string) {
     const formatted = formatCpf(value);
     update(field, formatted);
@@ -832,6 +871,7 @@ export function CadastroForm() {
           placeholder="Digite o nome completo"
           autoComplete="name"
           onChange={(value) => update("patientName", value)}
+          onBlur={() => validateNameField("patientName")}
         />
 
         <div className="grid gap-6 sm:grid-cols-2">
@@ -944,6 +984,7 @@ export function CadastroForm() {
             placeholder="Digite o nome completo"
             autoComplete="name"
             onChange={(value) => update("responsibleName", value)}
+            onBlur={() => validateNameField("responsibleName")}
           />
 
           <div className="grid gap-6 sm:grid-cols-2">

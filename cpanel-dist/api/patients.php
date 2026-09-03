@@ -114,6 +114,22 @@ function valid_email(string $value): bool
         && filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
 }
 
+function valid_full_name(string $value): bool
+{
+    $parts = preg_split('/\s+/u', trim($value), -1, PREG_SPLIT_NO_EMPTY);
+    if (!is_array($parts) || count($parts) < 2) {
+        return false;
+    }
+
+    foreach ($parts as $part) {
+        if (preg_match('/\p{L}/u', $part) !== 1) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 function calculate_age(string $value): ?int
 {
     $birth = DateTimeImmutable::createFromFormat('!Y-m-d', $value);
@@ -407,9 +423,20 @@ if (($payload['consent'] ?? false) !== true || $values['website'] !== '') {
 }
 
 $patientAge = calculate_age($values['patientBirthDate']);
-$valid = $patientAge !== null
-    && text_length($values['patientName']) >= 3
-    && valid_cpf($values['patientCpf']);
+if (!valid_full_name($values['patientName'])) {
+    respond(['message' => 'Informe o nome completo do paciente.'], 400);
+}
+if ($values['hasResponsible'] && !valid_full_name($values['responsibleName'])) {
+    respond(['message' => 'Informe o nome completo do responsável.'], 400);
+}
+if (
+    $values['hasResponsible']
+    && normalized_name($values['patientName']) === normalized_name($values['responsibleName'])
+) {
+    respond(['message' => 'O nome do responsável deve ser diferente do nome do paciente.'], 400);
+}
+
+$valid = $patientAge !== null && valid_cpf($values['patientCpf']);
 
 if ($valid && $patientAge >= 18) {
     $valid = valid_whatsapp($values['patientPhone'])
@@ -423,8 +450,7 @@ if ($valid && $patientAge < 18 && !$values['hasResponsible']) {
 
 if ($valid && $values['hasResponsible']) {
     $responsibleAge = calculate_age($values['responsibleBirthDate']);
-    $valid = text_length($values['responsibleName']) >= 2
-        && valid_cpf($values['responsibleCpf'])
+    $valid = valid_cpf($values['responsibleCpf'])
         && $responsibleAge !== null
         && $responsibleAge >= 18
         && valid_whatsapp($values['responsiblePhone'])
