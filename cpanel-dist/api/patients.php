@@ -201,6 +201,53 @@ function asaas_request(string $method, string $url, string $apiKey, ?array $payl
     ];
 }
 
+function configure_whatsapp_only(string $baseUrl, string $customerId, string $apiKey): bool
+{
+    $list = asaas_request(
+        'GET',
+        $baseUrl . '/customers/' . rawurlencode($customerId) . '/notifications',
+        $apiKey
+    );
+    if ($list['error'] !== '' || $list['status'] < 200 || $list['status'] >= 300) {
+        error_log('Asaas notification lookup failed. HTTP ' . $list['status']);
+        return false;
+    }
+
+    $notifications = [];
+    foreach (($list['data']['data'] ?? []) as $notification) {
+        $notificationId = is_array($notification) ? trim((string) ($notification['id'] ?? '')) : '';
+        if ($notificationId === '') {
+            continue;
+        }
+        $notifications[] = [
+            'id' => $notificationId,
+            'enabled' => true,
+            'emailEnabledForProvider' => false,
+            'smsEnabledForProvider' => false,
+            'emailEnabledForCustomer' => false,
+            'smsEnabledForCustomer' => false,
+            'phoneCallEnabledForCustomer' => false,
+            'whatsappEnabledForCustomer' => true,
+        ];
+    }
+
+    if ($notifications === []) {
+        error_log('Asaas notification lookup returned no notification IDs for customer ' . $customerId);
+        return false;
+    }
+
+    $updated = asaas_request('PUT', $baseUrl . '/notifications/batch', $apiKey, [
+        'customer' => $customerId,
+        'notifications' => $notifications,
+    ]);
+    if ($updated['error'] !== '' || $updated['status'] < 200 || $updated['status'] >= 300) {
+        error_log('Asaas notification update failed. HTTP ' . $updated['status']);
+        return false;
+    }
+
+    return true;
+}
+
 function turnstile_is_valid(string $secret, string $token, string $expectedHostname): bool
 {
     $remoteIp = trim((string) ($_SERVER['HTTP_CF_CONNECTING_IP'] ?? $_SERVER['REMOTE_ADDR'] ?? ''));
@@ -377,6 +424,10 @@ if ($lookup['error'] !== '' || $lookup['status'] < 200 || $lookup['status'] >= 3
 }
 
 if (!empty($lookup['data']['data'])) {
+    $existingCustomerId = trim((string) ($lookup['data']['data'][0]['id'] ?? ''));
+    if ($existingCustomerId === '' || !configure_whatsapp_only($baseUrl, $existingCustomerId, $apiKey)) {
+        respond(['message' => 'O cadastro foi localizado, mas não conseguimos finalizar as notificações. Tente novamente em instantes.'], 502);
+    }
     respond(['success' => true, 'existing' => true]);
 }
 
@@ -391,6 +442,7 @@ $customer = [
     'addressNumber' => clean_text($values[$holder . 'AddressNumber']),
     'province' => clean_text($values[$holder . 'Province']),
     'externalReference' => $externalReference,
+    'notificationDisabled' => false,
 ];
 
 $complement = clean_text($values[$holder . 'Complement']);
@@ -412,6 +464,11 @@ if ($created['error'] !== '' || $created['status'] < 200 || $created['status'] >
         respond(['message' => 'Algumas informações precisam ser conferidas. Revise os dados e tente novamente.'], 400);
     }
     respond(['message' => 'Não conseguimos enviar o cadastro agora. Tente novamente em instantes.'], 502);
+}
+
+$createdCustomerId = trim((string) ($created['data']['id'] ?? ''));
+if ($createdCustomerId === '' || !configure_whatsapp_only($baseUrl, $createdCustomerId, $apiKey)) {
+    respond(['message' => 'O cadastro foi recebido, mas não conseguimos finalizar as notificações. Tente novamente em instantes.'], 502);
 }
 
 respond(['success' => true, 'existing' => false], 201);

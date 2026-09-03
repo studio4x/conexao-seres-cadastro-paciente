@@ -159,6 +159,8 @@ const patientSchema = z
 
 type Patient = z.infer<typeof patientSchema>;
 type AsaasCustomerList = { data?: Array<{ id: string }> };
+type AsaasCustomer = { id?: string };
+type AsaasNotificationList = { data?: Array<{ id?: string }> };
 
 type TurnstileVerification = {
   success?: boolean;
@@ -222,6 +224,72 @@ async function asaasErrorDetails(response: Response) {
     }));
   } catch {
     return undefined;
+  }
+}
+
+async function configureWhatsappOnly(
+  baseUrl: string,
+  customerId: string,
+  headers: ReturnType<typeof asaasHeaders>,
+) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+
+  try {
+    const listResponse = await fetch(`${baseUrl}/customers/${encodeURIComponent(customerId)}/notifications`, {
+      method: "GET",
+      headers,
+      signal: controller.signal,
+    });
+    if (!listResponse.ok) {
+      console.error("Asaas notification lookup failed", {
+        status: listResponse.status,
+        errors: await asaasErrorDetails(listResponse),
+      });
+      return false;
+    }
+
+    const list = (await listResponse.json()) as AsaasNotificationList;
+    const notifications = (list.data || [])
+      .filter((notification): notification is { id: string } => Boolean(notification.id))
+      .map((notification) => ({
+        id: notification.id,
+        enabled: true,
+        emailEnabledForProvider: false,
+        smsEnabledForProvider: false,
+        emailEnabledForCustomer: false,
+        smsEnabledForCustomer: false,
+        phoneCallEnabledForCustomer: false,
+        whatsappEnabledForCustomer: true,
+      }));
+
+    if (!notifications.length) {
+      console.error("Asaas notification lookup returned no notification IDs", { customerId });
+      return false;
+    }
+
+    const updateResponse = await fetch(`${baseUrl}/notifications/batch`, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ customer: customerId, notifications }),
+      signal: controller.signal,
+    });
+    if (!updateResponse.ok) {
+      console.error("Asaas notification update failed", {
+        status: updateResponse.status,
+        errors: await asaasErrorDetails(updateResponse),
+      });
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Asaas notification configuration failed", {
+      timedOut: error instanceof Error && error.name === "AbortError",
+    });
+    return false;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -356,6 +424,13 @@ export async function POST(request: Request) {
     }
     const existing = (await existingResponse.json()) as AsaasCustomerList;
     if (existing.data?.length) {
+      const notificationsConfigured = await configureWhatsappOnly(baseUrl, existing.data[0].id, headers);
+      if (!notificationsConfigured) {
+        return NextResponse.json(
+          { message: "O cadastro foi localizado, mas não conseguimos finalizar as notificações. Tente novamente em instantes." },
+          { status: 502 },
+        );
+      }
       return NextResponse.json({ success: true, existing: true });
     }
 
@@ -373,6 +448,7 @@ export async function POST(request: Request) {
         : {}),
       province: clean(patient[`${holder}Province`]),
       externalReference,
+      notificationDisabled: false,
       ...(patientAge < 18 ? { company: clean(patient.patientName) } : {}),
       ...(observations ? { observations } : {}),
     };
@@ -397,6 +473,14 @@ export async function POST(request: Request) {
               : "Não conseguimos enviar o cadastro agora. Tente novamente em instantes.",
         },
         { status },
+      );
+    }
+
+    const created = (await createResponse.json()) as AsaasCustomer;
+    if (!created.id || !(await configureWhatsappOnly(baseUrl, created.id, headers))) {
+      return NextResponse.json(
+        { message: "O cadastro foi recebido, mas não conseguimos finalizar as notificações. Tente novamente em instantes." },
+        { status: 502 },
       );
     }
     return NextResponse.json({ success: true, existing: false }, { status: 201 });
