@@ -90,8 +90,8 @@ CPF da pessoa atendida + nome normalizado da pessoa atendida
 Quando o `externalReference` já existe:
 
 - não cria outro cliente;
-- atualiza o grupo quando necessário;
-- reaplica a configuração de notificações.
+- retorna `409` com uma mensagem amigável informando que já existe cadastro com o CPF e/ou e-mail;
+- não altera o cliente existente por meio de um novo envio duplicado.
 
 ## Notificações do Asaas
 

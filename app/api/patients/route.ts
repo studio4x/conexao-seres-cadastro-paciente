@@ -313,44 +313,6 @@ async function configureCustomerNotifications(
   }
 }
 
-async function updateCustomerGroup(
-  baseUrl: string,
-  customerId: string,
-  groupName: "Adultos" | "Crianças",
-  headers: ReturnType<typeof asaasHeaders>,
-  complement: string,
-) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10_000);
-
-  try {
-    const response = await fetch(`${baseUrl}/customers/${encodeURIComponent(customerId)}`, {
-      method: "PUT",
-      headers,
-      body: JSON.stringify({
-        groupName,
-        ...(complement ? { complement } : {}),
-      }),
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      console.error("Asaas customer group update failed", {
-        status: response.status,
-        errors: await asaasErrorDetails(response),
-      });
-      return false;
-    }
-    return true;
-  } catch (error) {
-    console.error("Asaas customer group configuration failed", {
-      timedOut: error instanceof Error && error.name === "AbortError",
-    });
-    return false;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
 async function patientReference(patientName: string, patientCpf: string) {
   const normalizedName = patientName
     .normalize("NFD")
@@ -489,26 +451,12 @@ export async function POST(request: Request) {
     }
     const existing = (await existingResponse.json()) as AsaasCustomerList;
     if (existing.data?.length) {
-      const existingCustomerId = existing.data[0].id;
-      const groupConfigured = await updateCustomerGroup(
-        baseUrl,
-        existingCustomerId,
-        customerGroup,
-        headers,
-        holderComplement,
+      return NextResponse.json(
+        {
+          message: "Já existe um cadastro com este CPF e/ou e-mail. Se precisar atualizar os dados, fale com a clínica.",
+        },
+        { status: 409 },
       );
-      if (!groupConfigured) {
-        console.error("Existing Asaas customer found, but group configuration was not completed", {
-          existingCustomerId,
-        });
-      }
-      const notificationsConfigured = await configureCustomerNotifications(baseUrl, existingCustomerId, headers);
-      if (!notificationsConfigured) {
-        console.error("Existing Asaas customer found, but notification configuration was not completed", {
-          existingCustomerId,
-        });
-      }
-      return NextResponse.json({ success: true, existing: true });
     }
 
     const observations = buildObservations(patient);

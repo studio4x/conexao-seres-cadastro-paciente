@@ -23,15 +23,16 @@ Sempre que possível, execute os testes em ambiente de homologação ou Sandbox 
 - [ ] O sucesso é exibido somente depois da resposta positiva do backend.
 - [ ] Nenhuma chave, token do Turnstile ou resposta técnica do Asaas aparece no navegador.
 - [ ] O cadastro não é duplicado quando o mesmo paciente é enviado novamente.
-- [ ] O rodapé exibe a versão esperada da build.
+- [OK] O rodapé exibe a versão esperada da build.
+- [OK] Formulário não é enviado sem endereço preenchido.
 
 ## 1. Paciente adulto sem responsável
 
 ### 1.1 Cadastro básico
 
-- [ ] Informar paciente com idade maior que 18 anos.
-- [ ] Marcar/confirmar que não há responsável.
-- [ ] Preencher WhatsApp, e-mail e endereço válidos do paciente.
+- [OK] Informar paciente com idade maior que 18 anos.
+- [OK] Marcar/confirmar que não há responsável.
+- [] Preencher WhatsApp, e-mail e endereço válidos do paciente.
 - [ ] Informar complemento do paciente, por exemplo `Apto 12`.
 - [ ] Enviar o formulário.
 
@@ -116,10 +117,9 @@ Conferir no Asaas:
 - [ ] Reenviar um paciente já cadastrado usando o mesmo CPF e nome normalizado.
 - [ ] Confirmar que o backend encontra o cliente pelo `externalReference`.
 - [ ] Confirmar que nenhum segundo cliente é criado.
-- [ ] Informar um complemento do titular em um novo envio e conferir que o `complement` é atualizado no cliente existente.
-- [ ] Confirmar que o grupo correto continua sendo aplicado.
-- [ ] Confirmar que a configuração de notificações é reaplicada.
-- [ ] Confirmar que uma falha na configuração de notificações não transforma um cadastro já criado em erro para o usuário.
+- [ ] Confirmar resposta HTTP `409`.
+- [ ] Confirmar mensagem amigável informando que já existe cadastro com o CPF e/ou e-mail.
+- [ ] Confirmar que o cliente existente não é alterado por um novo envio duplicado.
 
 ## 7. Validações de identificação e idade
 

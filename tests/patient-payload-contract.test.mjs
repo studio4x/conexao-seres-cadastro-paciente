@@ -21,14 +21,10 @@ test("sends the patient name as company whenever there is a responsible party", 
   );
 });
 
-test("uses the selected holder's complement when creating or updating an Asaas customer", () => {
+test("uses the selected holder's complement when creating an Asaas customer", () => {
   assert.match(
     typescriptBackend,
     /const holderComplement = clean\(patient\[`\$\{holder\}Complement`\]\);/,
-  );
-  assert.match(
-    typescriptBackend,
-    /holderComplement,\s*\n\s*\);/,
   );
   assert.match(
     typescriptBackend,
@@ -40,12 +36,21 @@ test("uses the selected holder's complement when creating or updating an Asaas c
   );
   assert.match(
     phpBackend,
-    /\$customerUpdate\['complement'\] = \$holderComplement;/,
+    /\$customer\['complement'\] = \$holderComplement;/,
+  );
+});
+
+test("returns a friendly conflict when the patient external reference already exists", () => {
+  assert.match(
+    typescriptBackend,
+    /message: "Já existe um cadastro com este CPF e\/ou e-mail\. Se precisar atualizar os dados, fale com a clínica\."[\s\S]*?\{ status: 409 \}/,
   );
   assert.match(
     phpBackend,
-    /\$customer\['complement'\] = \$holderComplement;/,
+    /'message' => 'Já existe um cadastro com este CPF e\/ou e-mail\. Se precisar atualizar os dados, fale com a clínica\.',[\s\S]*?\], 409\)/,
   );
+  assert.doesNotMatch(typescriptBackend, /success: true, existing: true/);
+  assert.doesNotMatch(phpBackend, /success' => true, 'existing' => true/);
 });
 
 test("formats patient and responsible birth dates in observations", () => {

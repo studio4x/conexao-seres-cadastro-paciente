@@ -489,31 +489,9 @@ if ($lookup['error'] !== '' || $lookup['status'] < 200 || $lookup['status'] >= 3
 }
 
 if (!empty($lookup['data']['data'])) {
-    $existingCustomerId = trim((string) ($lookup['data']['data'][0]['id'] ?? ''));
-    if ($existingCustomerId === '') {
-        respond(['message' => 'Não conseguimos confirmar o cadastro no Asaas. Tente novamente em instantes.'], 502);
-    }
-    $responseFinished = finish_response_and_continue(['success' => true, 'existing' => true], 200);
-    $customerUpdate = ['groupName' => $customerGroup];
-    if ($holderComplement !== '') {
-        $customerUpdate['complement'] = $holderComplement;
-    }
-    $groupUpdated = asaas_request(
-        'PUT',
-        $baseUrl . '/customers/' . rawurlencode($existingCustomerId),
-        $apiKey,
-        $customerUpdate
-    );
-    if ($groupUpdated['error'] !== '' || $groupUpdated['status'] < 200 || $groupUpdated['status'] >= 300) {
-        error_log('Asaas customer group update failed. HTTP ' . $groupUpdated['status']);
-    }
-    if (!configure_customer_notifications_safely($baseUrl, $existingCustomerId, $apiKey)) {
-        error_log('Existing Asaas customer found, but notification configuration was not completed. Customer ' . $existingCustomerId);
-    }
-    if ($responseFinished) {
-        exit;
-    }
-    respond(['success' => true, 'existing' => true]);
+    respond([
+        'message' => 'Já existe um cadastro com este CPF e/ou e-mail. Se precisar atualizar os dados, fale com a clínica.',
+    ], 409);
 }
 
 $customer = [

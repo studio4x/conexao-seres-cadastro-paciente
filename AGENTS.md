@@ -179,9 +179,8 @@ Alterar a geração do `externalReference` pode fazer cadastros já existentes d
 Quando o `externalReference` já existe no Asaas:
 
 - não criar outro cliente;
-- preservar o retorno de sucesso do formulário;
-- atualizar o grupo `Adultos` ou `Crianças` quando aplicável;
-- tentar reaplicar a configuração de notificações.
+- retornar `409` com uma mensagem amigável informando que já existe cadastro com o CPF e/ou e-mail;
+- não atualizar o cliente nem reaplicar notificações por meio de um novo envio duplicado.
 
 Mudanças no fluxo de criação também devem considerar o fluxo de cliente já existente.
 
