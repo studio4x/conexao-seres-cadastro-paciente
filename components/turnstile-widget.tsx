@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 
 type TurnstileApi = {
-  ready: (callback: () => void) => void;
   render: (
     container: HTMLElement,
     options: {
@@ -103,28 +102,26 @@ export function TurnstileWidget({ onTokenChange, resetKey }: TurnstileWidgetProp
 
     loadTurnstile()
       .then((turnstile) => {
-        turnstile.ready(() => {
-          if (cancelled || !containerRef.current) return;
-          widgetId = turnstile.render(containerRef.current, {
-            sitekey: siteKey,
-            action: "cadastro_paciente",
-            theme: "light",
-            size: "flexible",
-            callback: (token) => {
-              setHasError(false);
-              setMessage("Verificação concluída.");
-              callbackRef.current(token);
-            },
-            "expired-callback": () => {
-              setMessage("A verificação expirou. Confirme novamente.");
-              callbackRef.current("");
-            },
-            "error-callback": () => {
-              setHasError(true);
-              setMessage("Não foi possível concluir a verificação. Tente novamente.");
-              callbackRef.current("");
-            },
-          });
+        if (cancelled || !containerRef.current) return;
+        widgetId = turnstile.render(containerRef.current, {
+          sitekey: siteKey,
+          action: "cadastro_paciente",
+          theme: "light",
+          size: "flexible",
+          callback: (token) => {
+            setHasError(false);
+            setMessage("Verificação concluída.");
+            callbackRef.current(token);
+          },
+          "expired-callback": () => {
+            setMessage("A verificação expirou. Confirme novamente.");
+            callbackRef.current("");
+          },
+          "error-callback": () => {
+            setHasError(true);
+            setMessage("Não foi possível concluir a verificação. Tente novamente.");
+            callbackRef.current("");
+          },
         });
       })
       .catch((error) => {
