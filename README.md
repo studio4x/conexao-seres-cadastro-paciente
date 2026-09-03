@@ -181,6 +181,39 @@ Configure os mesmos valores por variáveis de ambiente ou no arquivo privado `ap
 
 A chamada é best-effort, com timeout curto e sem retries agressivos. URL ou token ausente não impedem o cadastro; falha HTTP, indisponibilidade ou timeout do n8n/Evolution API não transformam em erro um cliente ou cobrança já confirmados. O backend não chama a Evolution API diretamente.
 
+### Webhook n8n de primeira sessão paga
+
+O webhook do Asaas também encaminha, de forma best-effort, a cobrança válida da primeira sessão quando recebe `PAYMENT_CONFIRMED` com status `CONFIRMED` ou `PAYMENT_RECEIVED` com status `RECEIVED`/`RECEIVED_IN_CASH`. O encaminhamento usa os dois eventos possíveis, sempre inclui `paymentId` para deduplicação no n8n e não depende da emissão da NFS-e. O cliente é consultado no Asaas por `GET /v3/customers/{customerId}` e `customer.name` é usado como `customerName`.
+
+Configure:
+
+```text
+N8N_CONEXAO_SERES_PAGAMENTO_WEBHOOK_URL
+N8N_CONEXAO_SERES_PAGAMENTO_WEBHOOK_TOKEN
+```
+
+O POST envia `Authorization: Bearer <token>` e `Content-Type: application/json`, com timeout curto. A ausência, erro ou timeout do n8n apenas gera log técnico sanitizado e não altera o processamento fiscal.
+
+Exemplo de payload (valores fictícios):
+
+```json
+{
+  "eventType": "asaas_first_session_paid",
+  "asaasEventId": "evt_exemplo_123",
+  "asaasEvent": "PAYMENT_CONFIRMED",
+  "paymentId": "pay_exemplo_123",
+  "asaasCustomerId": "cus_exemplo_123",
+  "customerName": "Nome Fictício",
+  "value": 230,
+  "billingType": "PIX",
+  "status": "CONFIRMED",
+  "paymentDate": "2026-09-03",
+  "externalReference": "cs-paciente-0123456789abcdef01234567-sessao-1"
+}
+```
+
+No cPanel, use no `config.php` privado as chaves `n8n_pagamento_webhook_url` e `n8n_pagamento_webhook_token` do modelo em `cpanel-server/api/config.example.php`. O workflow n8n não faz parte deste repositório.
+
 ## Arquitetura
 
 O projeto compartilha o frontend entre dois ambientes.
@@ -298,6 +331,8 @@ ASAAS_WEBHOOK_TOKEN
 TURNSTILE_EXPECTED_HOSTNAME
 N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_URL
 N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_TOKEN
+N8N_CONEXAO_SERES_PAGAMENTO_WEBHOOK_URL
+N8N_CONEXAO_SERES_PAGAMENTO_WEBHOOK_TOKEN
 ```
 
 Nunca exponha `ASAAS_API_KEY` ou `TURNSTILE_SECRET_KEY` no frontend.

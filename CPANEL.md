@@ -78,6 +78,19 @@ Os nomes equivalentes de ambiente são `N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_URL` 
 
 O envio usa cURL, Bearer token e timeout curto depois que a resposta pode ser finalizada com `fastcgi_finish_request()`. Se esse recurso não estiver disponível, a chamada continua sendo best-effort; qualquer falha do n8n ou da Evolution API é registrada no servidor e não invalida nem recria o cliente Asaas.
 
+### Webhook n8n de primeira sessão paga
+
+O endpoint `api/asaas-webhook.php` encaminha ao n8n as cobranças válidas da primeira sessão nos eventos `PAYMENT_CONFIRMED` e `PAYMENT_RECEIVED`, respeitando os status já validados pelo webhook fiscal. O payload inclui `paymentId` para que o workflow faça a deduplicação por cobrança. O nome é consultado diretamente no Asaas por `GET /v3/customers/{customerId}`; o backend não usa o nome do formulário nesta etapa.
+
+No `config.php` privado, configure:
+
+```php
+'n8n_pagamento_webhook_url' => 'COLE_AQUI_A_URL_DO_WEBHOOK_N8N_DE_PAGAMENTO',
+'n8n_pagamento_webhook_token' => 'COLE_AQUI_O_TOKEN_DO_WEBHOOK_N8N_DE_PAGAMENTO',
+```
+
+As variáveis equivalentes são `N8N_CONEXAO_SERES_PAGAMENTO_WEBHOOK_URL` e `N8N_CONEXAO_SERES_PAGAMENTO_WEBHOOK_TOKEN`. O POST usa Bearer token, JSON e timeout de 3 segundos. URL/token ausentes, erro HTTP, indisponibilidade ou timeout são best-effort: o log contém somente dados técnicos mínimos e o processamento da NFS-e continua independente. Não configure workflow n8n neste repositório.
+
 ## Deploy automático por webhook do GitHub
 
 A atualização principal de produção é feita por webhook HTTPS do GitHub.

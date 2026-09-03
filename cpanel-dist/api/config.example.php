@@ -11,4 +11,6 @@ return [
     'turnstile_expected_hostname' => 'cadastro.conexaoseres.com.br',
     'n8n_cadastro_webhook_url' => 'https://webhook.studio4x.com.br/webhook/conexao-seres-cadastro-realizado',
     'n8n_cadastro_webhook_token' => 'COLE_AQUI_O_TOKEN_DO_WEBHOOK_N8N',
+    'n8n_pagamento_webhook_url' => 'COLE_AQUI_A_URL_DO_WEBHOOK_N8N_DE_PAGAMENTO',
+    'n8n_pagamento_webhook_token' => 'COLE_AQUI_O_TOKEN_DO_WEBHOOK_N8N_DE_PAGAMENTO',
 ];

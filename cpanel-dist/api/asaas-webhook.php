@@ -95,6 +95,86 @@ function is_first_session_payment_event(array $payment, string $event): bool
     return is_first_session_payment($payment) && in_array(($payment['status'] ?? ''), $allowedStatuses, true);
 }
 
+function notify_n8n_first_session_paid_safely(
+    string $baseUrl,
+    string $apiKey,
+    string $webhookUrl,
+    string $webhookToken,
+    array $payment,
+    string $event,
+    ?string $asaasEventId
+): bool {
+    $paymentId = trim((string) ($payment['id'] ?? ''));
+    if ($webhookUrl === '' || $webhookToken === '' || $webhookToken === 'COLE_AQUI_O_TOKEN_DO_WEBHOOK_N8N') {
+        error_log('n8n first-session-paid webhook is not configured. Payment ' . $paymentId . ' Event ' . $event);
+        return false;
+    }
+
+    $parsedUrl = parse_url($webhookUrl);
+    if (!is_array($parsedUrl) || !in_array($parsedUrl['scheme'] ?? '', ['http', 'https'], true)) {
+        error_log('n8n first-session-paid webhook URL is invalid. Payment ' . $paymentId . ' Event ' . $event);
+        return false;
+    }
+
+    $customerId = trim((string) ($payment['customer'] ?? ''));
+    $customer = asaas_request('GET', $baseUrl . '/customers/' . rawurlencode($customerId), $apiKey);
+    $customerName = trim((string) ($customer['data']['name'] ?? ''));
+    if ($customer['error'] !== '' || $customer['status'] < 200 || $customer['status'] >= 300 || $customerName === '') {
+        error_log('n8n first-session-paid customer lookup failed. Payment ' . $paymentId . ' Event ' . $event . ' HTTP ' . (int) ($customer['status'] ?? 0));
+        return false;
+    }
+
+    $payload = [
+        'eventType' => 'asaas_first_session_paid',
+        'asaasEventId' => $asaasEventId,
+        'asaasEvent' => $event,
+        'paymentId' => $paymentId,
+        'asaasCustomerId' => $customerId,
+        'customerName' => $customerName,
+        'value' => is_numeric($payment['value'] ?? null) ? (float) $payment['value'] : 0,
+        'billingType' => trim((string) ($payment['billingType'] ?? '')),
+        'status' => trim((string) ($payment['status'] ?? '')),
+        'paymentDate' => effective_date_from_payment($payment),
+        'externalReference' => trim((string) ($payment['externalReference'] ?? '')),
+    ];
+    $encodedPayload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if (!is_string($encodedPayload)) {
+        error_log('n8n first-session-paid webhook payload could not be encoded. Payment ' . $paymentId . ' Event ' . $event);
+        return false;
+    }
+
+    try {
+        $curl = curl_init($webhookUrl);
+        if ($curl === false) {
+            error_log('n8n first-session-paid webhook could not initialize cURL. Payment ' . $paymentId . ' Event ' . $event);
+            return false;
+        }
+        curl_setopt_array($curl, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 2,
+            CURLOPT_TIMEOUT => 3,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $encodedPayload,
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                'Authorization: Bearer ' . $webhookToken,
+            ],
+        ]);
+        curl_exec($curl);
+        $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+        $error = curl_error($curl);
+        curl_close($curl);
+        if ($error !== '' || $status < 200 || $status >= 300) {
+            error_log('n8n first-session-paid webhook failed. Payment ' . $paymentId . ' Event ' . $event . ' HTTP ' . $status . ' TimedOut ' . (int) ($error !== '' && stripos($error, 'timed out') !== false));
+            return false;
+        }
+        return true;
+    } catch (Throwable) {
+        error_log('n8n first-session-paid webhook request failed. Payment ' . $paymentId . ' Event ' . $event);
+        return false;
+    }
+}
+
 function normalize_code(mixed $value): string
 {
     $digits = is_string($value) || is_numeric($value) ? preg_replace('/\D+/', '', (string) $value) : '';
@@ -436,6 +516,18 @@ if (!function_exists('curl_init')) {
 }
 
 $baseUrl = rtrim((string) (getenv('ASAAS_API_URL') ?: ($fileConfig['asaas_api_url'] ?? 'https://api.asaas.com/v3')), '/');
+$n8nPaymentWebhookUrl = trim((string) (getenv('N8N_CONEXAO_SERES_PAGAMENTO_WEBHOOK_URL') ?: ($fileConfig['n8n_pagamento_webhook_url'] ?? '')));
+$n8nPaymentWebhookToken = trim((string) (getenv('N8N_CONEXAO_SERES_PAGAMENTO_WEBHOOK_TOKEN') ?: ($fileConfig['n8n_pagamento_webhook_token'] ?? '')));
+$asaasEventId = is_string($payload['id'] ?? null) ? trim((string) $payload['id']) : null;
+notify_n8n_first_session_paid_safely(
+    $baseUrl,
+    $apiKey,
+    $n8nPaymentWebhookUrl,
+    $n8nPaymentWebhookToken,
+    $payment,
+    $event,
+    $asaasEventId !== '' ? $asaasEventId : null
+);
 $retry = process_with_payment_lock($baseUrl, $apiKey, $payment, $event);
 if ($retry) {
     respond(['message' => 'Processamento fiscal temporariamente indisponível.'], 500);

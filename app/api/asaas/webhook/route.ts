@@ -7,6 +7,7 @@ const FIRST_SESSION_VALUE = 230;
 const FIRST_SESSION_REFERENCE = /^cs-paciente-[a-f0-9]{24}-sessao-1$/;
 const MUNICIPAL_SERVICE_CODE = "04510";
 const MUNICIPAL_SERVICE_NAME = "04510 | 4.08 - Terapia ocupacional.";
+const N8N_FIRST_SESSION_PAID_TIMEOUT_MS = 3_000;
 
 type JsonRecord = Record<string, unknown>;
 type AsaasResult = { status: number; data: JsonRecord; response: string; error: string };
@@ -118,6 +119,97 @@ function isFirstSessionPayment(payment: JsonRecord, event: "PAYMENT_CONFIRMED" |
       value === FIRST_SESSION_VALUE &&
       FIRST_SESSION_REFERENCE.test(externalReference),
   );
+}
+
+async function notifyN8nFirstSessionPaid(
+  baseUrl: string,
+  apiKey: string,
+  payment: JsonRecord,
+  event: "PAYMENT_CONFIRMED" | "PAYMENT_RECEIVED",
+  asaasEventId: string | null,
+) {
+  const webhookUrl = (env.N8N_CONEXAO_SERES_PAGAMENTO_WEBHOOK_URL as string | undefined)?.trim() || "";
+  const webhookToken = (env.N8N_CONEXAO_SERES_PAGAMENTO_WEBHOOK_TOKEN as string | undefined)?.trim() || "";
+  const paymentId = typeof payment.id === "string" ? payment.id.trim() : "";
+  const customerId = typeof payment.customer === "string" ? payment.customer.trim() : "";
+
+  if (!webhookUrl || !webhookToken || webhookToken === "COLE_AQUI_O_TOKEN_DO_WEBHOOK_N8N") {
+    console.warn("n8n first-session-paid webhook is not configured", {
+      paymentId,
+      asaasEvent: event,
+      hasUrl: Boolean(webhookUrl),
+      hasToken: Boolean(webhookToken && webhookToken !== "COLE_AQUI_O_TOKEN_DO_WEBHOOK_N8N"),
+    });
+    return false;
+  }
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(webhookUrl);
+    if (parsedUrl.protocol !== "https:" && parsedUrl.protocol !== "http:") throw new Error("Unsupported webhook protocol");
+  } catch {
+    console.error("n8n first-session-paid webhook URL is invalid", { paymentId, asaasEvent: event });
+    return false;
+  }
+
+  const customerResult = await requestAsaas(
+    baseUrl,
+    "/customers/" + encodeURIComponent(customerId),
+    "GET",
+    apiKey,
+  );
+  const customerName = typeof customerResult.data.name === "string" ? customerResult.data.name.trim() : "";
+  if (customerResult.status < 200 || customerResult.status >= 300 || !customerName) {
+    console.error("n8n first-session-paid customer lookup failed", {
+      paymentId,
+      asaasEvent: event,
+      status: customerResult.status,
+    });
+    return false;
+  }
+
+  const paymentDate = effectiveDateFromPayment(payment);
+  const payload = {
+    eventType: "asaas_first_session_paid",
+    asaasEventId,
+    asaasEvent: event,
+    paymentId,
+    asaasCustomerId: customerId,
+    customerName,
+    value: typeof payment.value === "number" ? payment.value : Number(payment.value),
+    billingType: typeof payment.billingType === "string" ? payment.billingType : "",
+    status: typeof payment.status === "string" ? payment.status : "",
+    paymentDate,
+    externalReference: typeof payment.externalReference === "string" ? payment.externalReference.trim() : "",
+  };
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), N8N_FIRST_SESSION_PAID_TIMEOUT_MS);
+  try {
+    const response = await fetch(parsedUrl.toString(), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${webhookToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      console.error("n8n first-session-paid webhook failed", { paymentId, asaasEvent: event, status: response.status });
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("n8n first-session-paid webhook request failed", {
+      paymentId,
+      asaasEvent: event,
+      timedOut: error instanceof Error && error.name === "AbortError",
+    });
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function normalizeCode(value: unknown) {
@@ -364,6 +456,8 @@ export async function POST(request: Request) {
   const apiKey = (env.ASAAS_API_KEY as string | undefined)?.trim() || "";
   if (!apiKey) return NextResponse.json({ received: true, processed: false }, { status: 200 });
   const baseUrl = ((env.ASAAS_API_URL as string | undefined) || "https://api.asaas.com/v3").replace(/\/$/, "");
+  const asaasEventId = typeof (body as JsonRecord).id === "string" ? (body as JsonRecord).id.trim() || null : null;
+  await notifyN8nFirstSessionPaid(baseUrl, apiKey, payment as JsonRecord, event, asaasEventId);
   const result = await processPaymentEvent(baseUrl, apiKey, payment as JsonRecord, event);
   if (result.retry) return NextResponse.json({ message: "Processamento fiscal temporariamente indisponível." }, { status: 500 });
   return NextResponse.json({ received: true, processed: true }, { status: 200 });

@@ -243,8 +243,42 @@ test("calls n8n after the new customer payment without waiting for the invoice",
   assert.ok(phpPaymentIndex > -1 && phpN8nIndex > phpPaymentIndex);
   assert.match(typescriptBackend, /paymentCreated/);
   assert.match(phpBackend, /paymentCreated/);
-  assert.doesNotMatch(typescriptFiscalWebhook, /n8n|notifyN8n|notify_n8n/i);
-  assert.doesNotMatch(phpFiscalWebhook, /n8n|notify_n8n/i);
+});
+
+test("forwards both valid first-session payment events to n8n with the Asaas customer name", () => {
+  for (const webhook of [typescriptFiscalWebhook, phpFiscalWebhook]) {
+    assert.match(webhook, /N8N_CONEXAO_SERES_PAGAMENTO_WEBHOOK_URL/);
+    assert.match(webhook, /N8N_CONEXAO_SERES_PAGAMENTO_WEBHOOK_TOKEN/);
+    assert.match(webhook, /asaas_first_session_paid/);
+    assert.match(webhook, /asaasEventId/);
+    assert.match(webhook, /asaasEvent/);
+    assert.match(webhook, /paymentId/);
+    assert.match(webhook, /asaasCustomerId/);
+    assert.match(webhook, /customerName/);
+    assert.match(webhook, /billingType/);
+    assert.match(webhook, /paymentDate/);
+    assert.match(webhook, /externalReference/);
+    assert.match(webhook, /Authorization.*Bearer|Bearer.*webhookToken|Bearer.*webhookToken/i);
+    assert.match(webhook, /Content-Type.*application\/json/);
+    assert.match(webhook, /3_000|TIMEOUT => 3/);
+  }
+  assert.match(typescriptFiscalWebhook, /\/customers\/.*encodeURIComponent/);
+  assert.match(phpFiscalWebhook, /\/customers\/.*rawurlencode/);
+  assert.match(typescriptFiscalWebhook, /customerResult\.data\.name/);
+  assert.match(phpFiscalWebhook, /customer\['data'\]\['name'\]/);
+  assert.match(typescriptFiscalWebhook, /N8N_FIRST_SESSION_PAID_TIMEOUT_MS/);
+  assert.match(phpFiscalWebhook, /CURLOPT_CONNECTTIMEOUT => 2/);
+  assert.match(phpFiscalWebhook, /CURLOPT_TIMEOUT => 3/);
+
+  const tsValidationIndex = typescriptFiscalWebhook.indexOf("if (!isFirstSessionPayment");
+  const tsNotifyIndex = typescriptFiscalWebhook.indexOf("await notifyN8nFirstSessionPaid");
+  const tsFiscalIndex = typescriptFiscalWebhook.indexOf("processPaymentEvent(baseUrl");
+  assert.ok(tsValidationIndex > -1 && tsValidationIndex < tsNotifyIndex && tsNotifyIndex < tsFiscalIndex);
+
+  const phpValidationIndex = phpFiscalWebhook.indexOf("is_first_session_payment_event");
+  const phpNotifyIndex = phpFiscalWebhook.indexOf("notify_n8n_first_session_paid_safely(", phpFiscalWebhook.indexOf("$asaasEventId"));
+  const phpFiscalIndex = phpFiscalWebhook.lastIndexOf("process_with_payment_lock(");
+  assert.ok(phpValidationIndex > -1 && phpNotifyIndex > phpValidationIndex && phpNotifyIndex < phpFiscalIndex);
 });
 
 test("accepts only authenticated confirmed or received first-session payment events", () => {
