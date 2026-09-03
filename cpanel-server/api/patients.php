@@ -181,6 +181,121 @@ function format_birth_date(string $value): string
     return $parts[3] . '/' . $parts[2] . '/' . $parts[1];
 }
 
+function format_cpf(string $value): string
+{
+    $cpf = substr(digits($value), 0, 11);
+    return preg_replace(
+        ['/^(\d{3})(\d)/', '/^(\d{3})\.(\d{3})(\d)/', '/^(\d{3})\.(\d{3})\.(\d{3})(\d{1,2})$/'],
+        ['$1.$2', '$1.$2.$3', '$1.$2.$3-$4'],
+        $cpf
+    ) ?? $cpf;
+}
+
+function next_business_day(?DateTimeImmutable $now = null): string
+{
+    $timezone = new DateTimeZone('America/Sao_Paulo');
+    $date = ($now ?? new DateTimeImmutable('now', $timezone))->setTimezone($timezone)->setTime(0, 0);
+    $weekday = (int) $date->format('N');
+    $days = $weekday >= 5 ? 8 - $weekday : 1;
+    return $date->modify('+' . $days . ' days')->format('Y-m-d');
+}
+
+function first_session_external_reference(string $externalReference): string
+{
+    return $externalReference . '-sessao-1';
+}
+
+function build_first_session_description(array $values): string
+{
+    $article = $values['patientSex'] === 'female' ? 'a paciente' : 'o paciente';
+    return 'Referente a contratação de 1 sessão de Terapia Ocupacional para ' . $article . ' '
+        . clean_text($values['patientName']) . ' (CPF: ' . format_cpf($values['patientCpf'])
+        . ') realizada na Clínica Conexão Seres.';
+}
+
+function find_first_session_payment(
+    string $baseUrl,
+    string $customerId,
+    string $paymentExternalReference,
+    string $apiKey
+): array {
+    $url = $baseUrl . '/payments?' . http_build_query([
+        'customer' => $customerId,
+        'externalReference' => $paymentExternalReference,
+        'limit' => 10,
+    ]);
+    $lookup = asaas_request('GET', $url, $apiKey);
+    if ($lookup['error'] !== '' || $lookup['status'] < 200 || $lookup['status'] >= 300) {
+        error_log(
+            'Asaas first-session payment lookup failed. HTTP ' . $lookup['status']
+            . '. Response: ' . ($lookup['response'] ?? 'Resposta indisponível')
+        );
+        return ['id' => null, 'failed' => true];
+    }
+
+    foreach (($lookup['data']['data'] ?? []) as $payment) {
+        if (!is_array($payment)) {
+            continue;
+        }
+        if (
+            trim((string) ($payment['customer'] ?? '')) === $customerId
+            && trim((string) ($payment['externalReference'] ?? '')) === $paymentExternalReference
+            && trim((string) ($payment['id'] ?? '')) !== ''
+        ) {
+            return ['id' => trim((string) $payment['id']), 'failed' => false];
+        }
+    }
+
+    return ['id' => null, 'failed' => false];
+}
+
+function create_first_session_payment(
+    string $baseUrl,
+    string $customerId,
+    array $values,
+    string $externalReference,
+    string $apiKey
+): array {
+    $paymentExternalReference = first_session_external_reference($externalReference);
+    $existing = find_first_session_payment($baseUrl, $customerId, $paymentExternalReference, $apiKey);
+    if ($existing['failed']) {
+        return ['paymentId' => null, 'existing' => false];
+    }
+    if (is_string($existing['id']) && $existing['id'] !== '') {
+        return ['paymentId' => $existing['id'], 'existing' => true];
+    }
+
+    $created = asaas_request('POST', $baseUrl . '/payments', $apiKey, [
+        'customer' => $customerId,
+        'billingType' => 'UNDEFINED',
+        'value' => 230.00,
+        'dueDate' => next_business_day(),
+        'description' => build_first_session_description($values),
+        'externalReference' => $paymentExternalReference,
+    ]);
+    $createdPaymentId = trim((string) ($created['data']['id'] ?? ''));
+    if ($created['error'] === '' && $created['status'] >= 200 && $created['status'] < 300 && $createdPaymentId !== '') {
+        return ['paymentId' => $createdPaymentId, 'existing' => false];
+    }
+
+    error_log(
+        'Asaas first-session payment creation failed. HTTP ' . $created['status']
+        . '. Response: ' . ($created['response'] ?? 'Resposta indisponível')
+    );
+    $reconciled = find_first_session_payment($baseUrl, $customerId, $paymentExternalReference, $apiKey);
+    return [
+        'paymentId' => $reconciled['id'],
+        'existing' => is_string($reconciled['id']) && $reconciled['id'] !== '',
+    ];
+}
+
+function prepare_first_session_invoice(): array
+{
+    $reason = 'A API de nota fiscal do Asaas exige serviço municipal e tributos fiscais; não há configuração segura disponível no formulário para inferir esses dados.';
+    error_log('Asaas first-session invoice scheduling skipped. ' . $reason);
+    return ['configured' => false, 'reason' => $reason];
+}
+
 function build_observations(array $values, int $patientAge): ?string
 {
     if ($patientAge >= 18 && !$values['hasResponsible']) {
@@ -549,6 +664,7 @@ if (!is_array($payload)) {
 
 $fieldLimits = [
     'patientName' => 120,
+    'patientSex' => 10,
     'patientBirthDate' => 10,
     'patientCpf' => 150,
     'patientPhone' => 150,
@@ -595,6 +711,9 @@ if (($payload['consent'] ?? false) !== true || $values['website'] !== '') {
 }
 
 $patientAge = calculate_age($values['patientBirthDate']);
+if (!in_array($values['patientSex'], ['female', 'male'], true)) {
+    respond(['message' => 'Selecione o sexo do paciente.'], 400);
+}
 if (!valid_full_name($values['patientName'])) {
     respond(['message' => 'Informe o nome completo do paciente.'], 400);
 }
@@ -732,7 +851,41 @@ $createdCustomerId = trim((string) ($created['data']['id'] ?? ''));
 if ($createdCustomerId === '') {
     respond(['message' => 'Não conseguimos confirmar o cadastro no Asaas. Tente novamente em instantes.'], 502);
 }
-$responseFinished = finish_response_and_continue(['success' => true, 'existing' => false], 201);
+if (!configure_customer_notifications_safely($baseUrl, $createdCustomerId, $apiKey)) {
+    error_log('Asaas customer was created, but notification configuration was not completed. Customer ' . $createdCustomerId);
+}
+
+$payment = create_first_session_payment($baseUrl, $createdCustomerId, $values, $externalReference, $apiKey);
+if (!is_string($payment['paymentId'] ?? null) || $payment['paymentId'] === '') {
+    respond([
+        'success' => true,
+        'existing' => false,
+        'partial' => true,
+        'paymentCreated' => false,
+        'message' => 'Seu cadastro foi realizado, mas não conseguimos gerar a cobrança da primeira sessão automaticamente. A equipe da Conexão Seres dará continuidade ao atendimento.',
+    ], 201);
+}
+
+$invoice = prepare_first_session_invoice();
+if (($invoice['configured'] ?? false) !== true) {
+    respond([
+        'success' => true,
+        'existing' => false,
+        'partial' => true,
+        'paymentCreated' => true,
+        'paymentId' => $payment['paymentId'],
+        'invoiceConfigured' => false,
+        'message' => 'Seu cadastro e a cobrança da primeira sessão foram registrados. A emissão fiscal será concluída pela equipe da Conexão Seres antes do envio das instruções.',
+    ], 201);
+}
+
+$responsePayload = [
+    'success' => true,
+    'existing' => false,
+    'paymentCreated' => true,
+    'invoiceConfigured' => true,
+];
+$responseFinished = finish_response_and_continue($responsePayload, 201);
 $n8nNotified = notify_n8n_customer_created_safely($n8nWebhookUrl, $n8nWebhookToken, [
     'eventType' => 'asaas_customer_created',
     'customerName' => $customer['name'],
@@ -748,11 +901,8 @@ if (
 ) {
     error_log('Asaas customer was created, but n8n notification was not completed. Customer ' . $createdCustomerId);
 }
-if (!configure_customer_notifications_safely($baseUrl, $createdCustomerId, $apiKey)) {
-    error_log('Asaas customer was created, but notification configuration was not completed. Customer ' . $createdCustomerId);
-}
 if ($responseFinished) {
     exit;
 }
 
-respond(['success' => true, 'existing' => false], 201);
+respond($responsePayload, 201);

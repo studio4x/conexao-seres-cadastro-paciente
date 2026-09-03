@@ -108,6 +108,10 @@ function birthDateError(field: BirthDateField, value: string) {
 const formSchema = z
   .object({
     patientName: z.string().trim().refine(isValidFullName, "Informe o nome completo do paciente."),
+    patientSex: z.string().refine(
+      (value): boolean => value === "female" || value === "male",
+      "Selecione o sexo do paciente.",
+    ),
     patientBirthDate: z.string(),
     patientCpf: z.string().refine(isValidCpf, "Informe um CPF válido."),
     patientPhone: z.string(),
@@ -215,6 +219,7 @@ type Errors = Partial<Record<FieldName, string>>;
 
 const initialValues: FormValues = {
   patientName: "",
+  patientSex: "",
   patientBirthDate: "",
   patientCpf: "",
   patientPhone: "",
@@ -507,6 +512,7 @@ export function CadastroForm() {
   const [errors, setErrors] = useState<Errors>({});
   const [status, setStatus] = useState<"idle" | "sending" | "success">("idle");
   const [submitError, setSubmitError] = useState("");
+  const [submitSuccessMessage, setSubmitSuccessMessage] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [sameAddress, setSameAddress] = useState(false);
@@ -804,6 +810,7 @@ export function CadastroForm() {
         }
       }
       if (!response.ok) throw new Error(result.message || "Não foi possível concluir o cadastro.");
+      setSubmitSuccessMessage(result.message || "");
       setStatus("success");
     } catch (error) {
       setStatus("idle");
@@ -825,7 +832,8 @@ export function CadastroForm() {
         </div>
         <h3 className="mt-6 text-2xl font-semibold tracking-[-0.035em]">Tudo certo!</h3>
         <p className="mx-auto mt-3 max-w-sm text-base leading-7 text-muted-foreground">
-          Recebemos seu cadastro. A equipe da Conexão Seres dará continuidade ao seu atendimento.
+          {submitSuccessMessage ||
+            "Recebemos seu cadastro. A equipe da Conexão Seres dará continuidade ao seu atendimento."}
         </p>
         <Button
           type="button"
@@ -838,6 +846,7 @@ export function CadastroForm() {
             setCepLookup({ patient: { status: "idle" }, responsible: { status: "idle" } });
             setTurnstileToken("");
             setTurnstileResetKey((current) => current + 1);
+            setSubmitSuccessMessage("");
             setStatus("idle");
           }}
         >
@@ -873,6 +882,33 @@ export function CadastroForm() {
           onChange={(value) => update("patientName", value)}
           onBlur={() => validateNameField("patientName")}
         />
+
+        <fieldset className="space-y-3" aria-labelledby="patient-sex-label">
+          <legend id="patient-sex-label" className="text-sm font-medium text-foreground">
+            Sexo do paciente
+          </legend>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[
+              { value: "female", label: "Feminino" },
+              { value: "male", label: "Masculino" },
+            ].map((option) => (
+              <label
+                key={option.value}
+                className="flex min-h-12 cursor-pointer items-center gap-3 rounded-md border border-[#d4d4d4] bg-white px-4 text-base has-[:checked]:border-primary has-[:checked]:ring-2 has-[:checked]:ring-primary/20"
+              >
+                <input
+                  type="radio"
+                  name="patientSex"
+                  value={option.value}
+                  checked={values.patientSex === option.value}
+                  onChange={(event) => update("patientSex", event.target.value)}
+                />
+                {option.label}
+              </label>
+            ))}
+          </div>
+          <FieldError message={errors.patientSex} />
+        </fieldset>
 
         <div className="grid gap-6 sm:grid-cols-2">
           <InputField

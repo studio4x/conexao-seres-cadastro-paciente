@@ -23,8 +23,9 @@ O fluxo principal é:
 6. O Cloudflare Turnstile protege o envio.
 7. O backend procura um cadastro existente no Asaas por `externalReference`.
 8. Quando necessário, cria um novo cliente segundo as regras da clínica.
-9. Depois de confirmar um novo `customerId`, tenta enviar o evento de cadastro realizado ao webhook do n8n.
-10. As notificações do cliente no Asaas são configuradas por evento.
+9. Depois de confirmar um novo `customerId`, configura as notificações do cliente no Asaas.
+10. Para cliente novo, cria ou recupera de forma idempotente a cobrança avulsa da primeira sessão.
+11. Só envia o evento ao n8n depois de a cobrança e a etapa fiscal estarem confirmadas.
 
 ## Principais recursos
 
@@ -37,6 +38,8 @@ O fluxo principal é:
 - Cloudflare Turnstile.
 - Honeypot contra bots.
 - Integração com Asaas.
+- Sexo do paciente obrigatório e explícito (`female` ou `male`) para a descrição da cobrança.
+- Cobrança avulsa de R$ 230,00 para a primeira sessão, com vencimento no próximo dia útil.
 - Deduplicação por referência externa determinística.
 - Grupos `Adultos` e `Crianças`.
 - Configuração de notificações do Asaas por evento.
@@ -111,9 +114,30 @@ Falha ao configurar notificações não invalida um cliente que já tenha sido c
 
 Após recuperar as configurações do cliente, o backend envia ao `PUT /v3/notifications/batch` somente notificações ativas, pertencentes ao cliente e dos eventos controlados pela aplicação. Notificações marcadas como `deleted` ou associadas a outro cliente são ignoradas. Quando há mais de uma configuração para o mesmo evento, o ID é escolhido junto com o `scheduleOffset`; o aviso antes do vencimento recebe `5` e o aviso após o vencimento recebe `1`. Depois do lote, o backend consulta novamente as notificações para validar os canais e offsets aplicados. Falhas do lote ou da validação são registradas com a resposta Asaas limitada e sanitizada, sem expor credenciais ao navegador.
 
+## Cobrança da primeira sessão
+
+Somente depois de criar um cliente novo, os dois backends consultam `GET /v3/payments` pelo cliente e pela referência externa determinística `<externalReference>-sessao-1`. Se não houver cobrança, fazem um único `POST /v3/payments` com:
+
+```json
+{
+  "billingType": "UNDEFINED",
+  "value": 230.0,
+  "dueDate": "próximo dia útil em America/Sao_Paulo",
+  "externalReference": "cs-paciente-<hash>-sessao-1"
+}
+```
+
+`UNDEFINED` mantém a escolha do meio de pagamento com o cliente. A descrição usa sempre o nome, CPF formatado e sexo da pessoa atendida, mesmo quando o responsável é o titular no Asaas. O vencimento considera segunda a quinta-feira como +1 dia e sexta, sábado e domingo como a segunda-feira seguinte; feriados não são consultados.
+
+Se a criação responder com erro, timeout ou payload inconclusivo, o backend faz apenas uma reconciliação pela mesma referência e não repete o `POST`. Cliente existente continua retornando `409` e não cria cobrança.
+
+### Nota fiscal
+
+O agendamento de nota fiscal para uma cobrança avulsa não é inferido pelo formulário. A API do Asaas exige serviço municipal, tributos e demais dados fiscais; como esses valores dependem da configuração real da conta e não estão disponíveis de forma segura neste fluxo, nenhum payload fiscal inventado é enviado. O cadastro e a cobrança podem ficar em sucesso parcial para recuperação pela equipe, mas o n8n não é chamado enquanto a etapa fiscal não estiver confirmada.
+
 ## Integração com n8n e WhatsApp
 
-Depois que o Asaas confirma a criação de um cliente novo com `customerId` válido, o backend tenta fazer um `POST` para:
+Depois que o Asaas confirma um cliente novo, a cobrança da primeira sessão e a etapa fiscal, o backend tenta fazer um `POST` para:
 
 ```text
 https://webhook.studio4x.com.br/webhook/conexao-seres-cadastro-realizado
@@ -131,7 +155,7 @@ A URL pode ser substituída pela configuração do ambiente. O webhook recebe JS
 }
 ```
 
-`customerName` e `whatsapp` são os mesmos dados do titular usado no cliente Asaas: paciente quando o adulto não tem responsável; responsável legal/financeiro quando houver responsável ou quando a pessoa atendida for menor. Clientes já existentes não disparam esse evento.
+`customerName` e `whatsapp` são os mesmos dados do titular usado no cliente Asaas: paciente quando o adulto não tem responsável; responsável legal/financeiro quando houver responsável ou quando a pessoa atendida for menor. Clientes já existentes, falhas de cobrança e cobranças sem etapa fiscal confirmada não disparam esse evento.
 
 ### Configuração do n8n — Sites / Cloudflare
 
@@ -144,7 +168,7 @@ N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_TOKEN
 
 Configure os mesmos valores por variáveis de ambiente ou no arquivo privado `api/config.php`, usando as chaves `n8n_cadastro_webhook_url` e `n8n_cadastro_webhook_token`. O modelo está em `cpanel-server/api/config.example.php`.
 
-A chamada é best-effort, com timeout curto e sem retries agressivos. URL ou token ausente não impedem o cadastro; falha HTTP, indisponibilidade ou timeout do n8n/Evolution API também não transformam em erro um cliente que o Asaas já criou. O backend não chama a Evolution API diretamente.
+A chamada é best-effort, com timeout curto e sem retries agressivos. URL ou token ausente não impedem o cadastro; falha HTTP, indisponibilidade ou timeout do n8n/Evolution API não transformam em erro um cliente, cobrança ou nota fiscal já confirmados. O backend não chama a Evolution API diretamente.
 
 ## Arquitetura
 

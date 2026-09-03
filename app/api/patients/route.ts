@@ -7,6 +7,10 @@ export const runtime = "edge";
 
 const onlyDigits = (value: string) => value.replace(/\D/g, "");
 
+const FIRST_SESSION_AMOUNT = 230;
+const FIRST_SESSION_BILLING_TYPE = "UNDEFINED" as const;
+const FIRST_SESSION_EXTERNAL_REFERENCE_SUFFIX = "-sessao-1";
+
 function isValidCpf(value: string) {
   const cpf = onlyDigits(value);
   if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
@@ -94,6 +98,7 @@ const addressText = z.string().trim().max(120);
 const patientSchema = z
   .object({
     patientName: z.string().trim().refine(isValidFullName).max(120),
+    patientSex: z.enum(["female", "male"]),
     patientBirthDate: z.string().max(10),
     patientCpf: z.string().refine(isValidCpf),
     patientPhone: shortText,
@@ -180,6 +185,8 @@ const patientSchema = z
 type Patient = z.infer<typeof patientSchema>;
 type AsaasCustomerList = { data?: Array<{ id: string }> };
 type AsaasCustomer = { id?: string };
+type AsaasPayment = { id?: string; customer?: string; externalReference?: string };
+type AsaasPaymentList = { data?: AsaasPayment[] };
 type AsaasNotification = {
   id?: string;
   customer?: string;
@@ -535,6 +542,134 @@ function formatBirthDate(value: string) {
   return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
 }
 
+function formatCpf(value: string) {
+  const cpf = onlyDigits(value).slice(0, 11);
+  return cpf.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+}
+
+function getNextBusinessDay(now = new Date()) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      weekday: "short",
+    })
+      .formatToParts(now)
+      .filter(({ type }) => type !== "literal")
+      .map(({ type, value }) => [type, value]),
+  ) as Record<string, string>;
+  const date = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)));
+  const daysUntilNextBusinessDay = parts.weekday === "Fri" ? 3 : parts.weekday === "Sat" ? 2 : parts.weekday === "Sun" ? 1 : 1;
+  date.setUTCDate(date.getUTCDate() + daysUntilNextBusinessDay);
+  return date.toISOString().slice(0, 10);
+}
+
+function buildFirstSessionExternalReference(externalReference: string) {
+  return `${externalReference}${FIRST_SESSION_EXTERNAL_REFERENCE_SUFFIX}`;
+}
+
+function buildFirstSessionDescription(patient: Patient) {
+  const article = patient.patientSex === "female" ? "a paciente" : "o paciente";
+  return `Referente a contratação de 1 sessão de Terapia Ocupacional para ${article} ${clean(patient.patientName)} (CPF: ${formatCpf(patient.patientCpf)}) realizada na Clínica Conexão Seres.`;
+}
+
+type FirstSessionPaymentResult = { paymentId: string | null; existing: boolean };
+
+async function findFirstSessionPayment(
+  baseUrl: string,
+  customerId: string,
+  externalReference: string,
+  headers: ReturnType<typeof asaasHeaders>,
+  signal?: AbortSignal,
+) {
+  const searchUrl = new URL(`${baseUrl}/payments`);
+  searchUrl.searchParams.set("customer", customerId);
+  searchUrl.searchParams.set("externalReference", externalReference);
+  searchUrl.searchParams.set("limit", "10");
+  const response = await fetch(searchUrl.toString(), { method: "GET", headers, signal });
+  if (!response.ok) {
+    const details = await asaasErrorDetails(response);
+    console.error(`Asaas first-session payment lookup failed. HTTP ${response.status}. Response: ${details.response}`, {
+      errors: details.errors,
+      customerId,
+      externalReference,
+    });
+    return { id: null, failed: true };
+  }
+  const result = (await response.json()) as AsaasPaymentList;
+  const payment = result.data?.find(
+    (candidate) => candidate.customer === customerId && candidate.externalReference === externalReference,
+  );
+  return { id: typeof payment?.id === "string" && payment.id.trim() ? payment.id.trim() : null, failed: false };
+}
+
+async function createFirstSessionPayment(
+  baseUrl: string,
+  customerId: string,
+  patient: Patient,
+  externalReference: string,
+  headers: ReturnType<typeof asaasHeaders>,
+  signal: AbortSignal,
+): Promise<FirstSessionPaymentResult> {
+  const paymentExternalReference = buildFirstSessionExternalReference(externalReference);
+  try {
+    const existing = await findFirstSessionPayment(baseUrl, customerId, paymentExternalReference, headers, signal);
+    if (existing.failed) return { paymentId: null, existing: false };
+    if (existing.id) return { paymentId: existing.id, existing: true };
+
+    const response = await fetch(`${baseUrl}/payments`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        customer: customerId,
+        billingType: FIRST_SESSION_BILLING_TYPE,
+        value: FIRST_SESSION_AMOUNT,
+        dueDate: getNextBusinessDay(),
+        description: buildFirstSessionDescription(patient),
+        externalReference: paymentExternalReference,
+      }),
+      signal,
+    });
+    if (response.ok) {
+      const created = (await response.json()) as AsaasPayment;
+      if (typeof created.id === "string" && created.id.trim()) {
+        return { paymentId: created.id.trim(), existing: false };
+      }
+    } else {
+      const details = await asaasErrorDetails(response);
+      console.error(`Asaas first-session payment creation failed. HTTP ${response.status}. Response: ${details.response}`, {
+        errors: details.errors,
+        customerId,
+        externalReference: paymentExternalReference,
+      });
+    }
+
+    const reconciled = await findFirstSessionPayment(
+      baseUrl,
+      customerId,
+      paymentExternalReference,
+      headers,
+    );
+    return { paymentId: reconciled.id, existing: Boolean(reconciled.id) };
+  } catch (error) {
+    console.error("Asaas first-session payment request failed", {
+      timedOut: error instanceof Error && error.name === "AbortError",
+      customerId,
+      externalReference: paymentExternalReference,
+    });
+    return { paymentId: null, existing: false };
+  }
+}
+
+function prepareFirstSessionInvoice() {
+  const reason =
+    "A API de nota fiscal do Asaas exige serviço municipal e tributos fiscais; não há configuração segura disponível no formulário para inferir esses dados.";
+  console.warn("Asaas first-session invoice scheduling skipped", { reason });
+  return { configured: false, reason };
+}
+
 function fullAddress(patient: Patient, prefix: "patient" | "responsible") {
   const address = clean(patient[`${prefix}Address`]);
   const number = clean(patient[`${prefix}AddressNumber`]);
@@ -620,7 +755,7 @@ export async function POST(request: Request) {
   const externalReference = await patientReference(patient.patientName, patient.patientCpf);
   const headers = asaasHeaders(apiKey);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12_000);
+  const timeout = setTimeout(() => controller.abort(), 45_000);
 
   try {
     const searchUrl = new URL(`${baseUrl}/customers`);
@@ -705,6 +840,52 @@ export async function POST(request: Request) {
       );
     }
     const createdCustomerId = created.id.trim();
+    const notificationsConfigured = await configureCustomerNotifications(baseUrl, createdCustomerId, headers);
+    if (!notificationsConfigured) {
+      console.error("Asaas customer was created, but notification configuration was not completed", {
+        customerId: createdCustomerId,
+      });
+    }
+
+    const payment = await createFirstSessionPayment(
+      baseUrl,
+      createdCustomerId,
+      patient,
+      externalReference,
+      headers,
+      controller.signal,
+    );
+    if (!payment.paymentId) {
+      return NextResponse.json(
+        {
+          success: true,
+          existing: false,
+          partial: true,
+          paymentCreated: false,
+          message:
+            "Seu cadastro foi realizado, mas não conseguimos gerar a cobrança da primeira sessão automaticamente. A equipe da Conexão Seres dará continuidade ao atendimento.",
+        },
+        { status: 201 },
+      );
+    }
+
+    const invoice = prepareFirstSessionInvoice();
+    if (!invoice.configured) {
+      return NextResponse.json(
+        {
+          success: true,
+          existing: false,
+          partial: true,
+          paymentCreated: true,
+          paymentId: payment.paymentId,
+          invoiceConfigured: false,
+          message:
+            "Seu cadastro e a cobrança da primeira sessão foram registrados. A emissão fiscal será concluída pela equipe da Conexão Seres antes do envio das instruções.",
+        },
+        { status: 201 },
+      );
+    }
+
     await notifyN8nCustomerCreated({
       eventType: "asaas_customer_created",
       customerName: customer.name,
@@ -712,13 +893,10 @@ export async function POST(request: Request) {
       asaasCustomerId: createdCustomerId,
       externalReference,
     });
-    const notificationsConfigured = await configureCustomerNotifications(baseUrl, createdCustomerId, headers);
-    if (!notificationsConfigured) {
-      console.error("Asaas customer was created, but notification configuration was not completed", {
-        customerId: createdCustomerId,
-      });
-    }
-    return NextResponse.json({ success: true, existing: false }, { status: 201 });
+    return NextResponse.json(
+      { success: true, existing: false, paymentCreated: true, invoiceConfigured: true },
+      { status: 201 },
+    );
   } catch (error) {
     const timedOut = error instanceof Error && error.name === "AbortError";
     return NextResponse.json(

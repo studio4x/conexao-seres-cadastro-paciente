@@ -182,3 +182,55 @@ test("records sanitized Asaas error responses and validates the applied policy",
   assert.match(phpBackend, /Response: ' \./);
   assert.match(phpBackend, /Asaas notification validation/);
 });
+
+test("requires explicit patient sex in the shared form and both backends", () => {
+  assert.match(frontend, /patientSex: z\.string\(\)\.refine\([\s\S]*?value === "female" \|\| value === "male"/);
+  assert.match(frontend, /name="patientSex"/);
+  assert.match(frontend, /value: "female"/);
+  assert.match(frontend, /value: "male"/);
+  assert.match(typescriptBackend, /patientSex: z\.enum\(\["female", "male"\]\)/);
+  assert.match(phpBackend, /'patientSex' => 10/);
+  assert.match(phpBackend, /in_array\(\$values\['patientSex'\], \['female', 'male'\], true\)/);
+});
+
+test("defines the first-session payment contract and patient-specific description", () => {
+  for (const backend of [typescriptBackend, phpBackend]) {
+    assert.match(backend, /payments/);
+    assert.match(backend, /UNDEFINED/);
+    assert.match(backend, /230(?:\.00)?/);
+    assert.match(backend, /sessao-1/);
+    assert.match(backend, /next_business_day|getNextBusinessDay/);
+    assert.match(backend, /Terapia Ocupacional/);
+    assert.match(backend, /Clínica Conexão Seres/);
+    assert.match(backend, /format_cpf|formatCpf/);
+  }
+  assert.match(typescriptBackend, /patient\.patientSex === "female" \? "a paciente" : "o paciente"/);
+  assert.match(phpBackend, /\$values\['patientSex'\] === 'female' \? 'a paciente' : 'o paciente'/);
+  assert.match(typescriptBackend, /customer: customerId,[\s\S]*?externalReference: paymentExternalReference/);
+  assert.match(phpBackend, /'customer' => \$customerId,[\s\S]*?'externalReference' => \$paymentExternalReference/);
+});
+
+test("uses the next business day rule and does not invent invoice fiscal data", () => {
+  assert.match(
+    typescriptBackend,
+    /parts\.weekday === "Fri" \? 3 : parts\.weekday === "Sat" \? 2 : parts\.weekday === "Sun" \? 1 : 1/,
+  );
+  assert.match(phpBackend, /\$days = \$weekday >= 5 \? 8 - \$weekday : 1/);
+  for (const backend of [typescriptBackend, phpBackend]) {
+    assert.match(backend, /prepare.*first.*invoice/i);
+    assert.match(backend, /configured.*false/);
+    assert.match(backend, /serviço municipal/);
+    assert.doesNotMatch(backend, /municipalServiceId.*['"][^'"$]+/);
+  }
+});
+
+test("does not call n8n before payment and invoice confirmation", () => {
+  const tsPaymentIndex = typescriptBackend.indexOf("const payment = await createFirstSessionPayment");
+  const tsN8nIndex = typescriptBackend.lastIndexOf("await notifyN8nCustomerCreated");
+  const phpPaymentIndex = phpBackend.indexOf("$payment = create_first_session_payment");
+  const phpN8nIndex = phpBackend.lastIndexOf("notify_n8n_customer_created_safely");
+  assert.ok(tsPaymentIndex > -1 && tsN8nIndex > tsPaymentIndex);
+  assert.ok(phpPaymentIndex > -1 && phpN8nIndex > phpPaymentIndex);
+  assert.match(typescriptBackend, /if \(!invoice\.configured\) \{[\s\S]*?paymentCreated: true[\s\S]*?return/);
+  assert.match(phpBackend, /if \(\(\$invoice\['configured'\] \?\? false\) !== true\) \{[\s\S]*?paymentCreated' => true[\s\S]*?respond/);
+});

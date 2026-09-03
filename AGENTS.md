@@ -128,6 +128,8 @@ Não conclua uma alteração funcional modificando apenas um backend quando a me
 
 Após a criação de um novo cliente no Asaas, os dois backends também devem preservar a notificação best-effort do evento `asaas_customer_created` para o webhook configurável do n8n. O evento só pode ser enviado depois de um `customerId` válido e nunca no caminho de cliente existente; falhas, timeout ou configuração ausente do n8n não podem invalidar o cadastro no Asaas.
 
+Após a criação de um cliente novo, os dois backends devem manter a cobrança avulsa idempotente da primeira sessão de Terapia Ocupacional: valor de R$ 230,00, `billingType = UNDEFINED`, vencimento no próximo dia útil em `America/Sao_Paulo`, referência `<externalReference>-sessao-1` e descrição baseada explicitamente em `patientSex` (`female` ou `male`), nome e CPF da pessoa atendida. O evento do n8n só pode ser enviado depois da cobrança e da etapa fiscal estarem confirmadas; não invente dados fiscais para forçar o envio.
+
 ## Regras de negócio que devem ser preservadas
 
 ### 1. Pessoa atendida maior de 18 anos sem responsável
