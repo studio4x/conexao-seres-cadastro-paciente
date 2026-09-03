@@ -74,7 +74,7 @@ Configure no `config.php` privado, ou por variáveis de ambiente, as chaves:
 'n8n_cadastro_webhook_token' => 'COLE_AQUI_O_TOKEN_DO_WEBHOOK_N8N',
 ```
 
-Os nomes equivalentes de ambiente são `N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_URL` e `N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_TOKEN`. O backend envia `asaas_customer_created` somente depois que um novo cliente recebe `customerId` válido e a cobrança da primeira sessão está pronta, usando o nome e WhatsApp do titular. Cliente existente ou cobrança ausente não dispara a mensagem; o n8n não espera pagamento nem NFS-e.
+Os nomes equivalentes de ambiente são `N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_URL` e `N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_TOKEN`. O backend envia `asaas_customer_created` somente depois que um novo cliente recebe `customerId` válido e a cobrança da primeira sessão está pronta, usando nome, e-mail e WhatsApp do titular. Cliente existente ou cobrança ausente não dispara a mensagem; o n8n não espera pagamento nem NFS-e.
 
 O envio usa cURL, Bearer token e timeout curto depois que a resposta pode ser finalizada com `fastcgi_finish_request()`. Se esse recurso não estiver disponível, a chamada continua sendo best-effort; qualquer falha do n8n ou da Evolution API é registrada no servidor e não invalida nem recria o cliente Asaas.
 

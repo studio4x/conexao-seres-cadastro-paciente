@@ -205,6 +205,7 @@ type AsaasNotificationList = { data?: AsaasNotification[] };
 type N8nCustomerCreatedPayload = {
   eventType: "asaas_customer_created";
   customerName: string;
+  customerEmail: string;
   whatsapp: string;
   asaasCustomerId: string;
   externalReference: string;
@@ -865,6 +866,7 @@ export async function POST(request: Request) {
     await notifyN8nCustomerCreated({
       eventType: "asaas_customer_created",
       customerName: customer.name,
+      customerEmail: customer.email,
       whatsapp: customer.mobilePhone,
       asaasCustomerId: createdCustomerId,
       externalReference,

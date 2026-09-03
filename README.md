@@ -159,13 +159,14 @@ A URL pode ser substituída pela configuração do ambiente. O webhook recebe JS
 {
   "eventType": "asaas_customer_created",
   "customerName": "Nome do titular no Asaas",
+  "customerEmail": "email-do-titular@dominio.com",
   "whatsapp": "11999999999",
   "asaasCustomerId": "cus_...",
   "externalReference": "cs-paciente-..."
 }
 ```
 
-`customerName` e `whatsapp` são os mesmos dados do titular usado no cliente Asaas: paciente quando o adulto não tem responsável; responsável legal/financeiro quando houver responsável ou quando a pessoa atendida for menor. Clientes já existentes ou falhas de cobrança não disparam esse evento. O n8n é independente do webhook fiscal e não espera pagamento nem NFS-e.
+`customerName`, `customerEmail` e `whatsapp` são os mesmos dados do titular usado no cliente Asaas: paciente quando o adulto não tem responsável; responsável legal/financeiro quando houver responsável ou quando a pessoa atendida for menor. Clientes já existentes ou falhas de cobrança não disparam esse evento. O n8n é independente do webhook fiscal e não espera pagamento nem NFS-e.
 
 ### Configuração do n8n — Sites / Cloudflare
 

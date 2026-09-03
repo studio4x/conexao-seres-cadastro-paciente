@@ -868,6 +868,7 @@ $responseFinished = finish_response_and_continue($responsePayload, 201);
 $n8nNotified = notify_n8n_customer_created_safely($n8nWebhookUrl, $n8nWebhookToken, [
     'eventType' => 'asaas_customer_created',
     'customerName' => $customer['name'],
+    'customerEmail' => $customer['email'],
     'whatsapp' => $customer['mobilePhone'],
     'asaasCustomerId' => $createdCustomerId,
     'externalReference' => $externalReference,
