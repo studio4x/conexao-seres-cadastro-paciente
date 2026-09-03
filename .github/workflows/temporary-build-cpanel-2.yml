@@ -41,4 +41,5 @@ jobs:
           git add -f cpanel-dist/api/deploy-webhook.php
           git diff --cached --quiet && exit 1
           git commit -m "build: publish cPanel webhook bundle"
+          git pull --rebase origin main
           git push origin main
