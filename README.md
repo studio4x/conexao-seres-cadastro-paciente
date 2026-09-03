@@ -1,4 +1,10 @@
-# vinext-starter
+# Cadastro de Paciente — Conexão Seres
+
+Formulário de cadastro de pacientes integrado ao Asaas. O projeto mantém a versão utilizada no ChatGPT Sites e também pode gerar um pacote compatível com uma pasta pública do cPanel.
+
+Para publicar em `cadastro.conexaoseres.com.br`, consulte [CPANEL.md](CPANEL.md).
+
+## Estrutura original do projeto
 
 A clean full-stack starter running on [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and Drizzle support.
 
@@ -79,6 +85,7 @@ Use SIWC for account pages, user-specific dashboards, saved records, and write a
 - `npm run install:ci`: perform the one bounded lockfile install
 - `npm run dev`: start the Vite/Vinext development server
 - `npm run build`: build the deployable Sites artifact
+- `npm run build:cpanel`: gerar a versão pronta para uma pasta pública do cPanel
 - `npm run start`: start the built Vinext application
 - `npm test`: build and verify the rendered development-preview metadata
 - `npm run db:generate`: generate Drizzle migrations after schema changes

@@ -40,3 +40,8 @@ next-env.d.ts
 /.sites-runtime/
 /outputs/
 /work/
+
+# cPanel package and private server configuration
+/cpanel-package.zip
+/cpanel-server/api/config.php
+/cpanel-dist/api/config.php
