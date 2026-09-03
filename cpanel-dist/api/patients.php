@@ -326,6 +326,55 @@ function configure_customer_notifications_safely(string $baseUrl, string $custom
     }
 }
 
+function notify_n8n_customer_created_safely(string $webhookUrl, string $webhookToken, array $payload): bool
+{
+    if ($webhookUrl === '' || $webhookToken === '' || $webhookToken === 'COLE_AQUI_O_TOKEN_DO_WEBHOOK_N8N') {
+        error_log('n8n customer-created webhook is not configured.');
+        return false;
+    }
+
+    $parsedUrl = parse_url($webhookUrl);
+    if (!is_array($parsedUrl) || !in_array($parsedUrl['scheme'] ?? '', ['http', 'https'], true)) {
+        error_log('n8n customer-created webhook URL is invalid.');
+        return false;
+    }
+
+    try {
+        $curl = curl_init($webhookUrl);
+        if ($curl === false) {
+            error_log('n8n customer-created webhook could not initialize cURL.');
+            return false;
+        }
+
+        curl_setopt_array($curl, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 2,
+            CURLOPT_TIMEOUT => 3,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            CURLOPT_HTTPHEADER => [
+                'Accept: application/json',
+                'Content-Type: application/json',
+                'Authorization: Bearer ' . $webhookToken,
+            ],
+        ]);
+        curl_exec($curl);
+        $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+        $error = curl_error($curl);
+        curl_close($curl);
+
+        if ($error !== '' || $status < 200 || $status >= 300) {
+            error_log('n8n customer-created webhook failed. HTTP ' . $status);
+            return false;
+        }
+
+        return true;
+    } catch (Throwable $exception) {
+        error_log('n8n customer-created webhook request failed: ' . $exception->getMessage());
+        return false;
+    }
+}
+
 function turnstile_is_valid(string $secret, string $token, string $expectedHostname): bool
 {
     $remoteIp = trim((string) ($_SERVER['HTTP_CF_CONNECTING_IP'] ?? $_SERVER['REMOTE_ADDR'] ?? ''));
@@ -473,6 +522,8 @@ if (is_file($configPath)) {
 
 $apiKey = trim((string) (getenv('ASAAS_API_KEY') ?: ($fileConfig['asaas_api_key'] ?? '')));
 $baseUrl = rtrim((string) (getenv('ASAAS_API_URL') ?: ($fileConfig['asaas_api_url'] ?? 'https://api.asaas.com/v3')), '/');
+$n8nWebhookUrl = trim((string) (getenv('N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_URL') ?: ($fileConfig['n8n_cadastro_webhook_url'] ?? '')));
+$n8nWebhookToken = trim((string) (getenv('N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_TOKEN') ?: ($fileConfig['n8n_cadastro_webhook_token'] ?? '')));
 
 if ($apiKey === '' || $apiKey === 'COLE_AQUI_A_CHAVE_DA_API_DO_ASAAS') {
     respond(['message' => 'Não conseguimos receber o cadastro agora. Fale com a clínica para que possamos ajudar.'], 503);
@@ -559,6 +610,21 @@ if ($createdCustomerId === '') {
     respond(['message' => 'Não conseguimos confirmar o cadastro no Asaas. Tente novamente em instantes.'], 502);
 }
 $responseFinished = finish_response_and_continue(['success' => true, 'existing' => false], 201);
+$n8nNotified = notify_n8n_customer_created_safely($n8nWebhookUrl, $n8nWebhookToken, [
+    'eventType' => 'asaas_customer_created',
+    'customerName' => $customer['name'],
+    'whatsapp' => $customer['mobilePhone'],
+    'asaasCustomerId' => $createdCustomerId,
+    'externalReference' => $externalReference,
+]);
+if (
+    !$n8nNotified
+    && $n8nWebhookUrl !== ''
+    && $n8nWebhookToken !== ''
+    && $n8nWebhookToken !== 'COLE_AQUI_O_TOKEN_DO_WEBHOOK_N8N'
+) {
+    error_log('Asaas customer was created, but n8n notification was not completed. Customer ' . $createdCustomerId);
+}
 if (!configure_customer_notifications_safely($baseUrl, $createdCustomerId, $apiKey)) {
     error_log('Asaas customer was created, but notification configuration was not completed. Customer ' . $createdCustomerId);
 }

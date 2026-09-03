@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getRequestExecutionContext } from "vinext/shims/request-context";
 
 export const runtime = "edge";
 
@@ -185,6 +186,13 @@ type AsaasNotification = {
   scheduleOffset?: number;
 };
 type AsaasNotificationList = { data?: AsaasNotification[] };
+type N8nCustomerCreatedPayload = {
+  eventType: "asaas_customer_created";
+  customerName: string;
+  whatsapp: string;
+  asaasCustomerId: string;
+  externalReference: string;
+};
 
 type TurnstileVerification = {
   success?: boolean;
@@ -350,6 +358,63 @@ async function patientReference(patientName: string, patientCpf: string) {
 
 function clean(value: string) {
   return value.trim().replace(/[\r\n]+/g, " ");
+}
+
+const N8N_CUSTOMER_CREATED_TIMEOUT_MS = 3_000;
+
+async function notifyN8nCustomerCreated(payload: N8nCustomerCreatedPayload) {
+  const webhookUrl = (env.N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_URL as string | undefined)?.trim();
+  const webhookToken = (env.N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_TOKEN as string | undefined)?.trim();
+
+  if (!webhookUrl || !webhookToken || webhookToken === "COLE_AQUI_O_TOKEN_DO_WEBHOOK_N8N") {
+    console.warn("n8n customer-created webhook is not configured", {
+      hasUrl: Boolean(webhookUrl),
+      hasToken: Boolean(webhookToken && webhookToken !== "COLE_AQUI_O_TOKEN_DO_WEBHOOK_N8N"),
+    });
+    return;
+  }
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(webhookUrl);
+    if (parsedUrl.protocol !== "https:" && parsedUrl.protocol !== "http:") {
+      throw new Error("Unsupported webhook protocol");
+    }
+  } catch {
+    console.error("n8n customer-created webhook URL is invalid");
+    return;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), N8N_CUSTOMER_CREATED_TIMEOUT_MS);
+  const request = fetch(parsedUrl.toString(), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${webhookToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+    signal: controller.signal,
+  })
+    .then((response) => {
+      if (!response.ok) {
+        console.error("n8n customer-created webhook failed", { status: response.status });
+      }
+    })
+    .catch((error) => {
+      console.error("n8n customer-created webhook request failed", {
+        timedOut: error instanceof Error && error.name === "AbortError",
+      });
+    })
+    .finally(() => clearTimeout(timeout));
+
+  const executionContext = getRequestExecutionContext();
+  if (executionContext) {
+    executionContext.waitUntil(request);
+    return;
+  }
+
+  await request;
 }
 
 function formatBirthDate(value: string) {
@@ -520,16 +585,24 @@ export async function POST(request: Request) {
     }
 
     const created = (await createResponse.json()) as AsaasCustomer;
-    if (!created.id) {
+    if (typeof created.id !== "string" || !created.id.trim()) {
       return NextResponse.json(
         { message: "Não conseguimos confirmar o cadastro no Asaas. Tente novamente em instantes." },
         { status: 502 },
       );
     }
-    const notificationsConfigured = await configureCustomerNotifications(baseUrl, created.id, headers);
+    const createdCustomerId = created.id.trim();
+    await notifyN8nCustomerCreated({
+      eventType: "asaas_customer_created",
+      customerName: customer.name,
+      whatsapp: customer.mobilePhone,
+      asaasCustomerId: createdCustomerId,
+      externalReference,
+    });
+    const notificationsConfigured = await configureCustomerNotifications(baseUrl, createdCustomerId, headers);
     if (!notificationsConfigured) {
       console.error("Asaas customer was created, but notification configuration was not completed", {
-        customerId: created.id,
+        customerId: createdCustomerId,
       });
     }
     return NextResponse.json({ success: true, existing: false }, { status: 201 });

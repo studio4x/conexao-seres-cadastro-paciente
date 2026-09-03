@@ -27,7 +27,7 @@ A build copia para `cpanel-dist/api/`:
 
 ## Configuração privada
 
-Dentro de `cpanel-dist/api/`, crie `config.php` com base em `config.example.php` e configure as credenciais reais do Asaas e Cloudflare Turnstile.
+Dentro de `cpanel-dist/api/`, crie `config.php` com base em `config.example.php` e configure as credenciais reais do Asaas, Cloudflare Turnstile e do webhook n8n, quando o envio de WhatsApp estiver habilitado.
 
 Os arquivos abaixo são privados e não devem ser versionados:
 
@@ -37,6 +37,25 @@ cpanel-dist/api/config.php
 ```
 
 O Apache bloqueia acesso direto aos arquivos de configuração.
+
+### Webhook n8n de cadastro realizado
+
+O endpoint usado em produção é:
+
+```text
+https://webhook.studio4x.com.br/webhook/conexao-seres-cadastro-realizado
+```
+
+Configure no `config.php` privado, ou por variáveis de ambiente, as chaves:
+
+```php
+'n8n_cadastro_webhook_url' => 'https://webhook.studio4x.com.br/webhook/conexao-seres-cadastro-realizado',
+'n8n_cadastro_webhook_token' => 'COLE_AQUI_O_TOKEN_DO_WEBHOOK_N8N',
+```
+
+Os nomes equivalentes de ambiente são `N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_URL` e `N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_TOKEN`. O backend envia `asaas_customer_created` somente depois que um novo cliente recebe `customerId` válido no Asaas, usando o nome e WhatsApp do titular. Cliente existente não dispara a mensagem.
+
+O envio usa cURL, Bearer token e timeout curto depois que a resposta pode ser finalizada com `fastcgi_finish_request()`. Se esse recurso não estiver disponível, a chamada continua sendo best-effort; qualquer falha do n8n ou da Evolution API é registrada no servidor e não invalida nem recria o cliente Asaas.
 
 ## Deploy automático por webhook do GitHub
 

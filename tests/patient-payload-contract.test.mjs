@@ -57,6 +57,21 @@ test("returns a friendly conflict when the patient external reference already ex
   assert.doesNotMatch(phpBackend, /success' => true, 'existing' => true/);
 });
 
+test("notifies n8n only after creating a new Asaas customer with the selected holder data", () => {
+  assert.match(
+    typescriptBackend,
+    /if \(existing\.data\?\.length\) \{[\s\S]*?status: 409[\s\S]*?\}[\s\S]*?const createdCustomerId = created\.id\.trim\(\);[\s\S]*?await notifyN8nCustomerCreated\(\{[\s\S]*?eventType: "asaas_customer_created"[\s\S]*?customerName: customer\.name[\s\S]*?whatsapp: customer\.mobilePhone[\s\S]*?asaasCustomerId: createdCustomerId[\s\S]*?externalReference[\s\S]*?\}\);/,
+  );
+  assert.match(
+    phpBackend,
+    /if \(!empty\(\$lookup\['data'\]\['data'\]\)\) \{[\s\S]*?\], 409\);[\s\S]*?\$createdCustomerId = trim\(\(string\) \(\$created\['data'\]\['id'\] \?\? ''\)\);[\s\S]*?notify_n8n_customer_created_safely\(\$n8nWebhookUrl, \$n8nWebhookToken, \[[\s\S]*?'eventType' => 'asaas_customer_created'[\s\S]*?'customerName' => \$customer\['name'\][\s\S]*?'whatsapp' => \$customer\['mobilePhone'\][\s\S]*?'asaasCustomerId' => \$createdCustomerId[\s\S]*?'externalReference' => \$externalReference/,
+  );
+  assert.match(typescriptBackend, /N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_URL/);
+  assert.match(typescriptBackend, /N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_TOKEN/);
+  assert.match(phpBackend, /N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_URL/);
+  assert.match(phpBackend, /N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_TOKEN/);
+});
+
 test("formats patient and responsible birth dates in observations", () => {
   assert.match(
     typescriptBackend,

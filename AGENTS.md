@@ -126,6 +126,8 @@ Sempre que uma tarefa alterar qualquer uma destas áreas, revise as duas versõe
 
 Não conclua uma alteração funcional modificando apenas um backend quando a mesma regra também for usada pelo outro ambiente.
 
+Após a criação de um novo cliente no Asaas, os dois backends também devem preservar a notificação best-effort do evento `asaas_customer_created` para o webhook configurável do n8n. O evento só pode ser enviado depois de um `customerId` válido e nunca no caminho de cliente existente; falhas, timeout ou configuração ausente do n8n não podem invalidar o cadastro no Asaas.
+
 ## Regras de negócio que devem ser preservadas
 
 ### 1. Pessoa atendida maior de 18 anos sem responsável
@@ -248,7 +250,11 @@ Opcionais:
 ```text
 ASAAS_API_URL
 TURNSTILE_EXPECTED_HOSTNAME
+N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_URL
+N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_TOKEN
 ```
+
+O webhook do n8n recebe somente o evento de criação de cliente novo, com `eventType`, `customerName`, `whatsapp`, `asaasCustomerId` e `externalReference`. A URL e o token devem permanecer em configuração privada; o token nunca deve ser versionado.
 
 ### cPanel
 

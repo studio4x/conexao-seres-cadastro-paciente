@@ -23,7 +23,8 @@ O fluxo principal é:
 6. O Cloudflare Turnstile protege o envio.
 7. O backend procura um cadastro existente no Asaas por `externalReference`.
 8. Quando necessário, cria um novo cliente segundo as regras da clínica.
-9. As notificações do cliente no Asaas são configuradas por evento.
+9. Depois de confirmar um novo `customerId`, tenta enviar o evento de cadastro realizado ao webhook do n8n.
+10. As notificações do cliente no Asaas são configuradas por evento.
 
 ## Principais recursos
 
@@ -39,6 +40,7 @@ O fluxo principal é:
 - Deduplicação por referência externa determinística.
 - Grupos `Adultos` e `Crianças`.
 - Configuração de notificações do Asaas por evento.
+- Notificação best-effort ao n8n somente após a criação de um novo cliente no Asaas.
 - Build estática para cPanel.
 - Build versionada no rodapé.
 - Deploy automático do cPanel por webhook HTTPS do GitHub.
@@ -107,6 +109,41 @@ Nos eventos controlados:
 
 Falha ao configurar notificações não invalida um cliente que já tenha sido criado com sucesso.
 
+## Integração com n8n e WhatsApp
+
+Depois que o Asaas confirma a criação de um cliente novo com `customerId` válido, o backend tenta fazer um `POST` para:
+
+```text
+https://webhook.studio4x.com.br/webhook/conexao-seres-cadastro-realizado
+```
+
+A URL pode ser substituída pela configuração do ambiente. O webhook recebe JSON com:
+
+```json
+{
+  "eventType": "asaas_customer_created",
+  "customerName": "Nome do titular no Asaas",
+  "whatsapp": "11999999999",
+  "asaasCustomerId": "cus_...",
+  "externalReference": "cs-paciente-..."
+}
+```
+
+`customerName` e `whatsapp` são os mesmos dados do titular usado no cliente Asaas: paciente quando o adulto não tem responsável; responsável legal/financeiro quando houver responsável ou quando a pessoa atendida for menor. Clientes já existentes não disparam esse evento.
+
+### Configuração do n8n — Sites / Cloudflare
+
+```text
+N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_URL
+N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_TOKEN
+```
+
+### Configuração do n8n — cPanel
+
+Configure os mesmos valores por variáveis de ambiente ou no arquivo privado `api/config.php`, usando as chaves `n8n_cadastro_webhook_url` e `n8n_cadastro_webhook_token`. O modelo está em `cpanel-server/api/config.example.php`.
+
+A chamada é best-effort, com timeout curto e sem retries agressivos. URL ou token ausente não impedem o cadastro; falha HTTP, indisponibilidade ou timeout do n8n/Evolution API também não transformam em erro um cliente que o Asaas já criou. O backend não chama a Evolution API diretamente.
+
 ## Arquitetura
 
 O projeto compartilha o frontend entre dois ambientes.
@@ -149,7 +186,7 @@ cpanel-server/.htaccess
 cpanel-server/api/.htaccess
 ```
 
-As regras funcionais do cadastro existem em TypeScript e PHP. Mudanças em validação, responsável, payload do Asaas, `company`, `observations`, `externalReference`, grupos ou notificações devem revisar os dois backends.
+As regras funcionais do cadastro existem em TypeScript e PHP. Mudanças em validação, responsável, payload do Asaas, `company`, `observations`, `externalReference`, grupos, notificações ou disparo do evento n8n devem revisar os dois backends.
 
 ## Estrutura principal
 
@@ -219,6 +256,8 @@ Opcionais:
 ```text
 ASAAS_API_URL
 TURNSTILE_EXPECTED_HOSTNAME
+N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_URL
+N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_TOKEN
 ```
 
 Nunca exponha `ASAAS_API_KEY` ou `TURNSTILE_SECRET_KEY` no frontend.
