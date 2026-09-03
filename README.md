@@ -109,6 +109,8 @@ Nos eventos controlados:
 
 Falha ao configurar notificações não invalida um cliente que já tenha sido criado com sucesso.
 
+Após recuperar as configurações do cliente, o backend envia ao `PUT /v3/notifications/batch` somente notificações ativas, pertencentes ao cliente e dos eventos controlados pela aplicação. Notificações marcadas como `deleted` ou associadas a outro cliente são ignoradas. Quando há mais de uma configuração para o mesmo evento, o ID é escolhido junto com o `scheduleOffset`; o aviso antes do vencimento recebe `5` e o aviso após o vencimento recebe `1`. Depois do lote, o backend consulta novamente as notificações para validar os canais e offsets aplicados. Falhas do lote ou da validação são registradas com a resposta Asaas limitada e sanitizada, sem expor credenciais ao navegador.
+
 ## Integração com n8n e WhatsApp
 
 Depois que o Asaas confirma a criação de um cliente novo com `customerId` válido, o backend tenta fazer um `POST` para:

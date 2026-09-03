@@ -182,8 +182,17 @@ type AsaasCustomerList = { data?: Array<{ id: string }> };
 type AsaasCustomer = { id?: string };
 type AsaasNotification = {
   id?: string;
+  customer?: string;
+  enabled?: boolean;
+  emailEnabledForProvider?: boolean;
+  smsEnabledForProvider?: boolean;
+  emailEnabledForCustomer?: boolean;
+  smsEnabledForCustomer?: boolean;
+  phoneCallEnabledForCustomer?: boolean;
+  whatsappEnabledForCustomer?: boolean;
   event?: string;
   scheduleOffset?: number;
+  deleted?: boolean;
 };
 type AsaasNotificationList = { data?: AsaasNotification[] };
 type N8nCustomerCreatedPayload = {
@@ -247,23 +256,76 @@ type AsaasErrorPayload = {
   errors?: Array<{ code?: string; description?: string }>;
 };
 
+const CONTROLLED_NOTIFICATION_EVENTS = new Set([
+  "PAYMENT_CREATED",
+  "PAYMENT_UPDATED",
+  "PAYMENT_DUEDATE_WARNING",
+  "PAYMENT_OVERDUE",
+  "PAYMENT_RECEIVED",
+  "SEND_LINHA_DIGITAVEL",
+]);
+
+const DESIRED_SCHEDULE_OFFSETS = {
+  PAYMENT_DUEDATE_WARNING: 5,
+  PAYMENT_OVERDUE: 1,
+} as const;
+
+function sanitizeAsaasLogText(value: string) {
+  return value
+    .replace(
+      /(access[_-]?token|authorization|asaas[_-]?api[_-]?key|turnstile[_-]?(?:secret|token))\s*[:=]\s*("[^"]*"|'[^']*'|[^,\s}]+)/gi,
+      "$1=[REDACTED]",
+    )
+    .replace(/Bearer\s+\S+/gi, "Bearer [REDACTED]")
+    .slice(0, 800);
+}
+
 async function asaasErrorDetails(response: Response) {
+  const rawResponse = await response.text();
+  const sanitizedResponse = sanitizeAsaasLogText(rawResponse);
   try {
-    const payload = (await response.json()) as AsaasErrorPayload;
-    return payload.errors?.slice(0, 3).map((error) => ({
-      code: error.code || "unknown",
-      description: error.description?.slice(0, 240) || "Sem descrição",
+    const payload = JSON.parse(rawResponse) as AsaasErrorPayload;
+    const errors = payload.errors?.slice(0, 3).map((error) => ({
+      code: sanitizeAsaasLogText(error.code || "unknown").slice(0, 120),
+      description: sanitizeAsaasLogText(error.description || "Sem descrição").slice(0, 240),
     }));
+    return { errors, response: sanitizedResponse || "Resposta vazia" };
   } catch {
-    return undefined;
+    return { response: sanitizedResponse || "Resposta não JSON ou indisponível" };
   }
 }
 
-function buildNotificationUpdate(notification: AsaasNotification & { id: string }) {
+function notificationScheduleOffset(notification: AsaasNotification) {
+  return typeof notification.scheduleOffset === "number" && Number.isFinite(notification.scheduleOffset)
+    ? notification.scheduleOffset
+    : 0;
+}
+
+function selectScheduledNotificationIds(notifications: Array<AsaasNotification & { id: string }>) {
+  const selectedIds = new Set<string>();
+  for (const [event, desiredOffset] of Object.entries(DESIRED_SCHEDULE_OFFSETS)) {
+    const candidates = notifications
+      .filter((notification) => notification.event === event)
+      .sort((left, right) => {
+        const leftOffset = notificationScheduleOffset(left);
+        const rightOffset = notificationScheduleOffset(right);
+        const leftRank = leftOffset === desiredOffset ? 0 : leftOffset > 0 ? 1 : 2;
+        const rightRank = rightOffset === desiredOffset ? 0 : rightOffset > 0 ? 1 : 2;
+        return leftRank - rightRank
+          || (leftOffset > 0 ? Math.abs(leftOffset - desiredOffset) : Number.MAX_SAFE_INTEGER)
+            - (rightOffset > 0 ? Math.abs(rightOffset - desiredOffset) : Number.MAX_SAFE_INTEGER)
+          || left.id.localeCompare(right.id);
+      });
+    if (candidates[0]) selectedIds.add(candidates[0].id);
+  }
+  return selectedIds;
+}
+
+function buildNotificationUpdate(
+  notification: AsaasNotification & { id: string },
+  scheduledNotificationIds: Set<string>,
+) {
   const event = notification.event || "";
-  const scheduleOffset = notification.scheduleOffset ?? 0;
-  const isBeforeDueDateReminder = event === "PAYMENT_DUEDATE_WARNING" && scheduleOffset !== 0;
-  const isOverdueReminder = event === "PAYMENT_OVERDUE" && scheduleOffset !== 0;
   const isDigitalLineNotification = event === "SEND_LINHA_DIGITAVEL";
 
   return {
@@ -275,12 +337,28 @@ function buildNotificationUpdate(notification: AsaasNotification & { id: string 
     smsEnabledForCustomer: false,
     phoneCallEnabledForCustomer: false,
     whatsappEnabledForCustomer: !isDigitalLineNotification,
-    ...(isBeforeDueDateReminder
-      ? { scheduleOffset: 5 }
-      : isOverdueReminder
-        ? { scheduleOffset: 1 }
-        : {}),
+    ...(scheduledNotificationIds.has(notification.id) && event in DESIRED_SCHEDULE_OFFSETS
+      ? { scheduleOffset: DESIRED_SCHEDULE_OFFSETS[event as keyof typeof DESIRED_SCHEDULE_OFFSETS] }
+      : {}),
   };
+}
+
+function notificationMatchesUpdate(
+  notification: AsaasNotification,
+  update: ReturnType<typeof buildNotificationUpdate>,
+) {
+  const channelFields = [
+    "enabled",
+    "emailEnabledForProvider",
+    "smsEnabledForProvider",
+    "emailEnabledForCustomer",
+    "smsEnabledForCustomer",
+    "phoneCallEnabledForCustomer",
+    "whatsappEnabledForCustomer",
+  ] as const;
+  return notification.deleted !== true
+    && channelFields.every((field) => notification[field] === update[field])
+    && (!("scheduleOffset" in update) || notification.scheduleOffset === update.scheduleOffset);
 }
 
 async function configureCustomerNotifications(
@@ -306,9 +384,20 @@ async function configureCustomerNotifications(
     }
 
     const list = (await listResponse.json()) as AsaasNotificationList;
-    const notifications = (list.data || [])
-      .filter((notification): notification is AsaasNotification & { id: string } => Boolean(notification.id))
-      .map(buildNotificationUpdate);
+    const notificationsToUpdate = (list.data || []).filter(
+      (notification): notification is AsaasNotification & { id: string } => {
+        const notificationId = notification.id?.trim();
+        const belongsToCustomer = notification.customer === customerId;
+        return Boolean(notificationId)
+          && notification.deleted !== true
+          && belongsToCustomer
+          && CONTROLLED_NOTIFICATION_EVENTS.has(notification.event || "");
+      },
+    );
+    const scheduledNotificationIds = selectScheduledNotificationIds(notificationsToUpdate);
+    const notifications = notificationsToUpdate.map((notification) =>
+      buildNotificationUpdate(notification, scheduledNotificationIds),
+    );
 
     if (!notifications.length) {
       console.error("Asaas notification lookup returned no notification IDs", { customerId });
@@ -322,10 +411,34 @@ async function configureCustomerNotifications(
       signal: controller.signal,
     });
     if (!updateResponse.ok) {
-      console.error("Asaas notification update failed", {
-        status: updateResponse.status,
-        errors: await asaasErrorDetails(updateResponse),
-      });
+      const details = await asaasErrorDetails(updateResponse);
+      console.error(
+        `Asaas notification update failed. HTTP ${updateResponse.status}. Response: ${details.response}`,
+        { errors: details.errors },
+      );
+      return false;
+    }
+
+    const verificationResponse = await fetch(
+      `${baseUrl}/customers/${encodeURIComponent(customerId)}/notifications`,
+      { method: "GET", headers, signal: controller.signal },
+    );
+    if (!verificationResponse.ok) {
+      const details = await asaasErrorDetails(verificationResponse);
+      console.error(
+        `Asaas notification validation failed. HTTP ${verificationResponse.status}. Response: ${details.response}`,
+        { errors: details.errors },
+      );
+      return false;
+    }
+    const verifiedList = (await verificationResponse.json()) as AsaasNotificationList;
+    const verifiedById = new Map(
+      (verifiedList.data || [])
+        .filter((notification): notification is AsaasNotification & { id: string } => Boolean(notification.id))
+        .map((notification) => [notification.id, notification]),
+    );
+    if (!notifications.every((update) => notificationMatchesUpdate(verifiedById.get(update.id) || {}, update))) {
+      console.error("Asaas notification validation did not match the requested policy", { customerId });
       return false;
     }
 

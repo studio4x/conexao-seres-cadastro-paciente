@@ -218,6 +218,17 @@ function normalized_name(string $name): string
     return strtolower($normalized);
 }
 
+function sanitize_asaas_log_text(string $value, int $limit = 800): string
+{
+    $sanitized = preg_replace(
+        '/(access[_-]?token|authorization|asaas[_-]?api[_-]?key|turnstile[_-]?(?:secret|token))\s*[:=]\s*("[^"]*"|\'[^\']*\'|[^,\s}]+)/i',
+        '$1=[REDACTED]',
+        $value
+    ) ?? $value;
+    $sanitized = preg_replace('/Bearer\s+\S+/i', 'Bearer [REDACTED]', $sanitized) ?? $sanitized;
+    return substr($sanitized, 0, $limit);
+}
+
 function asaas_request(string $method, string $url, string $apiKey, ?array $payload = null): array
 {
     $curl = curl_init($url);
@@ -247,15 +258,64 @@ function asaas_request(string $method, string $url, string $apiKey, ?array $payl
         'status' => $status,
         'data' => is_array($decoded) ? $decoded : [],
         'error' => $error,
+        'response' => is_string($body) ? sanitize_asaas_log_text($body) : 'Resposta indisponível',
     ];
 }
 
-function build_notification_update(array $notification): array
+function controlled_notification_event(string $event): bool
+{
+    return in_array($event, [
+        'PAYMENT_CREATED',
+        'PAYMENT_UPDATED',
+        'PAYMENT_DUEDATE_WARNING',
+        'PAYMENT_OVERDUE',
+        'PAYMENT_RECEIVED',
+        'SEND_LINHA_DIGITAVEL',
+    ], true);
+}
+
+function desired_schedule_offset(string $event): ?int
+{
+    return match ($event) {
+        'PAYMENT_DUEDATE_WARNING' => 5,
+        'PAYMENT_OVERDUE' => 1,
+        default => null,
+    };
+}
+
+function notification_schedule_offset(array $notification): int
+{
+    return is_numeric($notification['scheduleOffset'] ?? null)
+        ? (int) $notification['scheduleOffset']
+        : 0;
+}
+
+function select_scheduled_notification_ids(array $notifications): array
+{
+    $selectedIds = [];
+    foreach (['PAYMENT_DUEDATE_WARNING' => 5, 'PAYMENT_OVERDUE' => 1] as $event => $desiredOffset) {
+        $candidates = array_values(array_filter(
+            $notifications,
+            static fn (array $notification): bool => ($notification['event'] ?? '') === $event
+        ));
+        usort($candidates, static function (array $left, array $right) use ($desiredOffset): int {
+            $leftOffset = notification_schedule_offset($left);
+            $rightOffset = notification_schedule_offset($right);
+            $leftRank = $leftOffset === $desiredOffset ? 0 : ($leftOffset > 0 ? 1 : 2);
+            $rightRank = $rightOffset === $desiredOffset ? 0 : ($rightOffset > 0 ? 1 : 2);
+            return [$leftRank, $leftOffset > 0 ? abs($leftOffset - $desiredOffset) : PHP_INT_MAX, $left['id']]
+                <=> [$rightRank, $rightOffset > 0 ? abs($rightOffset - $desiredOffset) : PHP_INT_MAX, $right['id']];
+        });
+        if (isset($candidates[0]['id'])) {
+            $selectedIds[] = $candidates[0]['id'];
+        }
+    }
+    return $selectedIds;
+}
+
+function build_notification_update(array $notification, array $scheduledNotificationIds = []): array
 {
     $event = trim((string) ($notification['event'] ?? ''));
-    $scheduleOffset = (int) ($notification['scheduleOffset'] ?? 0);
-    $isBeforeDueDateReminder = $event === 'PAYMENT_DUEDATE_WARNING' && $scheduleOffset !== 0;
-    $isOverdueReminder = $event === 'PAYMENT_OVERDUE' && $scheduleOffset !== 0;
     $isDigitalLineNotification = $event === 'SEND_LINHA_DIGITAVEL';
 
     $update = [
@@ -269,13 +329,32 @@ function build_notification_update(array $notification): array
         'whatsappEnabledForCustomer' => !$isDigitalLineNotification,
     ];
 
-    if ($isBeforeDueDateReminder) {
-        $update['scheduleOffset'] = 5;
-    } elseif ($isOverdueReminder) {
-        $update['scheduleOffset'] = 1;
+    $desiredOffset = desired_schedule_offset($event);
+    if ($desiredOffset !== null && in_array($update['id'], $scheduledNotificationIds, true)) {
+        $update['scheduleOffset'] = $desiredOffset;
     }
 
     return $update;
+}
+
+function notification_matches_update(array $notification, array $update): bool
+{
+    foreach ([
+        'enabled',
+        'emailEnabledForProvider',
+        'smsEnabledForProvider',
+        'emailEnabledForCustomer',
+        'smsEnabledForCustomer',
+        'phoneCallEnabledForCustomer',
+        'whatsappEnabledForCustomer',
+    ] as $field) {
+        if (($notification[$field] ?? null) !== $update[$field]) {
+            return false;
+        }
+    }
+
+    return !array_key_exists('scheduleOffset', $update)
+        || notification_schedule_offset($notification) === (int) $update['scheduleOffset'];
 }
 
 function configure_customer_notifications(string $baseUrl, string $customerId, string $apiKey): bool
@@ -292,11 +371,21 @@ function configure_customer_notifications(string $baseUrl, string $customerId, s
 
     $notifications = [];
     foreach (($list['data']['data'] ?? []) as $notification) {
-        $notificationId = is_array($notification) ? trim((string) ($notification['id'] ?? '')) : '';
-        if ($notificationId === '') {
+        if (!is_array($notification)) {
             continue;
         }
-        $notifications[] = build_notification_update($notification);
+        $notificationId = trim((string) ($notification['id'] ?? ''));
+        $notificationCustomer = trim((string) ($notification['customer'] ?? ''));
+        $event = trim((string) ($notification['event'] ?? ''));
+        if (
+            $notificationId === ''
+            || (($notification['deleted'] ?? false) === true)
+            || $notificationCustomer !== $customerId
+            || !controlled_notification_event($event)
+        ) {
+            continue;
+        }
+        $notifications[] = $notification;
     }
 
     if ($notifications === []) {
@@ -304,13 +393,47 @@ function configure_customer_notifications(string $baseUrl, string $customerId, s
         return false;
     }
 
+    $scheduledNotificationIds = select_scheduled_notification_ids($notifications);
+    $notificationUpdates = array_map(
+        static fn (array $notification): array => build_notification_update($notification, $scheduledNotificationIds),
+        $notifications
+    );
     $updated = asaas_request('PUT', $baseUrl . '/notifications/batch', $apiKey, [
         'customer' => $customerId,
-        'notifications' => $notifications,
+        'notifications' => $notificationUpdates,
     ]);
     if ($updated['error'] !== '' || $updated['status'] < 200 || $updated['status'] >= 300) {
-        error_log('Asaas notification update failed. HTTP ' . $updated['status']);
+        error_log(
+            'Asaas notification update failed. HTTP ' . $updated['status']
+            . '. Response: ' . ($updated['response'] ?? 'Resposta indisponível')
+        );
         return false;
+    }
+
+    $verification = asaas_request(
+        'GET',
+        $baseUrl . '/customers/' . rawurlencode($customerId) . '/notifications',
+        $apiKey
+    );
+    if ($verification['error'] !== '' || $verification['status'] < 200 || $verification['status'] >= 300) {
+        error_log(
+            'Asaas notification validation failed. HTTP ' . $verification['status']
+            . '. Response: ' . ($verification['response'] ?? 'Resposta indisponível')
+        );
+        return false;
+    }
+    $verifiedById = [];
+    foreach (($verification['data']['data'] ?? []) as $notification) {
+        if (is_array($notification) && isset($notification['id'])) {
+            $verifiedById[(string) $notification['id']] = $notification;
+        }
+    }
+    foreach ($notificationUpdates as $update) {
+        $notification = $verifiedById[$update['id']] ?? null;
+        if (!is_array($notification) || !notification_matches_update($notification, $update)) {
+            error_log('Asaas notification validation did not match the requested policy. Customer ' . $customerId);
+            return false;
+        }
     }
 
     return true;
@@ -321,7 +444,7 @@ function configure_customer_notifications_safely(string $baseUrl, string $custom
     try {
         return configure_customer_notifications($baseUrl, $customerId, $apiKey);
     } catch (Throwable $exception) {
-        error_log('Asaas notification configuration failed: ' . $exception->getMessage());
+        error_log('Asaas notification configuration failed: ' . sanitize_asaas_log_text($exception->getMessage()));
         return false;
     }
 }

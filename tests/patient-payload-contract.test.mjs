@@ -156,3 +156,29 @@ test("requires full names and rejects equal patient and responsible names", () =
     /normalized_name\(\$values\['patientName'\]\) === normalized_name\(\$values\['responsibleName'\]\)/,
   );
 });
+
+test("builds a safe, customer-scoped Asaas notification batch", () => {
+  for (const backend of [typescriptBackend, phpBackend]) {
+    assert.match(backend, /deleted[^\n]*true/);
+    assert.match(backend, /customer[^\n]*customerId/);
+    assert.match(backend, /PAYMENT_DUEDATE_WARNING/);
+    assert.match(backend, /PAYMENT_OVERDUE/);
+    assert.match(backend, /SEND_LINHA_DIGITAVEL/);
+    assert.match(backend, /scheduleOffset[\s\S]*?(?:5|1)/);
+    assert.match(backend, /notifications\/batch/);
+  }
+  assert.match(typescriptBackend, /selectScheduledNotificationIds/);
+  assert.match(typescriptBackend, /CONTROLLED_NOTIFICATION_EVENTS/);
+  assert.match(phpBackend, /select_scheduled_notification_ids/);
+  assert.match(phpBackend, /controlled_notification_event/);
+});
+
+test("records sanitized Asaas error responses and validates the applied policy", () => {
+  assert.match(typescriptBackend, /await response\.text\(\)/);
+  assert.match(typescriptBackend, /REDACTED/);
+  assert.match(typescriptBackend, /slice\(0, 800\)/);
+  assert.match(typescriptBackend, /Asaas notification validation/);
+  assert.match(phpBackend, /sanitize_asaas_log_text/);
+  assert.match(phpBackend, /Response: ' \./);
+  assert.match(phpBackend, /Asaas notification validation/);
+});

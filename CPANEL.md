@@ -29,6 +29,8 @@ A build copia para `cpanel-dist/api/`:
 
 Dentro de `cpanel-dist/api/`, crie `config.php` com base em `config.example.php` e configure as credenciais reais do Asaas, Cloudflare Turnstile e do webhook n8n, quando o envio de WhatsApp estiver habilitado.
 
+Após criar um cliente, `api/patients.php` recupera as notificações do cliente, filtra configurações ativas e pertencentes ao próprio cliente, envia somente os eventos controlados no `PUT /v3/notifications/batch` e valida o resultado com uma nova consulta. Para configurações duplicadas do mesmo evento, o ID é selecionado junto do offset: `PAYMENT_DUEDATE_WARNING` usa `5` e `PAYMENT_OVERDUE` usa `1`. Erros do Asaas ficam limitados e sanitizados no `error_log`; essa etapa continua best-effort e não desfaz um cliente já criado.
+
 Os arquivos abaixo são privados e não devem ser versionados:
 
 ```text
