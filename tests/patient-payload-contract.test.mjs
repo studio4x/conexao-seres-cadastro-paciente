@@ -433,9 +433,23 @@ test("records sanitized Asaas error responses and validates the applied policy",
   assert.match(typescriptBackend, /await response\.text\(\)/);
   assert.match(typescriptBackend, /REDACTED/);
   assert.match(typescriptBackend, /slice\(0, 800\)/);
+  assert.match(typescriptBackend, /function asaasErrorSummary/);
+  assert.match(typescriptBackend, /Errors: \$\{JSON\.stringify\(details\.errors\)\.slice\(0, 1200\)\}/);
+  assert.match(typescriptBackend, /Transport error: \$\{asaasTransportError\(error\)\}/);
+  assert.match(typescriptBackend, /Asaas customer creation failed\. HTTP \$\{createResponse\.status\}\. \$\{asaasErrorSummary\(details\)\}/);
   assert.match(typescriptBackend, /Asaas notification validation/);
   assert.match(phpBackend, /sanitize_asaas_log_text/);
+  assert.match(phpBackend, /function asaas_error_summary/);
+  assert.match(phpBackend, /array_slice\(/);
+  assert.match(phpBackend, /0, 3\)/);
+  assert.match(phpBackend, /'code' => sanitize_asaas_log_text\([^,]+, 120\)/);
+  assert.match(phpBackend, /'description' => sanitize_asaas_log_text\([^,]+, 240\)/);
+  assert.match(phpBackend, /Transport error: /);
+  assert.match(phpBackend, /Errors: /);
   assert.match(phpBackend, /Response: ' \./);
+  assert.match(phpBackend, /function log_asaas_failure/);
+  assert.match(phpBackend, /log_asaas_failure\('Asaas customer creation failed', \$created\)/);
+  assert.match(phpBackend, /substr\([^;]+, 0, 1400\)/);
   assert.match(phpBackend, /Asaas notification validation/);
 });
 

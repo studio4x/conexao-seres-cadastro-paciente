@@ -442,7 +442,45 @@ function sanitize_asaas_log_text(string $value, int $limit = 800): string
         $value
     ) ?? $value;
     $sanitized = preg_replace('/Bearer\s+\S+/i', 'Bearer [REDACTED]', $sanitized) ?? $sanitized;
+    $sanitized = preg_replace('/\b\d{3}[.\s]?\d{3}[.\s]?\d{3}[-\s]?\d{2}\b/', '[CPF_REDACTED]', $sanitized) ?? $sanitized;
+    $sanitized = preg_replace('/\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b/', '[EMAIL_REDACTED]', $sanitized) ?? $sanitized;
+    $sanitized = preg_replace('/(?<!\d)(?:\+?55\s*)?\(?[1-9]\d\)?[\s-]?9?\d{4}[-\s]?\d{4}(?!\d)/', '[PHONE_REDACTED]', $sanitized) ?? $sanitized;
     return substr($sanitized, 0, $limit);
+}
+
+function asaas_error_summary(array $response): string
+{
+    $transportError = trim((string) ($response['error'] ?? ''));
+    if ($transportError !== '') {
+        return 'Transport error: ' . sanitize_asaas_log_text($transportError, 400);
+    }
+
+    $errors = [];
+    foreach (array_slice(is_array($response['data']['errors'] ?? null) ? $response['data']['errors'] : [], 0, 3) as $error) {
+        if (!is_array($error)) {
+            continue;
+        }
+        $errors[] = [
+            'code' => sanitize_asaas_log_text((string) ($error['code'] ?? 'unknown'), 120),
+            'description' => sanitize_asaas_log_text((string) ($error['description'] ?? 'Sem descrição'), 240),
+        ];
+    }
+
+    if ($errors !== []) {
+        $encoded = json_encode($errors, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if (is_string($encoded)) {
+            return substr('Errors: ' . $encoded, 0, 1200);
+        }
+    }
+
+    $fallback = trim((string) ($response['response'] ?? ''));
+    return 'Response: ' . sanitize_asaas_log_text($fallback !== '' ? $fallback : 'Resposta indisponível', 1000);
+}
+
+function log_asaas_failure(string $operation, array $response): void
+{
+    $status = (int) ($response['status'] ?? 0);
+    error_log(substr($operation . '. HTTP ' . $status . '. ' . asaas_error_summary($response), 0, 1400));
 }
 
 function asaas_request(string $method, string $url, string $apiKey, ?array $payload = null): array
@@ -983,7 +1021,7 @@ if ($observations !== null) {
 
 $created = asaas_request('POST', $baseUrl . '/customers', $apiKey, $customer);
 if ($created['error'] !== '' || $created['status'] < 200 || $created['status'] >= 300) {
-    error_log('Asaas customer creation failed. HTTP ' . $created['status']);
+    log_asaas_failure('Asaas customer creation failed', $created);
     if ($created['status'] >= 400 && $created['status'] < 500) {
         respond(['message' => 'Algumas informações precisam ser conferidas. Revise os dados e tente novamente.'], 400);
     }

@@ -325,6 +325,9 @@ function sanitizeAsaasLogText(value: string) {
       "$1=[REDACTED]",
     )
     .replace(/Bearer\s+\S+/gi, "Bearer [REDACTED]")
+    .replace(/\b\d{3}[.\s]?\d{3}[.\s]?\d{3}[-\s]?\d{2}\b/g, "[CPF_REDACTED]")
+    .replace(/\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b/g, "[EMAIL_REDACTED]")
+    .replace(/(?<!\d)(?:\+?55\s*)?\(?[1-9]\d\)?[\s-]?9?\d{4}[-\s]?\d{4}(?!\d)/g, "[PHONE_REDACTED]")
     .slice(0, 800);
 }
 
@@ -333,7 +336,7 @@ async function asaasErrorDetails(response: Response) {
   const sanitizedResponse = sanitizeAsaasLogText(rawResponse);
   try {
     const payload = JSON.parse(rawResponse) as AsaasErrorPayload;
-    const errors = payload.errors?.slice(0, 3).map((error) => ({
+    const errors = (Array.isArray(payload.errors) ? payload.errors : []).slice(0, 3).map((error) => ({
       code: sanitizeAsaasLogText(error.code || "unknown").slice(0, 120),
       description: sanitizeAsaasLogText(error.description || "Sem descrição").slice(0, 240),
     }));
@@ -341,6 +344,18 @@ async function asaasErrorDetails(response: Response) {
   } catch {
     return { response: sanitizedResponse || "Resposta não JSON ou indisponível" };
   }
+}
+
+function asaasErrorSummary(details: Awaited<ReturnType<typeof asaasErrorDetails>>) {
+  if (details.errors?.length) {
+    return `Errors: ${JSON.stringify(details.errors).slice(0, 1200)}`;
+  }
+  return `Response: ${sanitizeAsaasLogText(details.response || "Resposta indisponível").slice(0, 1000)}`;
+}
+
+function asaasTransportError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return sanitizeAsaasLogText(message).slice(0, 400);
 }
 
 function notificationScheduleOffset(notification: AsaasNotification) {
@@ -857,17 +872,23 @@ export async function POST(request: Request) {
       ...(observations ? { observations } : {}),
     };
 
-    const createResponse = await fetch(`${baseUrl}/customers`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(customer),
-      signal: controller.signal,
-    });
-    if (!createResponse.ok) {
-      console.error("Asaas customer creation failed", {
-        status: createResponse.status,
-        errors: await asaasErrorDetails(createResponse),
+    let createResponse: Response;
+    try {
+      createResponse = await fetch(`${baseUrl}/customers`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(customer),
+        signal: controller.signal,
       });
+    } catch (error) {
+      console.error(`Asaas customer creation failed. HTTP 0. Transport error: ${asaasTransportError(error)}`);
+      throw error;
+    }
+    if (!createResponse.ok) {
+      const details = await asaasErrorDetails(createResponse);
+      console.error(
+        `Asaas customer creation failed. HTTP ${createResponse.status}. ${asaasErrorSummary(details)}`,
+      );
       const status = createResponse.status >= 500 ? 502 : 400;
       return NextResponse.json(
         {

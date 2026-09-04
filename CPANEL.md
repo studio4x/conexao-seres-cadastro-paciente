@@ -30,7 +30,7 @@ A build copia para `cpanel-dist/api/`:
 
 Dentro de `cpanel-dist/api/`, crie `config.php` com base em `config.example.php` e configure as credenciais reais do Asaas, o token do webhook Asaas, Cloudflare Turnstile e o webhook n8n.
 
-Após criar um cliente, `api/patients.php` recupera as notificações do cliente, filtra configurações ativas e pertencentes ao próprio cliente, envia somente os eventos controlados no `PUT /v3/notifications/batch` e valida o resultado com uma nova consulta. Para configurações duplicadas do mesmo evento, o ID é selecionado junto do offset: `PAYMENT_DUEDATE_WARNING` usa `5` e `PAYMENT_OVERDUE` usa `1`. Em seguida, cria ou recupera a cobrança avulsa de R$ 230,00 da primeira sessão por `GET /v3/payments` + `POST /v3/payments`, usando `billingType=UNDEFINED`, vencimento no próximo dia útil e referência `<externalReference>-sessao-1`. Erros do Asaas ficam limitados e sanitizados no `error_log`; falhas não desfazem o cliente nem provocam um novo POST de cobrança sem reconciliação.
+Após criar um cliente, `api/patients.php` recupera as notificações do cliente, filtra configurações ativas e pertencentes ao próprio cliente, envia somente os eventos controlados no `PUT /v3/notifications/batch` e valida o resultado com uma nova consulta. Para configurações duplicadas do mesmo evento, o ID é selecionado junto do offset: `PAYMENT_DUEDATE_WARNING` usa `5` e `PAYMENT_OVERDUE` usa `1`. Em seguida, cria ou recupera a cobrança avulsa de R$ 230,00 da primeira sessão por `GET /v3/payments` + `POST /v3/payments`, usando `billingType=UNDEFINED`, vencimento no próximo dia útil e referência `<externalReference>-sessao-1`. Erros do Asaas ficam limitados e sanitizados no `error_log`, incluindo status e até três pares `code`/`description` quando a API os fornece; falhas não desfazem o cliente nem provocam um novo POST de cobrança sem reconciliação.
 
 O formulário envia também `serviceType`, `entryType` e `attendanceMode`. O PHP valida esses códigos conforme a idade da pessoa atendida, grava os labels nas observações do novo cliente e mantém `entryType` exclusivo para menores e `attendanceMode` exclusivo para adultos. Esses campos são informativos nesta fase e não alteram a cobrança de R$ 230,00 nem a emissão da NFS-e.
 
@@ -192,6 +192,7 @@ O webhook é o mecanismo primário de atualização imediata. O cron existe apen
 ## Arquivos de log do cPanel
 
 Arquivos chamados `error_log` são gerados pelo servidor e não fazem parte do projeto. Eles são ignorados pelo Git e não devem ser commitados.
+O erro de criação de cliente pode ser investigado no `error_log` da instalação publicada, procurando por linhas no formato `Asaas customer creation failed. HTTP 400. Errors: [{"code":"...","description":"..."}]`. Respostas sem erros estruturados usam o fallback sanitizado `Response: ...`, e falhas de transporte usam `Transport error: ...`. Esses registros não incluem payload completo, credenciais ou dados pessoais.
 
 ## Fluxo recomendado de publicação
 
