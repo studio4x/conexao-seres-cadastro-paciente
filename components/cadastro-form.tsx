@@ -9,6 +9,19 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TurnstileWidget } from "@/components/turnstile-widget";
+import {
+  ADULT_SERVICE_TYPES,
+  ATTENDANCE_MODE_LABELS,
+  ATTENDANCE_MODES,
+  CHILD_SERVICE_TYPES,
+  ENTRY_TYPE_LABELS,
+  ENTRY_TYPES,
+  SERVICE_TYPE_LABELS,
+  isAdultServiceType,
+  isAttendanceMode,
+  isChildServiceType,
+  isEntryType,
+} from "@/lib/attendance";
 
 const onlyDigits = (value: string) => value.replace(/\D/g, "");
 
@@ -107,7 +120,7 @@ function birthDateError(field: BirthDateField, value: string) {
 
 const formSchema = z
   .object({
-    patientName: z.string().trim().refine(isValidFullName, "Informe o nome completo do paciente."),
+    patientName: z.string().trim().max(120).refine(isValidFullName, "Informe o nome completo do paciente."),
     patientSex: z.string().refine(
       (value): boolean => value === "female" || value === "male",
       "Selecione o sexo do paciente.",
@@ -136,6 +149,9 @@ const formSchema = z
     responsibleProvince: z.string(),
     responsibleCity: z.string(),
     responsibleState: z.string(),
+    serviceType: z.string(),
+    entryType: z.string(),
+    attendanceMode: z.string(),
     consent: z.boolean().refine((value) => value, "Confirme a autorização para continuar."),
     website: z.string().max(0),
   })
@@ -178,6 +194,28 @@ const formSchema = z
     if (patientAge === null) {
       add("patientBirthDate", "Informe uma data de nascimento válida.");
       return;
+    }
+
+    if (patientAge >= 18) {
+      if (!isAdultServiceType(value.serviceType)) {
+        add("serviceType", "Selecione o tipo de atendimento.");
+      }
+      if (!isAttendanceMode(value.attendanceMode)) {
+        add("attendanceMode", "Selecione a modalidade de atendimento.");
+      }
+      if (value.entryType !== "") {
+        add("entryType", "Confira os dados do atendimento.");
+      }
+    } else {
+      if (!isChildServiceType(value.serviceType)) {
+        add("serviceType", "Selecione o tipo de atendimento.");
+      }
+      if (!isEntryType(value.entryType)) {
+        add("entryType", "Selecione a forma de início do acompanhamento.");
+      }
+      if (value.attendanceMode !== "") {
+        add("attendanceMode", "Confira os dados do atendimento.");
+      }
     }
 
     if (patientAge >= 18) {
@@ -244,6 +282,9 @@ const initialValues: FormValues = {
   responsibleProvince: "",
   responsibleCity: "",
   responsibleState: "",
+  serviceType: "",
+  entryType: "",
+  attendanceMode: "",
   consent: false,
   website: "",
 };
@@ -757,7 +798,28 @@ export function CadastroForm() {
       ...current,
       patientBirthDate: value,
       hasResponsible: age === null ? current.hasResponsible : age < 18,
+      ...(age !== null && age >= 18
+        ? {
+            serviceType: isAdultServiceType(current.serviceType) ? current.serviceType : "",
+            entryType: "",
+            attendanceMode: isAdultServiceType(current.serviceType) ? current.attendanceMode : "",
+          }
+        : age !== null && age < 18
+          ? {
+              serviceType: isChildServiceType(current.serviceType) ? current.serviceType : "",
+              entryType: isEntryType(current.entryType) ? current.entryType : "",
+              attendanceMode: "",
+            }
+          : {}),
     }));
+    if (age !== null) {
+      setErrors((current) => ({
+        ...current,
+        serviceType: undefined,
+        entryType: undefined,
+        attendanceMode: undefined,
+      }));
+    }
     setFieldValidation("patientBirthDate", birthDateError("patientBirthDate", value));
   }
 
@@ -1095,6 +1157,106 @@ export function CadastroForm() {
                 : undefined
             }
           />
+        </section>
+      ) : null}
+
+      {isAdult || isMinor ? (
+        <section
+          className="space-y-7 rounded-lg border border-[#dedede] bg-white p-4 shadow-[0_12px_30px_rgba(65,56,30,0.05)] sm:p-7"
+          aria-labelledby="attendance-heading"
+        >
+          <div className="border-b border-[#e1e1e1] pb-4">
+            <h3 id="attendance-heading" className="text-base font-semibold tracking-[-0.02em] text-secondary-foreground sm:text-lg">
+              Sobre o atendimento
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Agora, conte qual tipo de atendimento foi combinado com a Conexão Seres.
+            </p>
+          </div>
+
+          <fieldset className="space-y-3" aria-labelledby="service-type-label">
+            <legend id="service-type-label" className="text-sm font-medium text-foreground">
+              Qual tipo de atendimento foi combinado com a Conexão Seres?
+            </legend>
+            <div className="grid gap-3">
+              {(isAdult ? ADULT_SERVICE_TYPES : CHILD_SERVICE_TYPES).map((option) => (
+                <label
+                  key={option}
+                  className="flex min-h-12 min-w-0 cursor-pointer items-center gap-3 rounded-md border border-[#d4d4d4] bg-white px-4 py-3 text-base leading-6 has-[:checked]:border-primary has-[:checked]:ring-2 has-[:checked]:ring-primary/20"
+                >
+                  <input
+                    type="radio"
+                    name="serviceType"
+                    value={option}
+                    checked={values.serviceType === option}
+                    onChange={(event) => update("serviceType", event.target.value)}
+                  />
+                  <span>{SERVICE_TYPE_LABELS[option]}</span>
+                </label>
+              ))}
+            </div>
+            <FieldError message={errors.serviceType} />
+          </fieldset>
+
+          {isMinor ? (
+            <fieldset className="space-y-3" aria-labelledby="entry-type-label">
+              <legend id="entry-type-label" className="text-sm font-medium text-foreground">
+                Qual forma de início do acompanhamento foi combinada com a Conexão Seres?
+              </legend>
+              <div className="grid gap-3">
+                {ENTRY_TYPES.map((option) => (
+                  <label
+                    key={option}
+                    className="flex min-h-12 min-w-0 cursor-pointer items-center gap-3 rounded-md border border-[#d4d4d4] bg-white px-4 py-3 text-base leading-6 has-[:checked]:border-primary has-[:checked]:ring-2 has-[:checked]:ring-primary/20"
+                  >
+                    <input
+                      type="radio"
+                      name="entryType"
+                      value={option}
+                      checked={values.entryType === option}
+                      onChange={(event) => update("entryType", event.target.value)}
+                    />
+                    <span>{ENTRY_TYPE_LABELS[option]}</span>
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs leading-5 text-muted-foreground">
+                Se ainda não foi definido, não se preocupe. Essa informação poderá ser definida posteriormente junto à profissional.
+              </p>
+              <FieldError message={errors.entryType} />
+            </fieldset>
+          ) : null}
+
+          {isAdult ? (
+            <fieldset className="space-y-3" aria-labelledby="attendance-mode-label">
+              <legend id="attendance-mode-label" className="text-sm font-medium text-foreground">
+                Qual modalidade de atendimento foi combinada?
+              </legend>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {ATTENDANCE_MODES.map((option) => (
+                  <label
+                    key={option}
+                    className="flex min-h-12 min-w-0 cursor-pointer items-center gap-3 rounded-md border border-[#d4d4d4] bg-white px-4 py-3 text-base leading-6 has-[:checked]:border-primary has-[:checked]:ring-2 has-[:checked]:ring-primary/20"
+                  >
+                    <input
+                      type="radio"
+                      name="attendanceMode"
+                      value={option}
+                      checked={values.attendanceMode === option}
+                      onChange={(event) => update("attendanceMode", event.target.value)}
+                    />
+                    <span>{ATTENDANCE_MODE_LABELS[option]}</span>
+                  </label>
+                ))}
+              </div>
+              {values.attendanceMode === "ONLINE" ? (
+                <p className="text-xs leading-5 text-muted-foreground">
+                  A continuidade do atendimento online dependerá da avaliação profissional. A realização da primeira sessão online não garante que todo o acompanhamento subsequente permanecerá nessa modalidade.
+                </p>
+              ) : null}
+              <FieldError message={errors.attendanceMode} />
+            </fieldset>
+          ) : null}
         </section>
       ) : null}
 

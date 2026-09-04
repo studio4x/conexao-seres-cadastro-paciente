@@ -146,6 +146,54 @@ function calculate_age(string $value): ?int
     return $birth->diff($today)->y;
 }
 
+function service_type_label(string $value): string
+{
+    return [
+        'ADULT_NEURO_REHAB' => 'Terapia Ocupacional – Reabilitação Neurológica',
+        'ADULT_PSYCHOANALYSIS_INTEGRATED' => 'Terapia Ocupacional com Psicanálise Integrada',
+        'ADULT_SENSORY_STIMULATION' => 'Terapia Ocupacional com Estimulação Sensorial',
+        'CHILD_OT' => 'Terapia Ocupacional',
+        'CHILD_NEURO_REHAB' => 'Terapia Ocupacional – Reabilitação Neurológica',
+        'CHILD_SENSORY_INTEGRATION' => 'Terapia Ocupacional com Integração Sensorial',
+        'UNDEFINED' => 'Ainda não definido',
+    ][$value] ?? '';
+}
+
+function entry_type_label(string $value): string
+{
+    return [
+        'FULL_ASSESSMENT' => 'Processo Avaliativo Completo',
+        'DIRECT_START' => 'Início Direto – Sem Avaliação Completa',
+        'UNDEFINED' => 'Ainda não foi definido',
+    ][$value] ?? '';
+}
+
+function attendance_mode_label(string $value): string
+{
+    return [
+        'IN_PERSON' => 'Presencial',
+        'ONLINE' => 'Online',
+        'UNDEFINED' => 'Ainda não definida',
+    ][$value] ?? '';
+}
+
+function service_type_is_valid_for_age(string $value, int $patientAge): bool
+{
+    $adultTypes = ['ADULT_NEURO_REHAB', 'ADULT_PSYCHOANALYSIS_INTEGRATED', 'ADULT_SENSORY_STIMULATION', 'UNDEFINED'];
+    $childTypes = ['CHILD_OT', 'CHILD_NEURO_REHAB', 'CHILD_SENSORY_INTEGRATION', 'UNDEFINED'];
+    return in_array($value, $patientAge >= 18 ? $adultTypes : $childTypes, true);
+}
+
+function entry_type_is_valid(string $value): bool
+{
+    return in_array($value, ['FULL_ASSESSMENT', 'DIRECT_START', 'UNDEFINED'], true);
+}
+
+function attendance_mode_is_valid(string $value): bool
+{
+    return in_array($value, ['IN_PERSON', 'ONLINE', 'UNDEFINED'], true);
+}
+
 function address_is_valid(array $values, string $prefix): bool
 {
     return strlen(digits($values[$prefix . 'PostalCode'])) === 8
@@ -291,10 +339,6 @@ function create_first_session_payment(
 
 function build_observations(array $values, int $patientAge): ?string
 {
-    if ($patientAge >= 18 && !$values['hasResponsible']) {
-        return null;
-    }
-
     $lines = [
         'Pessoa atendida: ' . clean_text($values['patientName']),
         'CPF da pessoa atendida: ' . digits($values['patientCpf']),
@@ -310,6 +354,11 @@ function build_observations(array $values, int $patientAge): ?string
     if ($values['hasResponsible']) {
         $lines[] = 'Nascimento do responsável: ' . format_birth_date($values['responsibleBirthDate']);
     }
+
+    $lines[] = 'Tipo de atendimento: ' . service_type_label($values['serviceType']);
+    $lines[] = $patientAge >= 18
+        ? 'Modalidade de atendimento: ' . attendance_mode_label($values['attendanceMode'])
+        : 'Forma de ingresso: ' . entry_type_label($values['entryType']);
 
     return implode("\n", $lines);
 }
@@ -681,6 +730,7 @@ $fieldLimits = [
     'responsibleProvince' => 120,
     'responsibleCity' => 120,
     'responsibleState' => 2,
+    'serviceType' => 50,
     'website' => 1,
     'turnstileToken' => 2048,
 ];
@@ -699,11 +749,36 @@ if (!isset($payload['hasResponsible']) || !is_bool($payload['hasResponsible'])) 
 }
 $values['hasResponsible'] = $payload['hasResponsible'];
 
+foreach (['entryType', 'attendanceMode'] as $optionalField) {
+    if (!array_key_exists($optionalField, $payload)) {
+        $values[$optionalField] = '';
+        continue;
+    }
+    $value = value_string($payload, $optionalField, 50);
+    if ($value === null) {
+        respond(['message' => 'Confira os dados informados e tente novamente.'], 400);
+    }
+    $values[$optionalField] = $value;
+}
+
 if (($payload['consent'] ?? false) !== true || $values['website'] !== '') {
     respond(['message' => 'Confira os dados informados e tente novamente.'], 400);
 }
 
 $patientAge = calculate_age($values['patientBirthDate']);
+if ($patientAge === null) {
+    respond(['message' => 'Confira os dados informados e tente novamente.'], 400);
+}
+if (!service_type_is_valid_for_age($values['serviceType'], $patientAge)) {
+    respond(['message' => 'Confira os dados do atendimento e tente novamente.'], 400);
+}
+if ($patientAge >= 18) {
+    if (!attendance_mode_is_valid($values['attendanceMode']) || $values['entryType'] !== '') {
+        respond(['message' => 'Confira os dados do atendimento e tente novamente.'], 400);
+    }
+} elseif (!entry_type_is_valid($values['entryType']) || $values['attendanceMode'] !== '') {
+    respond(['message' => 'Confira os dados do atendimento e tente novamente.'], 400);
+}
 if (!in_array($values['patientSex'], ['female', 'male'], true)) {
     respond(['message' => 'Selecione o sexo do paciente.'], 400);
 }

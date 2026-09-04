@@ -80,6 +80,16 @@ O responsável é obrigatório e é o titular do cliente no Asaas.
 
 Como o formulário não solicita contato e endereço próprios do menor, esses dados não são exigidos nesse cenário.
 
+## Sobre o atendimento
+
+O formulário também registra, em códigos estáveis, as informações combinadas para o atendimento:
+
+- `serviceType`: `ADULT_NEURO_REHAB`, `ADULT_PSYCHOANALYSIS_INTEGRATED`, `ADULT_SENSORY_STIMULATION` ou `UNDEFINED` para adultos; `CHILD_OT`, `CHILD_NEURO_REHAB`, `CHILD_SENSORY_INTEGRATION` ou `UNDEFINED` para menores;
+- `entryType`: `FULL_ASSESSMENT`, `DIRECT_START` ou `UNDEFINED`, somente para menores;
+- `attendanceMode`: `IN_PERSON`, `ONLINE` ou `UNDEFINED`, somente para adultos.
+
+Os backends validam os códigos conforme a idade calculada a partir da data de nascimento e acrescentam os labels correspondentes às `observations` do cliente novo no Asaas. Esses campos são informativos nesta fase e não alteram a cobrança da primeira sessão, que permanece em R$ 230,00, nem NFS-e, notificações, webhooks ou integrações existentes.
+
 ## Deduplicação no Asaas
 
 A referência externa segue o formato:

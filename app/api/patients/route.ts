@@ -3,6 +3,16 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getRequestExecutionContext } from "vinext/shims/request-context";
 
+import {
+  attendanceModeLabel,
+  entryTypeLabel,
+  isAdultServiceType,
+  isAttendanceMode,
+  isChildServiceType,
+  isEntryType,
+  serviceTypeLabel,
+} from "../../../lib/attendance";
+
 export const runtime = "edge";
 
 const onlyDigits = (value: string) => value.replace(/\D/g, "");
@@ -97,7 +107,7 @@ const addressText = z.string().trim().max(120);
 
 const patientSchema = z
   .object({
-    patientName: z.string().trim().refine(isValidFullName).max(120),
+    patientName: z.string().trim().max(120).refine(isValidFullName),
     patientSex: z.enum(["female", "male"]),
     patientBirthDate: z.string().max(10),
     patientCpf: z.string().refine(isValidCpf),
@@ -123,6 +133,9 @@ const patientSchema = z
     responsibleProvince: addressText,
     responsibleCity: addressText,
     responsibleState: z.string().trim().max(2),
+    serviceType: z.string().trim().max(50),
+    entryType: z.string().trim().max(50).optional().default(""),
+    attendanceMode: z.string().trim().max(50).optional().default(""),
     consent: z.literal(true),
     website: z.string().max(0),
     turnstileToken: z.string().min(1).max(2048),
@@ -158,6 +171,15 @@ const patientSchema = z
     if (age === null) {
       add("patientBirthDate");
       return;
+    }
+    if (age >= 18) {
+      if (!isAdultServiceType(value.serviceType)) add("serviceType");
+      if (!isAttendanceMode(value.attendanceMode)) add("attendanceMode");
+      if (value.entryType !== "") add("entryType");
+    } else {
+      if (!isChildServiceType(value.serviceType)) add("serviceType");
+      if (!isEntryType(value.entryType)) add("entryType");
+      if (value.attendanceMode !== "") add("attendanceMode");
     }
     if (age >= 18) {
       validWhatsapp("patientPhone");
@@ -677,9 +699,15 @@ function fullAddress(patient: Patient, prefix: "patient" | "responsible") {
 
 function buildObservations(patient: Patient) {
   const patientAge = calculateAge(patient.patientBirthDate);
+  const attendanceLines = [
+    `Tipo de atendimento: ${serviceTypeLabel(patient.serviceType)}`,
+    patientAge !== null && patientAge >= 18
+      ? `Modalidade de atendimento: ${attendanceModeLabel(patient.attendanceMode)}`
+      : `Forma de ingresso: ${entryTypeLabel(patient.entryType)}`,
+  ];
 
   if (patientAge !== null && patientAge >= 18 && !patient.hasResponsible) {
-    return undefined;
+    return attendanceLines.join("\n");
   }
 
   const lines = [
@@ -694,7 +722,7 @@ function buildObservations(patient: Patient) {
   if (patient.hasResponsible) {
     lines.push(`Nascimento do responsável: ${formatBirthDate(patient.responsibleBirthDate)}`);
   }
-  return lines.join("\n");
+  return [...lines, ...attendanceLines].join("\n");
 }
 
 export async function POST(request: Request) {
