@@ -127,7 +127,7 @@ test("keeps media consent independent from billing, n8n and age-reset state", ()
 
 test("renders the Sobre o atendimento section with accessible conditional radio groups", () => {
   assert.match(frontend, /Sobre o atendimento/);
-  assert.match(frontend, /Agora, conte qual tipo de atendimento foi combinado com a Conexão Seres\./);
+  assert.match(frontend, /Agora, informe os detalhes combinados para o atendimento\./);
   assert.match(frontend, /name="serviceType"/);
   assert.match(frontend, /name="entryType"/);
   assert.match(frontend, /name="attendanceMode"/);

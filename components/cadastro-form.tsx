@@ -1192,7 +1192,7 @@ export function CadastroForm() {
               Sobre o atendimento
             </h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Agora, conte qual tipo de atendimento foi combinado com a Conexão Seres.
+              Agora, informe os detalhes combinados para o atendimento.
             </p>
           </div>
 
