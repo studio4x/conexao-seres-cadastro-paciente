@@ -12,6 +12,7 @@ import {
   isEntryType,
   serviceTypeLabel,
 } from "../../../lib/attendance";
+import { isMediaConsent, mediaConsentLabel } from "../../../lib/consent";
 
 export const runtime = "edge";
 
@@ -136,6 +137,7 @@ const patientSchema = z
     serviceType: z.string().trim().max(50),
     entryType: z.string().trim().max(50).optional().default(""),
     attendanceMode: z.string().trim().max(50).optional().default(""),
+    mediaConsent: z.string().trim().max(30),
     consent: z.literal(true),
     website: z.string().max(0),
     turnstileToken: z.string().min(1).max(2048),
@@ -168,6 +170,7 @@ const patientSchema = z
     };
 
     const age = calculateAge(value.patientBirthDate);
+    if (!isMediaConsent(value.mediaConsent)) add("mediaConsent");
     if (age === null) {
       add("patientBirthDate");
       return;
@@ -709,6 +712,7 @@ function buildObservations(patient: Patient) {
     patientAge !== null && patientAge >= 18
       ? `Modalidade de atendimento: ${attendanceModeLabel(patient.attendanceMode)}`
       : `Forma de ingresso: ${entryTypeLabel(patient.entryType)}`,
+    `Autorização de imagens e vídeos: ${mediaConsentLabel(patient.mediaConsent)}`,
   ];
 
   if (patientAge !== null && patientAge >= 18 && !patient.hasResponsible) {

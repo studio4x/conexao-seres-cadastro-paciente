@@ -6,6 +6,16 @@ import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TurnstileWidget } from "@/components/turnstile-widget";
@@ -22,6 +32,12 @@ import {
   isChildServiceType,
   isEntryType,
 } from "@/lib/attendance";
+import {
+  ADULT_MEDIA_CONSENT_TEXT,
+  MEDIA_CONSENT_VALUES,
+  MINOR_MEDIA_CONSENT_TEXT,
+  isMediaConsent,
+} from "@/lib/consent";
 
 const onlyDigits = (value: string) => value.replace(/\D/g, "");
 
@@ -152,6 +168,7 @@ const formSchema = z
     serviceType: z.string(),
     entryType: z.string(),
     attendanceMode: z.string(),
+    mediaConsent: z.string(),
     consent: z.boolean().refine((value) => value, "Confirme a autorização para continuar."),
     website: z.string().max(0),
   })
@@ -191,6 +208,9 @@ const formSchema = z
     };
 
     const patientAge = calculateAge(value.patientBirthDate);
+    if (!isMediaConsent(value.mediaConsent)) {
+      add("mediaConsent", "Selecione uma opção sobre o registro e uso de imagens e vídeos.");
+    }
     if (patientAge === null) {
       add("patientBirthDate", "Informe uma data de nascimento válida.");
       return;
@@ -285,6 +305,7 @@ const initialValues: FormValues = {
   serviceType: "",
   entryType: "",
   attendanceMode: "",
+  mediaConsent: "",
   consent: false,
   website: "",
 };
@@ -1258,6 +1279,53 @@ export function CadastroForm() {
               <FieldError message={errors.attendanceMode} />
             </fieldset>
           ) : null}
+
+          <fieldset className="space-y-3" aria-labelledby="media-consent-label">
+            <legend id="media-consent-label" className="text-sm font-medium text-foreground">
+              Registro e uso de imagens e vídeos
+            </legend>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {MEDIA_CONSENT_VALUES.map((option) => (
+                <label
+                  key={option}
+                  className="flex min-h-12 min-w-0 cursor-pointer items-center gap-3 rounded-md border border-[#d4d4d4] bg-white px-4 py-3 text-base leading-6 has-[:checked]:border-primary has-[:checked]:ring-2 has-[:checked]:ring-primary/20"
+                >
+                  <input
+                    type="radio"
+                    name="mediaConsent"
+                    value={option}
+                    checked={values.mediaConsent === option}
+                    onChange={(event) => update("mediaConsent", event.target.value)}
+                  />
+                  <span>{option === "AUTHORIZED" ? "Autorizo" : "Não autorizo"}</span>
+                </label>
+              ))}
+            </div>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button type="button" variant="link" className="h-auto px-0 text-sm">
+                  <span className="sm:hidden">Saiba mais sobre esta autorização</span>
+                  <span className="hidden sm:inline">Saiba mais</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Autorização para registro e uso de imagens e vídeos</DialogTitle>
+                </DialogHeader>
+                <DialogDescription asChild>
+                  <div className="whitespace-pre-line text-left text-sm leading-6">
+                    {isMinor ? MINOR_MEDIA_CONSENT_TEXT : ADULT_MEDIA_CONSENT_TEXT}
+                  </div>
+                </DialogDescription>
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button type="button" variant="outline">Fechar</Button>
+                  </DialogClose>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            <FieldError message={errors.mediaConsent} />
+          </fieldset>
         </section>
       ) : null}
 

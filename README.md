@@ -87,8 +87,11 @@ O formulário também registra, em códigos estáveis, as informações combinad
 - `serviceType`: `ADULT_NEURO_REHAB`, `ADULT_PSYCHOANALYSIS_INTEGRATED`, `ADULT_SENSORY_STIMULATION` ou `UNDEFINED` para adultos; `CHILD_OT`, `CHILD_NEURO_REHAB`, `CHILD_SENSORY_INTEGRATION` ou `UNDEFINED` para menores;
 - `entryType`: `FULL_ASSESSMENT`, `DIRECT_START` ou `UNDEFINED`, somente para menores;
 - `attendanceMode`: `IN_PERSON`, `ONLINE` ou `UNDEFINED`, somente para adultos.
+- `mediaConsent`: `AUTHORIZED` ou `NOT_AUTHORIZED`, para registrar a autorização de uso de imagens e vídeos.
 
 Os backends validam os códigos conforme a idade calculada a partir da data de nascimento e acrescentam os labels correspondentes às `observations` do cliente novo no Asaas. Esses campos são informativos nesta fase e não alteram a cobrança da primeira sessão, que permanece em R$ 230,00, nem NFS-e, notificações, webhooks ou integrações existentes.
+
+`mediaConsent` registra a autorização de uso de imagens e vídeos e não altera a cobrança ou o atendimento.
 
 ## Deduplicação no Asaas
 

@@ -177,6 +177,14 @@ function attendance_mode_label(string $value): string
     ][$value] ?? '';
 }
 
+function media_consent_label(string $value): string
+{
+    return [
+        'AUTHORIZED' => 'Autorizado',
+        'NOT_AUTHORIZED' => 'Não autorizado',
+    ][$value] ?? '';
+}
+
 function service_type_is_valid_for_age(string $value, int $patientAge): bool
 {
     $adultTypes = ['ADULT_NEURO_REHAB', 'ADULT_PSYCHOANALYSIS_INTEGRATED', 'ADULT_SENSORY_STIMULATION', 'UNDEFINED'];
@@ -363,6 +371,7 @@ function build_observations(array $values, int $patientAge): ?string
     $lines[] = $patientAge >= 18
         ? 'Modalidade de atendimento: ' . attendance_mode_label($values['attendanceMode'])
         : 'Forma de ingresso: ' . entry_type_label($values['entryType']);
+    $lines[] = 'Autorização de imagens e vídeos: ' . media_consent_label($values['mediaConsent']);
 
     return implode("\n", $lines);
 }
@@ -735,6 +744,7 @@ $fieldLimits = [
     'responsibleCity' => 120,
     'responsibleState' => 2,
     'serviceType' => 50,
+    'mediaConsent' => 30,
     'website' => 1,
     'turnstileToken' => 2048,
 ];
@@ -772,6 +782,9 @@ if (($payload['consent'] ?? false) !== true || $values['website'] !== '') {
 $patientAge = calculate_age($values['patientBirthDate']);
 if ($patientAge === null) {
     respond(['message' => 'Confira os dados informados e tente novamente.'], 400);
+}
+if (!in_array($values['mediaConsent'], ['AUTHORIZED', 'NOT_AUTHORIZED'], true)) {
+    respond(['message' => 'Confira os dados de autorização de imagens e vídeos e tente novamente.'], 400);
 }
 if (!service_type_is_valid_for_age($values['serviceType'], $patientAge)) {
     respond(['message' => 'Confira os dados do atendimento e tente novamente.'], 400);

@@ -33,6 +33,10 @@ const attendanceContract = await readFile(
   new URL("../lib/attendance.ts", import.meta.url),
   "utf8",
 );
+const consentContract = await readFile(
+  new URL("../lib/consent.ts", import.meta.url),
+  "utf8",
+);
 
 test("defines stable attendance codes and centralized labels", () => {
   const labels = [
@@ -68,6 +72,57 @@ test("keeps adult and minor attendance whitelists conditional on patient age", (
   assert.match(phpBackend, /service_type_is_valid_for_age\(\$values\['serviceType'\], \$patientAge\)/);
   assert.match(phpBackend, /attendance_mode_is_valid\(\$values\['attendanceMode'\]\)/);
   assert.match(phpBackend, /entry_type_is_valid\(\$values\['entryType'\]\)/);
+});
+
+test("defines the structured media consent contract for both environments", () => {
+  assert.match(consentContract, /AUTHORIZED/);
+  assert.match(consentContract, /NOT_AUTHORIZED/);
+  assert.match(consentContract, /AUTHORIZED: "Autorizado"/);
+  assert.match(consentContract, /NOT_AUTHORIZED: "Não autorizado"/);
+  assert.match(frontend, /mediaConsent/);
+  assert.match(frontend, /name="mediaConsent"/);
+  assert.match(frontend, /Autorizo/);
+  assert.match(frontend, /Não autorizo/);
+  assert.match(typescriptBackend, /mediaConsent/);
+  assert.match(phpBackend, /mediaConsent/);
+});
+
+test("validates media consent and switches modal copy by patient age", () => {
+  assert.match(frontend, /isMediaConsent\(value\.mediaConsent\)/);
+  assert.match(frontend, /DialogTrigger/);
+  assert.match(frontend, /Saiba mais/);
+  assert.match(frontend, /max-h-\[calc\(100dvh-2rem\)\]/);
+  assert.match(frontend, /ADULT_MEDIA_CONSENT_TEXT/);
+  assert.match(frontend, /MINOR_MEDIA_CONSENT_TEXT/);
+  assert.match(frontend, /isMinor \? MINOR_MEDIA_CONSENT_TEXT : ADULT_MEDIA_CONSENT_TEXT/);
+  assert.match(typescriptBackend, /isMediaConsent\(value\.mediaConsent\)/);
+  assert.match(phpBackend, /in_array\(\$values\['mediaConsent'\], \['AUTHORIZED', 'NOT_AUTHORIZED'\], true\)/);
+});
+
+test("adds one concise media-consent observation line and preserves existing observations", () => {
+  for (const backend of [typescriptBackend, phpBackend]) {
+    assert.match(backend, /Autorização de imagens e vídeos/);
+  }
+  assert.match(consentContract, /Autorizado/);
+  assert.match(consentContract, /Não autorizado/);
+  assert.match(typescriptBackend, /mediaConsentLabel\(patient\.mediaConsent\)/);
+  assert.match(phpBackend, /media_consent_label\(\$values\['mediaConsent'\]\)/);
+  assert.match(typescriptBackend, /return attendanceLines\.join/);
+  assert.match(phpBackend, /Pessoa atendida/);
+});
+
+test("keeps media consent independent from billing, n8n and age-reset state", () => {
+  assert.match(frontend, /function updateBirthDate[\s\S]*?attendanceMode: ""/);
+  assert.doesNotMatch(frontend, /function updateBirthDate[\s\S]*?mediaConsent:/);
+  for (const backend of [typescriptBackend, phpBackend]) {
+    assert.match(backend, /230(?:\.00)?/);
+    assert.match(backend, /sessao-1/);
+  }
+  const paymentFunction = typescriptBackend.match(
+    /async function createFirstSessionPayment[\s\S]*?\n}\r?\n\r?\nfunction fullAddress/,
+  )?.[0];
+  assert.ok(paymentFunction);
+  assert.doesNotMatch(paymentFunction, /mediaConsent/);
 });
 
 test("renders the Sobre o atendimento section with accessible conditional radio groups", () => {
