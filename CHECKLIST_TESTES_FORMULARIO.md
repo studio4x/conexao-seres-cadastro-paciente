@@ -34,7 +34,7 @@ Executar após um cadastro válido nos ambientes Sites / Cloudflare e cPanel:
 - [ ] Confirmar que o bloco “Conte-nos sobre você” e o texto “Preencha com calma. Mostraremos apenas o que for necessário em cada etapa.” não aparecem na tela de sucesso.
 - [ ] Confirmar que o título exibido é exatamente “Cadastro concluído!”.
 - [ ] Confirmar a mensagem “Recebemos seus dados com sucesso.”.
-- [ ] Confirmar que a mensagem orienta o usuário a acompanhar o **WhatsApp e o e-mail informados no cadastro**.
+- [ ] Confirmar que a mensagem contém o trecho **WhatsApp e no e-mail informados no cadastro**.
 - [ ] Confirmar que a mensagem informa que o **Asaas enviará pelo WhatsApp o link para pagamento da primeira sessão**.
 - [ ] Confirmar que a mensagem informa a continuidade da **confirmação do agendamento** após a identificação do pagamento.
 - [ ] Confirmar que a mensagem informa o envio do **contrato de prestação de serviços para leitura e assinatura** após a primeira sessão, caso haja continuidade do acompanhamento.

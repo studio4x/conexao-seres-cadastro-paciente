@@ -920,7 +920,7 @@ export function CadastroForm({ onSuccessChange }: CadastroFormProps) {
         <div className="mx-auto mt-4 max-w-2xl space-y-4 text-left text-base leading-7 text-muted-foreground">
           <p>Recebemos seus dados com sucesso.</p>
           <p>
-            Agora, fique de olho no <strong>WhatsApp e o e-mail informados no cadastro</strong>. Você receberá a confirmação do cadastro e, em seguida, o <strong>Asaas enviará pelo WhatsApp o link para pagamento da primeira sessão</strong>.
+            Agora, fique de olho no <strong>WhatsApp e no e-mail informados no cadastro</strong>. Você receberá a confirmação do cadastro e, em seguida, o <strong>Asaas enviará pelo WhatsApp o link para pagamento da primeira sessão</strong>.
           </p>
           <p>
             Assim que o pagamento for identificado, nossa equipe dará continuidade à <strong>confirmação do agendamento</strong> e enviará as informações do atendimento.

@@ -135,7 +135,7 @@ test("renders the requested success message and hides the form intro after submi
   assert.match(homePage, /<CadastroForm onSuccessChange=\{setIsRegistrationComplete\} \/>/);
   assert.match(frontend, /Cadastro concluído!/);
   assert.match(frontend, /Recebemos seus dados com sucesso\./);
-  assert.match(frontend, /WhatsApp e o e-mail informados no cadastro/);
+  assert.match(frontend, /WhatsApp e no e-mail informados no cadastro/);
   assert.match(frontend, /Asaas enviará pelo WhatsApp o link para pagamento da primeira sessão/);
   assert.match(frontend, /confirmação do agendamento/);
   assert.match(frontend, /contrato de prestação de serviços para leitura e assinatura/);
