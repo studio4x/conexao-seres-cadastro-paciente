@@ -970,7 +970,7 @@ export function CadastroForm() {
           <legend id="patient-sex-label" className="text-sm font-medium text-foreground">
             Sexo do paciente
           </legend>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-3">
               {[
                 { value: "female", label: "Feminino" },
                 { value: "male", label: "Masculino" },

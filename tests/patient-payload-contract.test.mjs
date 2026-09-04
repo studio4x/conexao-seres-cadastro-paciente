@@ -341,6 +341,7 @@ test("requires explicit patient sex in the shared form and both backends", () =>
   assert.match(frontend, /value: "male"/);
   assert.match(frontend, /value: "non_binary"/);
   assert.match(frontend, /label: "Não binário"/);
+  assert.match(frontend, /aria-labelledby="patient-sex-label"[\s\S]*?grid gap-3 sm:grid-cols-3/);
   assert.match(typescriptBackend, /patientSex: z\.enum\(\["female", "male", "non_binary"\]\)/);
   assert.match(phpBackend, /'patientSex' => 10/);
   assert.match(phpBackend, /in_array\(\$values\['patientSex'\], \['female', 'male', 'non_binary'\], true\)/);
