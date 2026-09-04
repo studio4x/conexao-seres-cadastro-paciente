@@ -503,6 +503,60 @@ test("forwards both valid first-session payment events to n8n with the Asaas cus
   assert.ok(phpValidationIndex > -1 && phpNotifyIndex > phpValidationIndex && phpNotifyIndex < phpFiscalIndex);
 });
 
+test("forwards the patient and first-session data parsed from Asaas observations", () => {
+  for (const webhook of [typescriptFiscalWebhook, phpFiscalWebhook]) {
+    assert.match(webhook, /patientName/);
+    assert.match(webhook, /firstSessionDate/);
+    assert.match(webhook, /firstSessionTime/);
+    assert.match(webhook, /firstSessionMode/);
+    assert.match(webhook, /asaas_first_session_paid/);
+    assert.match(webhook, /customerName/);
+  }
+  assert.match(firstSessionContract, /Pessoa atendida:/);
+  assert.match(firstSessionContract, /Primeira sessão:/);
+  assert.match(firstSessionContract, /Modalidade da primeira sessão:/);
+  assert.match(firstSessionContract, /Presencial/);
+  assert.match(firstSessionContract, /Online/);
+  assert.match(
+    typescriptFiscalWebhook,
+    /parseFirstSessionFromObservations\(customerResult\.data\.observations\)/,
+  );
+  assert.match(
+    phpFiscalWebhook,
+    /parse_first_session_from_observations\(\$customer\['data'\]\['observations'\] \?\? null\)/,
+  );
+  assert.match(typescriptFiscalWebhook, /!firstSession\.patientNameLinePresent \? customerName : ""/);
+  assert.match(phpFiscalWebhook, /\$firstSession\['patientNameLinePresent'\] \? '' : \$customerName/);
+});
+
+test("keeps observation parsing strict, failure-safe and free of extra customer requests", () => {
+  assert.match(firstSessionContract, /export function parseFirstSessionFromObservations\(observations: unknown\)/);
+  assert.match(firstSessionContract, /typeof observations === "string" \? observations\.split\(\/\\r\?\\n\//);
+  assert.match(firstSessionContract, /\/\^Pessoa atendida:\(\.\*\)\$\/\.exec\(line\)/);
+  assert.ok(firstSessionContract.includes("const sessionMatch = /^Primeira sessão: (\\d{2}\\/\\d{2}\\/\\d{4}) às"));
+  assert.match(firstSessionContract, /isValidFirstSessionDate\(sessionMatch\[1\]\)/);
+  assert.ok(firstSessionContract.includes("((?:[01]\\d|2[0-3]):[0-5]\\d)$/.exec(line)"));
+  assert.match(firstSessionContract, /Modalidade da primeira sessão: Presencial/);
+  assert.match(firstSessionContract, /Modalidade da primeira sessão: Online/);
+  assert.match(firstSessionContract, /patientNameLinePresent/);
+  assert.match(firstSessionContract, /let firstSessionDate = ""/);
+  assert.match(firstSessionContract, /let firstSessionTime = ""/);
+  assert.match(firstSessionContract, /let firstSessionMode = ""/);
+
+  const tsNotifyStart = typescriptFiscalWebhook.indexOf("async function notifyN8nFirstSessionPaid");
+  const tsNotifyEnd = typescriptFiscalWebhook.indexOf("\n}\n\nfunction", tsNotifyStart);
+  const phpNotifyStart = phpFiscalWebhook.indexOf("function notify_n8n_first_session_paid_safely");
+  const phpNotifyEnd = phpFiscalWebhook.indexOf("\n}\n\nfunction", phpNotifyStart);
+  assert.ok(tsNotifyStart > -1 && tsNotifyEnd > tsNotifyStart);
+  assert.ok(phpNotifyStart > -1 && phpNotifyEnd > phpNotifyStart);
+  const tsNotify = typescriptFiscalWebhook.slice(tsNotifyStart, tsNotifyEnd);
+  const phpNotify = phpFiscalWebhook.slice(phpNotifyStart, phpNotifyEnd);
+  assert.equal((tsNotify.match(/\/customers\//g) ?? []).length, 1);
+  assert.equal((phpNotify.match(/\/customers\//g) ?? []).length, 1);
+  assert.doesNotMatch(tsNotify, /console\.(?:log|error|warn)[\s\S]{0,120}observations/);
+  assert.doesNotMatch(phpNotify, /error_log\([\s\S]{0,120}observations/);
+});
+
 test("forwards invoice number and the official invoice URL to n8n", () => {
   for (const webhook of [typescriptFiscalWebhook, phpFiscalWebhook]) {
     assert.match(webhook, /invoiceNumber/);

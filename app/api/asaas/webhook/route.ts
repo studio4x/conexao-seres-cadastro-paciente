@@ -1,6 +1,8 @@
 import { env } from "cloudflare:workers";
 import { NextResponse } from "next/server";
 
+import { parseFirstSessionFromObservations } from "../../../../lib/first-session";
+
 export const runtime = "edge";
 
 const FIRST_SESSION_VALUE = 230;
@@ -174,6 +176,8 @@ async function notifyN8nFirstSessionPaid(
   const mobilePhone = typeof customerResult.data.mobilePhone === "string" ? customerResult.data.mobilePhone.trim() : "";
   const phone = typeof customerResult.data.phone === "string" ? customerResult.data.phone.trim() : "";
   const customerWhatsapp = mobilePhone || phone;
+  const firstSession = parseFirstSessionFromObservations(customerResult.data.observations);
+  const patientName = firstSession.patientName || (!firstSession.patientNameLinePresent ? customerName : "");
 
   let invoiceNumber = optionalPaymentString(payment, "invoiceNumber");
   let invoiceUrl = optionalPaymentString(payment, "invoiceUrl");
@@ -206,6 +210,10 @@ async function notifyN8nFirstSessionPaid(
     asaasCustomerId: customerId,
     customerName,
     customerWhatsapp,
+    patientName,
+    firstSessionDate: firstSession.firstSessionDate,
+    firstSessionTime: firstSession.firstSessionTime,
+    firstSessionMode: firstSession.firstSessionMode,
     invoiceNumber,
     invoiceUrl,
     value: typeof payment.value === "number" ? payment.value : Number(payment.value),

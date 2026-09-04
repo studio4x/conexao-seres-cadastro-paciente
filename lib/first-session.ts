@@ -74,3 +74,42 @@ export function isFirstSessionMode(value: string): value is (typeof FIRST_SESSIO
 export function firstSessionModeLabel(value: string) {
   return FIRST_SESSION_MODE_LABELS[value as keyof typeof FIRST_SESSION_MODE_LABELS] ?? "";
 }
+
+export function parseFirstSessionFromObservations(observations: unknown) {
+  const lines = typeof observations === "string" ? observations.split(/\r?\n/) : [];
+  let patientName = "";
+  let patientNameLinePresent = false;
+  let firstSessionDate = "";
+  let firstSessionTime = "";
+  let firstSessionMode = "";
+
+  for (const line of lines) {
+    const patientMatch = /^Pessoa atendida:(.*)$/.exec(line);
+    if (patientMatch) {
+      patientNameLinePresent = true;
+      patientName = patientMatch[1].trim();
+      continue;
+    }
+
+    const sessionMatch = /^Primeira sessão: (\d{2}\/\d{2}\/\d{4}) às ((?:[01]\d|2[0-3]):[0-5]\d)$/.exec(line);
+    if (sessionMatch && isValidFirstSessionDate(sessionMatch[1])) {
+      firstSessionDate = sessionMatch[1];
+      firstSessionTime = sessionMatch[2];
+      continue;
+    }
+
+    if (line === "Modalidade da primeira sessão: Presencial") {
+      firstSessionMode = "IN_PERSON";
+    } else if (line === "Modalidade da primeira sessão: Online") {
+      firstSessionMode = "ONLINE";
+    }
+  }
+
+  return {
+    patientName,
+    patientNameLinePresent,
+    firstSessionDate,
+    firstSessionTime,
+    firstSessionMode,
+  };
+}

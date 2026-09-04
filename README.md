@@ -204,9 +204,9 @@ A chamada é best-effort, com timeout curto e sem retries agressivos. URL ou tok
 
 ### Webhook n8n de primeira sessão paga
 
-O webhook do Asaas também encaminha, de forma best-effort, a cobrança válida da primeira sessão quando recebe `PAYMENT_CONFIRMED` com status `CONFIRMED` ou `PAYMENT_RECEIVED` com status `RECEIVED`/`RECEIVED_IN_CASH`. O encaminhamento usa os dois eventos possíveis, sempre inclui `paymentId` para deduplicação no n8n e não depende da emissão da NFS-e. O cliente é consultado no Asaas por `GET /v3/customers/{customerId}` e `customer.name` é usado como `customerName`.
+O webhook do Asaas também encaminha, de forma best-effort, a cobrança válida da primeira sessão quando recebe `PAYMENT_CONFIRMED` com status `CONFIRMED` ou `PAYMENT_RECEIVED` com status `RECEIVED`/`RECEIVED_IN_CASH`. O encaminhamento usa os dois eventos possíveis, sempre inclui `paymentId` para deduplicação no n8n e não depende da emissão da NFS-e. O cliente é consultado no Asaas por `GET /v3/customers/{customerId}` e `customer.name` é usado como `customerName`, preservando o nome do titular do cliente Asaas.
 
-O payload também inclui `customerWhatsapp`, obtido da mesma consulta do cliente, priorizando `mobilePhone` e usando `phone` quando o celular estiver vazio. Se ambos não existirem, o campo é enviado como string vazia. Também inclui `invoiceNumber` e `invoiceUrl`, obtidos primeiro do objeto `payment` recebido no evento. Se algum deles estiver ausente, o backend consulta `GET /v3/payments/{paymentId}` e usa os valores retornados pelo Asaas, sem construir ou modificar a URL. Os campos opcionais não impedem o n8n nem o processamento fiscal; a normalização e geração de `wa.me` ficam no n8n.
+O payload também inclui `customerWhatsapp`, obtido da mesma consulta do cliente, priorizando `mobilePhone` e usando `phone` quando o celular estiver vazio. Se ambos não existirem, o campo é enviado como string vazia. A mesma resposta do cliente é usada para ler `observations` e extrair `patientName`, `firstSessionDate`, `firstSessionTime` e `firstSessionMode`. O parser aceita somente as linhas estritas `Pessoa atendida: ...`, `Primeira sessão: DD/MM/AAAA às HH:MM` (com data real e horário de 24 horas) e `Modalidade da primeira sessão: Presencial`/`Online`, convertendo a modalidade para `IN_PERSON`/`ONLINE`. Se a linha de pessoa atendida não existir, `patientName` usa `customerName`; se houver linha inválida, ou qualquer dado da primeira sessão estiver ausente ou alterado, os campos correspondentes seguem vazios sem bloquear o pagamento, a NFS-e ou as demais notificações. Não há uma segunda consulta de cliente. Também inclui `invoiceNumber` e `invoiceUrl`, obtidos primeiro do objeto `payment` recebido no evento. Se algum deles estiver ausente, o backend consulta `GET /v3/payments/{paymentId}` e usa os valores retornados pelo Asaas, sem construir ou modificar a URL. Os campos opcionais não impedem o n8n nem o processamento fiscal; a normalização e geração de `wa.me` ficam no n8n.
 
 Configure:
 
@@ -228,6 +228,10 @@ Exemplo de payload (valores fictícios):
   "asaasCustomerId": "cus_exemplo_123",
   "customerName": "Nome Fictício",
   "customerWhatsapp": "11999999999",
+  "patientName": "Pessoa Atendida",
+  "firstSessionDate": "05/09/2026",
+  "firstSessionTime": "14:30",
+  "firstSessionMode": "ONLINE",
   "invoiceNumber": "00001234",
   "invoiceUrl": "https://www.asaas.com/i/exemplo123",
   "value": 230,

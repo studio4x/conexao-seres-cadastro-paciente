@@ -100,6 +100,65 @@ function optional_payment_string(array $payment, string $field): string
     return is_string($payment[$field] ?? null) ? $payment[$field] : '';
 }
 
+function observation_date_is_valid(string $value): bool
+{
+    if (preg_match('/^(\d{2})\/(\d{2})\/(\d{4})$/', $value) !== 1) {
+        return false;
+    }
+
+    $date = DateTimeImmutable::createFromFormat('!d/m/Y', $value);
+    $errors = DateTimeImmutable::getLastErrors();
+    return $date !== false
+        && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0))
+        && $date->format('d/m/Y') === $value;
+}
+
+function parse_first_session_from_observations(mixed $observations): array
+{
+    $lines = is_string($observations) ? preg_split('/\r\n|\r|\n/', $observations) : [];
+    $patientName = '';
+    $patientNameLinePresent = false;
+    $firstSessionDate = '';
+    $firstSessionTime = '';
+    $firstSessionMode = '';
+
+    foreach ($lines as $line) {
+        if (!is_string($line)) {
+            continue;
+        }
+        if (preg_match('/^Pessoa atendida:(.*)$/u', $line, $matches) === 1) {
+            $patientNameLinePresent = true;
+            $patientName = trim($matches[1]);
+            continue;
+        }
+        if (
+            preg_match(
+                '/^Primeira sessão: (\d{2}\/\d{2}\/\d{4}) às ((?:[01]\d|2[0-3]):[0-5]\d)$/u',
+                $line,
+                $matches
+            ) === 1
+            && observation_date_is_valid($matches[1])
+        ) {
+            $firstSessionDate = $matches[1];
+            $firstSessionTime = $matches[2];
+            continue;
+        }
+        if ($line === 'Modalidade da primeira sessão: Presencial') {
+            $firstSessionMode = 'IN_PERSON';
+        } elseif ($line === 'Modalidade da primeira sessão: Online') {
+            $firstSessionMode = 'ONLINE';
+        }
+    }
+
+    return [
+        'patientName' => $patientName,
+        'patientNameLinePresent' => $patientNameLinePresent,
+        'firstSessionDate' => $firstSessionDate,
+        'firstSessionTime' => $firstSessionTime,
+        'firstSessionMode' => $firstSessionMode,
+    ];
+}
+
 function notify_n8n_first_session_paid_safely(
     string $baseUrl,
     string $apiKey,
@@ -131,6 +190,10 @@ function notify_n8n_first_session_paid_safely(
     $mobilePhone = is_string($customer['data']['mobilePhone'] ?? null) ? trim($customer['data']['mobilePhone']) : '';
     $phone = is_string($customer['data']['phone'] ?? null) ? trim($customer['data']['phone']) : '';
     $customerWhatsapp = $mobilePhone !== '' ? $mobilePhone : $phone;
+    $firstSession = parse_first_session_from_observations($customer['data']['observations'] ?? null);
+    $patientName = $firstSession['patientName'] !== ''
+        ? $firstSession['patientName']
+        : ($firstSession['patientNameLinePresent'] ? '' : $customerName);
 
     $invoiceNumber = optional_payment_string($payment, 'invoiceNumber');
     $invoiceUrl = optional_payment_string($payment, 'invoiceUrl');
@@ -160,6 +223,10 @@ function notify_n8n_first_session_paid_safely(
         'asaasCustomerId' => $customerId,
         'customerName' => $customerName,
         'customerWhatsapp' => $customerWhatsapp,
+        'patientName' => $patientName,
+        'firstSessionDate' => $firstSession['firstSessionDate'],
+        'firstSessionTime' => $firstSession['firstSessionTime'],
+        'firstSessionMode' => $firstSession['firstSessionMode'],
         'invoiceNumber' => $invoiceNumber,
         'invoiceUrl' => $invoiceUrl,
         'value' => is_numeric($payment['value'] ?? null) ? (float) $payment['value'] : 0,
