@@ -122,7 +122,7 @@ const formSchema = z
   .object({
     patientName: z.string().trim().max(120).refine(isValidFullName, "Informe o nome completo do paciente."),
     patientSex: z.string().refine(
-      (value): boolean => value === "female" || value === "male",
+      (value): boolean => value === "female" || value === "male" || value === "non_binary",
       "Selecione o sexo do paciente.",
     ),
     patientBirthDate: z.string(),
@@ -949,11 +949,12 @@ export function CadastroForm() {
           <legend id="patient-sex-label" className="text-sm font-medium text-foreground">
             Sexo do paciente
           </legend>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {[
-              { value: "female", label: "Feminino" },
-              { value: "male", label: "Masculino" },
-            ].map((option) => (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[
+                { value: "female", label: "Feminino" },
+                { value: "male", label: "Masculino" },
+                { value: "non_binary", label: "Não binário" },
+              ].map((option) => (
               <label
                 key={option.value}
                 className="flex min-h-12 min-w-0 cursor-pointer items-center gap-3 rounded-md border border-[#d4d4d4] bg-white px-4 text-base has-[:checked]:border-primary has-[:checked]:ring-2 has-[:checked]:ring-primary/20"

@@ -255,7 +255,11 @@ function first_session_external_reference(string $externalReference): string
 
 function build_first_session_description(array $values): string
 {
-    $article = $values['patientSex'] === 'female' ? 'a paciente' : 'o paciente';
+    $article = match ($values['patientSex']) {
+        'female' => 'a paciente',
+        'male' => 'o paciente',
+        default => 'a pessoa atendida',
+    };
     return 'Referente a contratação de 1 sessão de Terapia Ocupacional para ' . $article . ' '
         . clean_text($values['patientName']) . ' (CPF: ' . format_cpf($values['patientCpf'])
         . ') realizada na Clínica Conexão Seres.';
@@ -779,7 +783,7 @@ if ($patientAge >= 18) {
 } elseif (!entry_type_is_valid($values['entryType']) || $values['attendanceMode'] !== '') {
     respond(['message' => 'Confira os dados do atendimento e tente novamente.'], 400);
 }
-if (!in_array($values['patientSex'], ['female', 'male'], true)) {
+if (!in_array($values['patientSex'], ['female', 'male', 'non_binary'], true)) {
     respond(['message' => 'Selecione o sexo do paciente.'], 400);
 }
 if (!valid_full_name($values['patientName'])) {

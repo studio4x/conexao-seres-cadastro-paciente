@@ -39,7 +39,7 @@ O fluxo principal é:
 - Cloudflare Turnstile.
 - Honeypot contra bots.
 - Integração com Asaas.
-- Sexo do paciente obrigatório e explícito (`female` ou `male`) para a descrição da cobrança.
+- Sexo do paciente obrigatório e explícito (`female`, `male` ou `non_binary`) para a descrição da cobrança.
 - Cobrança avulsa de R$ 230,00 para a primeira sessão, com vencimento no próximo dia útil.
 - Deduplicação por referência externa determinística.
 - Grupos `Adultos` e `Crianças`.

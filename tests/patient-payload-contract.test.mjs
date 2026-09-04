@@ -280,13 +280,15 @@ test("records sanitized Asaas error responses and validates the applied policy",
 });
 
 test("requires explicit patient sex in the shared form and both backends", () => {
-  assert.match(frontend, /patientSex: z\.string\(\)\.refine\([\s\S]*?value === "female" \|\| value === "male"/);
+  assert.match(frontend, /patientSex: z\.string\(\)\.refine\([\s\S]*?value === "female" \|\| value === "male" \|\| value === "non_binary"/);
   assert.match(frontend, /name="patientSex"/);
   assert.match(frontend, /value: "female"/);
   assert.match(frontend, /value: "male"/);
-  assert.match(typescriptBackend, /patientSex: z\.enum\(\["female", "male"\]\)/);
+  assert.match(frontend, /value: "non_binary"/);
+  assert.match(frontend, /label: "Não binário"/);
+  assert.match(typescriptBackend, /patientSex: z\.enum\(\["female", "male", "non_binary"\]\)/);
   assert.match(phpBackend, /'patientSex' => 10/);
-  assert.match(phpBackend, /in_array\(\$values\['patientSex'\], \['female', 'male'\], true\)/);
+  assert.match(phpBackend, /in_array\(\$values\['patientSex'\], \['female', 'male', 'non_binary'\], true\)/);
 });
 
 test("defines the first-session payment contract and patient-specific description", () => {
@@ -300,8 +302,10 @@ test("defines the first-session payment contract and patient-specific descriptio
     assert.match(backend, /Clínica Conexão Seres/);
     assert.match(backend, /format_cpf|formatCpf/);
   }
-  assert.match(typescriptBackend, /patient\.patientSex === "female" \? "a paciente" : "o paciente"/);
-  assert.match(phpBackend, /\$values\['patientSex'\] === 'female' \? 'a paciente' : 'o paciente'/);
+  assert.match(typescriptBackend, /patient\.patientSex === "female"[\s\S]*patient\.patientSex === "male"[\s\S]*a pessoa atendida/);
+  assert.match(phpBackend, /match \(\$values\['patientSex'\]\)[\s\S]*'female' => 'a paciente'[\s\S]*'male' => 'o paciente'[\s\S]*'a pessoa atendida'/);
+  assert.match(typescriptBackend, /non_binary/);
+  assert.match(phpBackend, /'non_binary'/);
   assert.match(typescriptBackend, /customer: customerId,[\s\S]*?externalReference: paymentExternalReference/);
   assert.match(phpBackend, /'customer' => \$customerId,[\s\S]*?'externalReference' => \$paymentExternalReference/);
 });

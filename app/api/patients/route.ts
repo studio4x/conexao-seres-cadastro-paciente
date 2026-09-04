@@ -108,7 +108,7 @@ const addressText = z.string().trim().max(120);
 const patientSchema = z
   .object({
     patientName: z.string().trim().max(120).refine(isValidFullName),
-    patientSex: z.enum(["female", "male"]),
+    patientSex: z.enum(["female", "male", "non_binary"]),
     patientBirthDate: z.string().max(10),
     patientCpf: z.string().refine(isValidCpf),
     patientPhone: shortText,
@@ -594,7 +594,12 @@ function buildFirstSessionExternalReference(externalReference: string) {
 }
 
 function buildFirstSessionDescription(patient: Patient) {
-  const article = patient.patientSex === "female" ? "a paciente" : "o paciente";
+  const article =
+    patient.patientSex === "female"
+      ? "a paciente"
+      : patient.patientSex === "male"
+        ? "o paciente"
+        : "a pessoa atendida";
   return `Referente a contratação de 1 sessão de Terapia Ocupacional para ${article} ${clean(patient.patientName)} (CPF: ${formatCpf(patient.patientCpf)}) realizada na Clínica Conexão Seres.`;
 }
 
