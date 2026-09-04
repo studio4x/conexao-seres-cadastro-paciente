@@ -258,6 +258,12 @@ Executar nos ambientes Sites / Cloudflare e cPanel, para paciente adulto sem res
 - [ ] Confirmar que a seção “Primeira sessão” aparece após “Sobre o atendimento”.
 - [ ] Confirmar o texto explicativo sobre informar a data, o horário e a modalidade já combinados com a Conexão Seres.
 - [ ] Confirmar o campo de data com formato `DD/MM/AAAA` e horário em formato `HH:MM` de 24 horas.
+- [ ] Confirmar que o campo “Data da primeira sessão” exibe o botão do calendário com ícone e rótulo acessível.
+- [ ] Clicar no botão do calendário e confirmar que o seletor abre em português, com navegação entre meses.
+- [ ] Selecionar uma data válida no calendário e confirmar que o campo é preenchido no formato `DD/MM/AAAA`.
+- [ ] Confirmar que datas anteriores ao dia atual ficam desabilitadas no calendário.
+- [ ] Confirmar que a digitação manual no campo continua funcionando e mantém o mesmo formato e validações.
+- [ ] Confirmar que o calendário pode ser operado por teclado e que o foco permanece visível.
 - [ ] Confirmar as opções de modalidade `Presencial, na clínica Conexão Seres` e `Online` em seleção única.
 - [ ] Tentar enviar sem data, horário ou modalidade; confirmar erro visual e ausência de requisição de cadastro.
 - [ ] Informar data inexistente, como `31/02/2026`; confirmar rejeição.

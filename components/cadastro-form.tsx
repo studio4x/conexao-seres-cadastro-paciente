@@ -1,10 +1,12 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Check, LoaderCircle, RotateCcw, ShieldCheck, UserRound } from "lucide-react";
+import { ptBR } from "date-fns/locale/pt-BR";
+import { CalendarDays, Check, LoaderCircle, RotateCcw, ShieldCheck, UserRound } from "lucide-react";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -18,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { TurnstileWidget } from "@/components/turnstile-widget";
 import {
   ADULT_SERVICE_TYPES,
@@ -42,6 +45,8 @@ import {
   FIRST_SESSION_MODE_LABELS,
   FIRST_SESSION_MODES,
   formatFirstSessionDateInput,
+  parseFirstSessionDate,
+  saoPauloTodayIso,
   isFirstSessionDateTodayOrFuture,
   isFirstSessionMode,
   isValidFirstSessionDate,
@@ -436,6 +441,85 @@ function InputField({
           {helperText}
         </p>
       ) : null}
+      <FieldError message={error} />
+    </div>
+  );
+}
+
+function firstSessionCalendarDate(value: string) {
+  const parsed = parseFirstSessionDate(value);
+  return parsed ? new Date(parsed.year, parsed.month - 1, parsed.day) : undefined;
+}
+
+function saoPauloTodayCalendarDate() {
+  const [year, month, day] = saoPauloTodayIso().split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function formatCalendarDate(value: Date) {
+  return [value.getDate(), value.getMonth() + 1, value.getFullYear()]
+    .map((part, index) => (index === 2 ? String(part) : String(part).padStart(2, "0")))
+    .join("/");
+}
+
+type FirstSessionDateFieldProps = {
+  value: string;
+  error?: string;
+  onChange: (value: string) => void;
+  onBlur?: () => void;
+};
+
+function FirstSessionDateField({ value, error, onChange, onBlur }: FirstSessionDateFieldProps) {
+  const [open, setOpen] = useState(false);
+  const today = saoPauloTodayCalendarDate();
+  const selectedDate = firstSessionCalendarDate(value);
+
+  return (
+    <div className="form-field">
+      <Label htmlFor="firstSessionDate">Data da primeira sessão</Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <div className="relative">
+          <Input
+            id="firstSessionDate"
+            name="firstSessionDate"
+            type="text"
+            inputMode="numeric"
+            className={`${inputClass} pr-12`}
+            placeholder="DD/MM/AAAA"
+            value={value}
+            maxLength={10}
+            onChange={(event) => onChange(event.target.value)}
+            onBlur={onBlur}
+            aria-invalid={Boolean(error)}
+          />
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="absolute right-2 top-1/2 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label="Abrir calendário para escolher a data da primeira sessão"
+              title="Escolher data no calendário"
+            >
+              <CalendarDays className="size-5" aria-hidden="true" />
+            </button>
+          </PopoverTrigger>
+        </div>
+        <PopoverContent align="start" className="w-auto p-0">
+          <Calendar
+            mode="single"
+            locale={ptBR}
+            selected={selectedDate}
+            defaultMonth={selectedDate ?? today}
+            disabled={{ before: today }}
+            autoFocus
+            onSelect={(date) => {
+              if (!date) return;
+              onChange(formatCalendarDate(date));
+              setOpen(false);
+            }}
+          />
+        </PopoverContent>
+      </Popover>
+      <p className="mt-2 text-xs leading-5 text-muted-foreground">Você também pode escolher a data pelo calendário.</p>
       <FieldError message={error} />
     </div>
   );
@@ -1348,14 +1432,9 @@ export function CadastroForm({ onSuccessChange }: CadastroFormProps) {
             </div>
 
             <div className="grid gap-5 sm:grid-cols-2">
-              <InputField
-                field="firstSessionDate"
-                label="Data da primeira sessão"
+              <FirstSessionDateField
                 value={values.firstSessionDate}
                 error={errors.firstSessionDate}
-                placeholder="DD/MM/AAAA"
-                inputMode="numeric"
-                maxLength={10}
                 onChange={updateFirstSessionDate}
                 onBlur={validateFirstSessionDate}
               />
