@@ -249,7 +249,33 @@ Para os quatro cenários — adulto autorizado, adulto não autorizado, menor au
 - [ ] A linha de consentimento não contém o texto completo do TCLE.
 - [ ] O valor da primeira sessão continua em R$ 230,00.
 - [ ] `billingType`, vencimento, `externalReference`, NFS-e, impostos e notificações permanecem inalterados.
-- [ ] O payload e o momento do webhook n8n permanecem inalterados e não incluem `mediaConsent`.
+- [ ] O webhook n8n continua sendo disparado somente no fluxo previsto, não inclui `mediaConsent` e inclui os dados da primeira sessão somente no evento de pagamento correspondente.
+
+### 9.5 Primeira sessão já combinada
+
+Executar nos ambientes Sites / Cloudflare e cPanel, para paciente adulto sem responsável, adulto com responsável e menor com responsável:
+
+- [ ] Confirmar que a seção “Primeira sessão” aparece após “Sobre o atendimento”.
+- [ ] Confirmar o texto explicativo sobre informar a data, o horário e a modalidade já combinados com a Conexão Seres.
+- [ ] Confirmar o campo de data com formato `DD/MM/AAAA` e horário em formato `HH:MM` de 24 horas.
+- [ ] Confirmar as opções de modalidade `Presencial, na clínica Conexão Seres` e `Online` em seleção única.
+- [ ] Tentar enviar sem data, horário ou modalidade; confirmar erro visual e ausência de requisição de cadastro.
+- [ ] Informar data inexistente, como `31/02/2026`; confirmar rejeição.
+- [ ] Informar data anterior ao dia atual em `America/Sao_Paulo`; confirmar rejeição.
+- [ ] Informar a data atual e uma data futura; confirmar aceitação.
+- [ ] Informar horário inválido ou fora do intervalo de 24 horas; confirmar rejeição.
+- [ ] Alterar a data de nascimento entre adulto e menor; confirmar que os dados da primeira sessão não são apagados.
+
+Conferir o payload de cadastro e o cliente novo no Asaas:
+
+- [ ] `firstSessionDate` é enviado como `DD/MM/AAAA`.
+- [ ] `firstSessionTime` é enviado como `HH:MM`.
+- [ ] `firstSessionMode` é enviado exatamente como `IN_PERSON` ou `ONLINE`.
+- [ ] `observations` contém exatamente `Primeira sessão: DD/MM/AAAA às HH:MM`.
+- [ ] `observations` contém `Modalidade da primeira sessão: Presencial, na clínica Conexão Seres` para `IN_PERSON`.
+- [ ] `observations` contém `Modalidade da primeira sessão: Online` para `ONLINE`.
+- [ ] As informações da primeira sessão são preservadas para adulto sem responsável, adulto com responsável e menor com responsável.
+- [ ] A cobrança da primeira sessão continua em R$ 230,00, com `billingType`, vencimento, `externalReference`, grupos, notificações e NFS-e inalterados.
 
 ## 10. Falhas de integração e recuperação
 
@@ -272,6 +298,47 @@ Após um cadastro novo ou atualização de cliente existente:
 - [OK] E-mail e SMS para o provedor permanecem desativados conforme a regra.
 - [OK] O aviso antes do vencimento usa `scheduleOffset = 5`.
 - [OK] O lembrete após o vencimento usa `scheduleOffset = 1`.
+
+## 12. Webhook n8n da primeira sessão paga
+
+Executar em ambiente controlado ou Sandbox do Asaas, nos dois ambientes publicados:
+
+- [ ] Confirmar o encaminhamento do evento `PAYMENT_CONFIRMED` com status `CONFIRMED`.
+- [ ] Confirmar o encaminhamento do evento `PAYMENT_RECEIVED` com status `RECEIVED`.
+- [ ] Confirmar o encaminhamento do evento `PAYMENT_RECEIVED` com status `RECEIVED_IN_CASH`.
+- [ ] Confirmar que eventos inválidos, cobranças com valor diferente de R$ 230,00 ou referências diferentes de `<externalReference>-sessao-1` não geram o evento do n8n.
+- [ ] Confirmar que o evento enviado é `asaas_first_session_paid` e contém `paymentId`, `asaasEventId`, `asaasEvent`, `asaasCustomerId`, `customerName` e `customerWhatsapp`.
+- [ ] Confirmar que o payload contém `patientName`, `firstSessionDate`, `firstSessionTime` e `firstSessionMode`.
+
+Conferir a distinção entre titular e pessoa atendida:
+
+- [ ] Adulto sem responsável: `customerName` e `patientName` correspondem ao paciente.
+- [ ] Adulto com responsável: `customerName` corresponde ao responsável titular e `patientName` corresponde ao paciente.
+- [ ] Menor com responsável: `customerName` corresponde ao responsável titular e `patientName` corresponde ao paciente.
+- [ ] Confirmar que `customerName` nunca é substituído pelo nome da pessoa atendida quando o responsável é o titular.
+
+Conferir o parsing seguro das `observations`:
+
+- [ ] Linha válida `Pessoa atendida: Nome da Pessoa` preenche `patientName` com o nome da pessoa atendida.
+- [ ] Quando a linha `Pessoa atendida:` não existe, `patientName` usa o `customerName` do titular.
+- [ ] Quando a linha `Pessoa atendida:` está vazia ou inválida, `patientName` permanece vazio e não usa o nome do titular como substituição.
+- [ ] Linha válida `Primeira sessão: DD/MM/AAAA às HH:MM` preenche data e horário.
+- [ ] Data inexistente, horário inválido, linha ausente ou texto adicional fazem `firstSessionDate` e `firstSessionTime` permanecerem strings vazias.
+- [ ] Somente `Modalidade da primeira sessão: Presencial` gera `firstSessionMode: "IN_PERSON"`.
+- [ ] Somente `Modalidade da primeira sessão: Online` gera `firstSessionMode: "ONLINE"`.
+- [ ] Modalidade ausente, alterada ou com texto adicional faz `firstSessionMode` permanecer vazio.
+- [ ] `observations` ausente, nulo ou em formato inesperado não interrompe o encaminhamento; os campos não identificados permanecem vazios.
+- [ ] Confirmar que `serviceType`, `entryType`, `attendanceMode` e `mediaConsent` não são usados para preencher os quatro novos campos.
+
+Conferir consultas, tolerância a falhas e preservação do fluxo fiscal:
+
+- [ ] Confirmar que a resposta da única consulta `GET /v3/customers/{customerId}` é reutilizada para nome, telefone e `observations`, sem uma segunda consulta de cliente.
+- [ ] Quando `invoiceNumber` ou `invoiceUrl` não estiverem no evento, confirmar que a consulta opcional `GET /v3/payments/{paymentId}` continua funcionando.
+- [ ] Simular ausência, erro HTTP ou timeout do n8n; confirmar que o pagamento, a NFS-e e a resposta do webhook não são invalidados por essa falha best-effort.
+- [ ] Confirmar que o processamento da NFS-e continua após a tentativa de envio ao n8n.
+- [ ] Confirmar que o valor, a cobrança, a referência, os impostos, a idempotência e os eventos fiscais não foram alterados.
+- [ ] Confirmar que TypeScript/Sites e PHP/cPanel enviam payloads equivalentes.
+- [ ] Confirmar que logs não exibem `observations`, CPF completo, telefone, e-mail, tokens ou chaves.
 
 ## Resultado da rodada
 
