@@ -260,6 +260,7 @@ Executar nos ambientes Sites / Cloudflare e cPanel, para paciente adulto sem res
 - [ ] Confirmar o campo de data com formato `DD/MM/AAAA` e horário em formato `HH:MM` de 24 horas.
 - [ ] Confirmar que o campo “Data da primeira sessão” exibe o botão do calendário com ícone e rótulo acessível.
 - [ ] Clicar diretamente na área do campo “Data da primeira sessão” e confirmar que o calendário abre imediatamente.
+- [ ] Clicar diretamente na área de “Data de nascimento” e confirmar que o seletor nativo também abre, sem depender do ícone.
 - [ ] Clicar no botão do calendário e confirmar que o seletor abre em português, com navegação entre meses.
 - [ ] Selecionar uma data válida no calendário e confirmar que o campo é preenchido no formato `DD/MM/AAAA`.
 - [ ] Confirmar que datas anteriores ao dia atual ficam desabilitadas no calendário.

@@ -409,6 +409,7 @@ type InputFieldProps = {
   helperText?: string;
   helperTone?: "neutral" | "success" | "error";
   onChange: (value: string) => void;
+  onClick?: (event: React.MouseEvent<HTMLInputElement>) => void;
   onBlur?: () => void;
 };
 
@@ -425,6 +426,7 @@ function InputField({
   helperText,
   helperTone = "neutral",
   onChange,
+  onClick,
   onBlur,
 }: InputFieldProps) {
   return (
@@ -441,6 +443,16 @@ function InputField({
         value={value}
         maxLength={maxLength}
         onChange={(event) => onChange(event.target.value)}
+        onClick={(event) => {
+          onClick?.(event);
+          if (type === "date") {
+            try {
+              (event.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.();
+            } catch {
+              // Alguns navegadores bloqueiam o picker nativo fora de uma interação direta.
+            }
+          }
+        }}
         onBlur={onBlur}
         aria-invalid={Boolean(error)}
       />
@@ -505,6 +517,7 @@ function FirstSessionDateField({ value, error, onChange, onBlur }: FirstSessionD
             placeholder="DD/MM/AAAA"
             value={value}
             maxLength={10}
+            onFocus={() => setOpen(true)}
             onClick={() => setOpen(true)}
             onChange={(event) => onChange(event.target.value)}
             onBlur={onBlur}
