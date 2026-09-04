@@ -84,9 +84,9 @@ Como o formulário não solicita contato e endereço próprios do menor, esses d
 
 O formulário também registra, em códigos estáveis, as informações combinadas para o atendimento:
 
-- `serviceType`: `ADULT_NEURO_REHAB`, `ADULT_PSYCHOANALYSIS_INTEGRATED`, `ADULT_SENSORY_STIMULATION` ou `UNDEFINED` para adultos; `CHILD_OT`, `CHILD_NEURO_REHAB`, `CHILD_SENSORY_INTEGRATION` ou `UNDEFINED` para menores;
-- `entryType`: `FULL_ASSESSMENT`, `DIRECT_START` ou `UNDEFINED`, somente para menores;
-- `attendanceMode`: `IN_PERSON`, `ONLINE` ou `UNDEFINED`, somente para adultos.
+- `serviceType`: `ADULT_NEURO_REHAB`, `ADULT_PSYCHOANALYSIS_INTEGRATED` ou `ADULT_SENSORY_STIMULATION` para adultos; `CHILD_OT`, `CHILD_NEURO_REHAB` ou `CHILD_SENSORY_INTEGRATION` para menores;
+- `entryType`: `FULL_ASSESSMENT` ou `DIRECT_START` somente para `CHILD_SENSORY_INTEGRATION`; nos demais cenários, permanece vazio;
+- `attendanceMode`: `IN_PERSON` ou `ONLINE` somente para adultos. `ONLINE` é permitido apenas para `ADULT_PSYCHOANALYSIS_INTEGRATED`; menores mantêm o campo vazio;
 - `mediaConsent`: `AUTHORIZED` ou `NOT_AUTHORIZED`, para registrar a autorização de uso de imagens e vídeos.
 
 Os backends validam os códigos conforme a idade calculada a partir da data de nascimento e acrescentam os labels correspondentes às `observations` do cliente novo no Asaas. Esses campos são informativos nesta fase e não alteram a cobrança da primeira sessão, que permanece em R$ 230,00, nem NFS-e, notificações, webhooks ou integrações existentes.
@@ -97,9 +97,9 @@ O formulário também registra os dados estruturados da primeira sessão já com
 
 - `firstSessionDate`: data no formato visível `DD/MM/AAAA`, aceita a data atual ou futura considerando `America/Sao_Paulo`;
 - `firstSessionTime`: horário no formato `HH:MM` em 24 horas;
-- `firstSessionMode`: `IN_PERSON` ou `ONLINE`.
+- `firstSessionMode`: `IN_PERSON` ou `ONLINE` para `ADULT_PSYCHOANALYSIS_INTEGRATED`; somente `IN_PERSON` para os demais serviços adultos e para todos os menores.
 
-Esses campos são informativos, aparecem na seção “Sobre o atendimento”, são gravados nas observações do cliente no Asaas e não alteram a cobrança ou o atendimento. Na modalidade presencial, o formulário exibe discretamente o endereço `Rua Petrobrás, 683 – Vila Antonieta, São Paulo/SP – CEP 03474-060`. Na modalidade online, exibe `Online via Google Meet` e orienta que o link será enviado pelo WhatsApp momentos antes da sessão. Eles ficam preparados para a futura confirmação de agendamento via WhatsApp.
+Esses campos são informativos, aparecem na seção “Sobre o atendimento”, são gravados nas observações do cliente no Asaas e não alteram a cobrança ou o atendimento. Para adultos, a modalidade é escolhida antes do tipo de atendimento; quando `ONLINE` é selecionada, somente Psicanálise Integrada é oferecida. Na modalidade presencial, o formulário exibe discretamente o endereço `Rua Petrobrás, 683 – Vila Antonieta, São Paulo/SP – CEP 03474-060`. Na modalidade online, exibe `Online via Google Meet` e orienta que o link será enviado pelo WhatsApp momentos antes da sessão. Eles ficam preparados para a futura confirmação de agendamento via WhatsApp.
 
 ## Deduplicação no Asaas
 

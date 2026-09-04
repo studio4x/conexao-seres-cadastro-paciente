@@ -243,7 +243,7 @@ Para os quatro cenários — adulto autorizado, adulto não autorizado, menor au
 
 - [ ] Com `AUTHORIZED`, `observations` contém exatamente uma linha `Autorização de imagens e vídeos: Autorizado`.
 - [ ] Com `NOT_AUTHORIZED`, `observations` contém exatamente uma linha `Autorização de imagens e vídeos: Não autorizado`.
-- [ ] As observações anteriores continuam preservadas: pessoa atendida, CPF, datas, responsável, contato, endereço, tipo de atendimento, forma de ingresso e modalidade.
+- [ ] As observações anteriores continuam preservadas: pessoa atendida, CPF, datas, responsável, contato, endereço, tipo de atendimento e modalidade; `Forma de ingresso` somente quando aplicável.
 - [ ] Adulto sem responsável continua sem duplicar seus próprios dados pessoais nas observações.
 - [ ] Menor continua com o responsável como titular e o paciente no campo `company`.
 - [ ] A linha de consentimento não contém o texto completo do TCLE.
@@ -266,7 +266,8 @@ Executar nos ambientes Sites / Cloudflare e cPanel, para paciente adulto sem res
 - [ ] Confirmar que datas anteriores ao dia atual ficam desabilitadas no calendário.
 - [ ] Confirmar que a digitação manual no campo continua funcionando e mantém o mesmo formato e validações.
 - [ ] Confirmar que o calendário pode ser operado por teclado e que o foco permanece visível.
-- [ ] Confirmar as opções de modalidade `Presencial, na clínica Conexão Seres` e `Online via Google Meet` em seleção única.
+- [ ] Para `ADULT_PSYCHOANALYSIS_INTEGRATED`, confirmar as opções `Presencial, na clínica Conexão Seres` e `Online via Google Meet`.
+- [ ] Para os demais serviços adultos e todos os serviços infantis, confirmar somente a opção `Presencial, na clínica Conexão Seres`.
 - [ ] Na opção presencial, confirmar a exibição discreta do endereço da clínica: `Rua Petrobrás, 683 – Vila Antonieta` e `São Paulo/SP – CEP 03474-060`.
 - [ ] Na opção `Online via Google Meet`, confirmar a exibição da orientação sobre o envio do link pelo WhatsApp antes da sessão.
 - [ ] Tentar enviar sem data, horário ou modalidade; confirmar erro visual e ausência de requisição de cadastro.
@@ -274,7 +275,7 @@ Executar nos ambientes Sites / Cloudflare e cPanel, para paciente adulto sem res
 - [ ] Informar data anterior ao dia atual em `America/Sao_Paulo`; confirmar rejeição.
 - [ ] Informar a data atual e uma data futura; confirmar aceitação.
 - [ ] Informar horário inválido ou fora do intervalo de 24 horas; confirmar rejeição.
-- [ ] Alterar a data de nascimento entre adulto e menor; confirmar que os dados da primeira sessão não são apagados.
+- [ ] Alterar a data de nascimento entre adulto e menor; confirmar que data e horário da primeira sessão permanecem e que a modalidade incompatível é limpa.
 
 Conferir o payload de cadastro e o cliente novo no Asaas:
 
@@ -283,9 +284,42 @@ Conferir o payload de cadastro e o cliente novo no Asaas:
 - [ ] `firstSessionMode` é enviado exatamente como `IN_PERSON` ou `ONLINE`.
 - [ ] `observations` contém exatamente `Primeira sessão: DD/MM/AAAA às HH:MM`.
 - [ ] `observations` contém `Modalidade da primeira sessão: Presencial, na clínica Conexão Seres` para `IN_PERSON`.
-- [ ] `observations` contém `Modalidade da primeira sessão: Online via Google Meet` para `ONLINE`.
-- [ ] As informações da primeira sessão são preservadas para adulto sem responsável, adulto com responsável e menor com responsável.
+- [ ] `observations` contém `Modalidade da primeira sessão: Online via Google Meet` somente para `ADULT_PSYCHOANALYSIS_INTEGRATED`.
+- [ ] As informações da primeira sessão são preservadas para adulto sem responsável, adulto com responsável e menor com responsável, respeitando a restrição de modalidade.
 - [ ] A cobrança da primeira sessão continua em R$ 230,00, com `billingType`, vencimento, `externalReference`, grupos, notificações e NFS-e inalterados.
+
+### 9.6 Matriz condicional de modalidade, tipo e início
+
+Executar nos ambientes Sites / Cloudflare e cPanel:
+
+- [ ] Adulto + `IN_PERSON` oferece `ADULT_NEURO_REHAB`, `ADULT_PSYCHOANALYSIS_INTEGRATED` e `ADULT_SENSORY_STIMULATION`.
+- [ ] Adulto + `ONLINE` oferece somente `ADULT_PSYCHOANALYSIS_INTEGRATED`.
+- [ ] `ADULT_NEURO_REHAB` aceita somente atendimento e primeira sessão `IN_PERSON`.
+- [ ] `ADULT_PSYCHOANALYSIS_INTEGRATED` aceita atendimento `IN_PERSON` ou `ONLINE`, independentemente da modalidade da primeira sessão.
+- [ ] `ADULT_SENSORY_STIMULATION` aceita somente atendimento e primeira sessão `IN_PERSON`.
+- [ ] Ao trocar atendimento adulto de `IN_PERSON` para `ONLINE` com Neuro selecionado, `serviceType` é limpo.
+- [ ] Ao trocar Psicanálise Integrada por Neuro com primeira sessão `ONLINE`, `firstSessionMode` é limpo.
+- [ ] Menores mantêm `attendanceMode: ""` e nunca exibem opções de atendimento online.
+- [ ] Todo serviço infantil aceita somente `firstSessionMode: "IN_PERSON"`.
+- [ ] `CHILD_OT` e `CHILD_NEURO_REHAB` não exibem forma de início e enviam `entryType: ""`.
+- [ ] `CHILD_SENSORY_INTEGRATION` exibe forma de início obrigatória com somente `FULL_ASSESSMENT` e `DIRECT_START`.
+- [ ] Ao trocar Integração Sensorial por `CHILD_OT` ou `CHILD_NEURO_REHAB`, `entryType` é limpo.
+- [ ] Ao mudar a idade entre menor e adulto, campos incompatíveis são limpos; data e horário da primeira sessão permanecem.
+- [ ] As opções e textos `UNDEFINED` / “Ainda não definido(a)” não aparecem no formulário nem são aceitos pelo backend.
+
+Validação direta dos payloads:
+
+- [ ] TypeScript e PHP rejeitam `UNDEFINED` em `serviceType`, `entryType` e `attendanceMode`.
+- [ ] TypeScript e PHP rejeitam combinações incompatíveis de serviço, modalidade e primeira sessão.
+- [ ] TypeScript e PHP aceitam `entryType: ""` para adultos, `CHILD_OT` e `CHILD_NEURO_REHAB`.
+- [ ] TypeScript e PHP aceitam apenas `FULL_ASSESSMENT`/`DIRECT_START` para `CHILD_SENSORY_INTEGRATION`.
+
+Conferir as observações:
+
+- [ ] Adultos registram tipo, modalidade de atendimento, primeira sessão, modalidade da primeira sessão e autorização de imagens.
+- [ ] `CHILD_SENSORY_INTEGRATION` registra `Forma de ingresso`.
+- [ ] `CHILD_OT` e `CHILD_NEURO_REHAB` não registram `Forma de ingresso`.
+- [ ] A cobrança de R$ 230,00, `externalReference`, NFS-e, notificações, n8n e webhooks permanecem inalterados.
 
 ## 10. Falhas de integração e recuperação
 

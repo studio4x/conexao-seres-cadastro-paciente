@@ -23,17 +23,21 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { TurnstileWidget } from "@/components/turnstile-widget";
 import {
-  ADULT_SERVICE_TYPES,
   ATTENDANCE_MODE_LABELS,
   ATTENDANCE_MODES,
   CHILD_SERVICE_TYPES,
   ENTRY_TYPE_LABELS,
   ENTRY_TYPES,
   SERVICE_TYPE_LABELS,
+  allowedAdultServiceTypesForAttendanceMode,
+  allowedFirstSessionModesForServiceType,
+  isAttendanceModeValidForServiceType,
+  isEntryTypeValidForServiceType,
   isAdultServiceType,
   isAttendanceMode,
   isChildServiceType,
-  isEntryType,
+  isFirstSessionModeValidForServiceType,
+  serviceTypeRequiresEntryType,
 } from "@/lib/attendance";
 import {
   ADULT_MEDIA_CONSENT_TEXT,
@@ -43,7 +47,6 @@ import {
 } from "@/lib/consent";
 import {
   FIRST_SESSION_MODE_LABELS,
-  FIRST_SESSION_MODES,
   formatFirstSessionDateInput,
   firstSessionDateToIso,
   parseFirstSessionDate,
@@ -275,19 +278,28 @@ const formSchema = z
       if (!isAttendanceMode(value.attendanceMode)) {
         add("attendanceMode", "Selecione a modalidade de atendimento.");
       }
-      if (value.entryType !== "") {
+      if (!isAttendanceModeValidForServiceType(value.serviceType, value.attendanceMode)) {
+        add("serviceType", "O tipo de atendimento não está disponível nessa modalidade.");
+      }
+      if (!isEntryTypeValidForServiceType(value.serviceType, value.entryType, false)) {
         add("entryType", "Confira os dados do atendimento.");
       }
     } else {
       if (!isChildServiceType(value.serviceType)) {
         add("serviceType", "Selecione o tipo de atendimento.");
       }
-      if (!isEntryType(value.entryType)) {
+      if (!isEntryTypeValidForServiceType(value.serviceType, value.entryType, true)) {
         add("entryType", "Selecione a forma de início do acompanhamento.");
       }
       if (value.attendanceMode !== "") {
         add("attendanceMode", "Confira os dados do atendimento.");
       }
+    }
+    if (
+      patientAge !== null &&
+      !isFirstSessionModeValidForServiceType(value.serviceType, value.firstSessionMode, patientAge < 18)
+    ) {
+      add("firstSessionMode", "A modalidade da primeira sessão não está disponível para este atendimento.");
     }
 
     if (patientAge >= 18) {
@@ -751,6 +763,21 @@ export function CadastroForm({ onSuccessChange }: CadastroFormProps) {
     };
     setValues((current) => {
       const next = { ...current, [field]: value };
+      if (field === "attendanceMode" && isAdult) {
+        if (!isAttendanceModeValidForServiceType(next.serviceType, String(value))) {
+          next.serviceType = "";
+          next.firstSessionMode = "";
+        }
+      }
+      if (field === "serviceType") {
+        const nextServiceType = String(value);
+        next.entryType = isEntryTypeValidForServiceType(nextServiceType, current.entryType, Boolean(isMinor))
+          ? current.entryType
+          : "";
+        if (!isFirstSessionModeValidForServiceType(nextServiceType, current.firstSessionMode, Boolean(isMinor))) {
+          next.firstSessionMode = "";
+        }
+      }
       const linkedField = linkedAddressFields[field];
       if (sameAddress && linkedField && typeof value === "string") {
         next[linkedField] = value as never;
@@ -976,15 +1003,33 @@ export function CadastroForm({ onSuccessChange }: CadastroFormProps) {
       hasResponsible: age === null ? current.hasResponsible : age < 18,
       ...(age !== null && age >= 18
         ? {
-            serviceType: isAdultServiceType(current.serviceType) ? current.serviceType : "",
+            serviceType:
+              isAdultServiceType(current.serviceType) &&
+              isAttendanceModeValidForServiceType(current.serviceType, current.attendanceMode)
+                ? current.serviceType
+                : "",
             entryType: "",
-            attendanceMode: isAdultServiceType(current.serviceType) ? current.attendanceMode : "",
+            attendanceMode: isAttendanceMode(current.attendanceMode) ? current.attendanceMode : "",
+            firstSessionMode:
+              isAdultServiceType(current.serviceType) &&
+              isFirstSessionModeValidForServiceType(current.serviceType, current.firstSessionMode, false)
+                ? current.firstSessionMode
+                : "",
           }
         : age !== null && age < 18
           ? {
               serviceType: isChildServiceType(current.serviceType) ? current.serviceType : "",
-              entryType: isEntryType(current.entryType) ? current.entryType : "",
+              entryType:
+                isChildServiceType(current.serviceType) &&
+                isEntryTypeValidForServiceType(current.serviceType, current.entryType, true)
+                  ? current.entryType
+                  : "",
               attendanceMode: "",
+              firstSessionMode:
+                isChildServiceType(current.serviceType) &&
+                isFirstSessionModeValidForServiceType(current.serviceType, current.firstSessionMode, true)
+                  ? current.firstSessionMode
+                  : "",
             }
           : {}),
     }));
@@ -1391,65 +1436,12 @@ export function CadastroForm({ onSuccessChange }: CadastroFormProps) {
             </p>
           </div>
 
-          <fieldset className="space-y-3" aria-labelledby="service-type-label">
-            <legend id="service-type-label" className="text-sm font-medium text-foreground">
-              Qual tipo de atendimento foi combinado com a Conexão Seres?
-            </legend>
-            <div className="grid gap-3">
-              {(isAdult ? ADULT_SERVICE_TYPES : CHILD_SERVICE_TYPES).map((option) => (
-                <label
-                  key={option}
-                  className="flex min-h-12 min-w-0 cursor-pointer items-center gap-3 rounded-md border border-[#d4d4d4] bg-white px-4 py-3 text-base leading-6 has-[:checked]:border-primary has-[:checked]:ring-2 has-[:checked]:ring-primary/20"
-                >
-                  <input
-                    type="radio"
-                    name="serviceType"
-                    value={option}
-                    checked={values.serviceType === option}
-                    onChange={(event) => update("serviceType", event.target.value)}
-                  />
-                  <span>{SERVICE_TYPE_LABELS[option]}</span>
-                </label>
-              ))}
-            </div>
-            <FieldError message={errors.serviceType} />
-          </fieldset>
-
-          {isMinor ? (
-            <fieldset className="space-y-3" aria-labelledby="entry-type-label">
-              <legend id="entry-type-label" className="text-sm font-medium text-foreground">
-                Qual forma de início do acompanhamento foi combinada com a Conexão Seres?
-              </legend>
-              <div className="grid gap-3">
-                {ENTRY_TYPES.map((option) => (
-                  <label
-                    key={option}
-                    className="flex min-h-12 min-w-0 cursor-pointer items-center gap-3 rounded-md border border-[#d4d4d4] bg-white px-4 py-3 text-base leading-6 has-[:checked]:border-primary has-[:checked]:ring-2 has-[:checked]:ring-primary/20"
-                  >
-                    <input
-                      type="radio"
-                      name="entryType"
-                      value={option}
-                      checked={values.entryType === option}
-                      onChange={(event) => update("entryType", event.target.value)}
-                    />
-                    <span>{ENTRY_TYPE_LABELS[option]}</span>
-                  </label>
-                ))}
-              </div>
-              <p className="text-xs leading-5 text-muted-foreground">
-                Se ainda não foi definido, não se preocupe. Essa informação poderá ser definida posteriormente junto à profissional.
-              </p>
-              <FieldError message={errors.entryType} />
-            </fieldset>
-          ) : null}
-
           {isAdult ? (
             <fieldset className="space-y-3" aria-labelledby="attendance-mode-label">
               <legend id="attendance-mode-label" className="text-sm font-medium text-foreground">
                 Qual modalidade de atendimento foi combinada?
               </legend>
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 {ATTENDANCE_MODES.map((option) => (
                   <label
                     key={option}
@@ -1472,6 +1464,58 @@ export function CadastroForm({ onSuccessChange }: CadastroFormProps) {
                 </p>
               ) : null}
               <FieldError message={errors.attendanceMode} />
+            </fieldset>
+          ) : null}
+
+          {isMinor || (isAdult && isAttendanceMode(values.attendanceMode)) ? (
+            <fieldset className="space-y-3" aria-labelledby="service-type-label">
+              <legend id="service-type-label" className="text-sm font-medium text-foreground">
+                Qual tipo de atendimento foi combinado com a Conexão Seres?
+              </legend>
+              <div className="grid gap-3">
+                {(isAdult ? allowedAdultServiceTypesForAttendanceMode(values.attendanceMode) : CHILD_SERVICE_TYPES).map((option) => (
+                  <label
+                    key={option}
+                    className="flex min-h-12 min-w-0 cursor-pointer items-center gap-3 rounded-md border border-[#d4d4d4] bg-white px-4 py-3 text-base leading-6 has-[:checked]:border-primary has-[:checked]:ring-2 has-[:checked]:ring-primary/20"
+                  >
+                    <input
+                      type="radio"
+                      name="serviceType"
+                      value={option}
+                      checked={values.serviceType === option}
+                      onChange={(event) => update("serviceType", event.target.value)}
+                    />
+                    <span>{SERVICE_TYPE_LABELS[option]}</span>
+                  </label>
+                ))}
+              </div>
+              <FieldError message={errors.serviceType} />
+            </fieldset>
+          ) : null}
+
+          {isMinor && serviceTypeRequiresEntryType(values.serviceType) ? (
+            <fieldset className="space-y-3" aria-labelledby="entry-type-label">
+              <legend id="entry-type-label" className="text-sm font-medium text-foreground">
+                Qual forma de início do acompanhamento foi combinada com a Conexão Seres?
+              </legend>
+              <div className="grid gap-3">
+                {ENTRY_TYPES.map((option) => (
+                  <label
+                    key={option}
+                    className="flex min-h-12 min-w-0 cursor-pointer items-center gap-3 rounded-md border border-[#d4d4d4] bg-white px-4 py-3 text-base leading-6 has-[:checked]:border-primary has-[:checked]:ring-2 has-[:checked]:ring-primary/20"
+                  >
+                    <input
+                      type="radio"
+                      name="entryType"
+                      value={option}
+                      checked={values.entryType === option}
+                      onChange={(event) => update("entryType", event.target.value)}
+                    />
+                    <span>{ENTRY_TYPE_LABELS[option]}</span>
+                  </label>
+                ))}
+              </div>
+              <FieldError message={errors.entryType} />
             </fieldset>
           ) : null}
 
@@ -1506,7 +1550,7 @@ export function CadastroForm({ onSuccessChange }: CadastroFormProps) {
                 Como será realizada a primeira sessão?
               </legend>
               <div className="grid gap-3">
-                {FIRST_SESSION_MODES.map((option) => (
+                {allowedFirstSessionModesForServiceType(values.serviceType, Boolean(isMinor)).map((option) => (
                   <label
                     key={option}
                     className="flex min-h-12 min-w-0 cursor-pointer items-center gap-3 rounded-md border border-[#d4d4d4] bg-white px-4 py-3 text-base leading-6 has-[:checked]:border-primary has-[:checked]:ring-2 has-[:checked]:ring-primary/20"

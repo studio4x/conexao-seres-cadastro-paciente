@@ -5,11 +5,14 @@ import { getRequestExecutionContext } from "vinext/shims/request-context";
 
 import {
   attendanceModeLabel,
+  isAttendanceModeValidForServiceType,
+  isEntryTypeValidForServiceType,
+  isFirstSessionModeValidForServiceType,
   entryTypeLabel,
   isAdultServiceType,
   isAttendanceMode,
   isChildServiceType,
-  isEntryType,
+  serviceTypeRequiresEntryType,
   serviceTypeLabel,
 } from "../../../lib/attendance";
 import { isMediaConsent, mediaConsentLabel } from "../../../lib/consent";
@@ -142,8 +145,8 @@ const patientSchema = z
     responsibleCity: addressText,
     responsibleState: z.string().trim().max(2),
     serviceType: z.string().trim().max(50),
-    entryType: z.string().trim().max(50).optional().default(""),
-    attendanceMode: z.string().trim().max(50).optional().default(""),
+    entryType: z.string().trim().max(50),
+    attendanceMode: z.string().trim().max(50),
     mediaConsent: z.string().trim().max(30),
     firstSessionDate: z.string().trim().max(10),
     firstSessionTime: z.string().trim().max(5),
@@ -193,12 +196,16 @@ const patientSchema = z
     if (age >= 18) {
       if (!isAdultServiceType(value.serviceType)) add("serviceType");
       if (!isAttendanceMode(value.attendanceMode)) add("attendanceMode");
-      if (value.entryType !== "") add("entryType");
+      if (!isAttendanceModeValidForServiceType(value.serviceType, value.attendanceMode)) add("serviceType");
+      if (!isEntryTypeValidForServiceType(value.serviceType, value.entryType, false)) add("entryType");
     } else {
       if (!isChildServiceType(value.serviceType)) add("serviceType");
-      if (!isEntryType(value.entryType)) add("entryType");
+      if (!isEntryTypeValidForServiceType(value.serviceType, value.entryType, true)) add("entryType");
       if (value.attendanceMode !== "") add("attendanceMode");
     }
+    if (
+      !isFirstSessionModeValidForServiceType(value.serviceType, value.firstSessionMode, age < 18)
+    ) add("firstSessionMode");
     if (age >= 18) {
       validWhatsapp("patientPhone");
       validEmail("patientEmail");
@@ -739,9 +746,11 @@ function buildObservations(patient: Patient) {
   const patientAge = calculateAge(patient.patientBirthDate);
   const attendanceLines = [
     `Tipo de atendimento: ${serviceTypeLabel(patient.serviceType)}`,
-    patientAge !== null && patientAge >= 18
-      ? `Modalidade de atendimento: ${attendanceModeLabel(patient.attendanceMode)}`
-      : `Forma de ingresso: ${entryTypeLabel(patient.entryType)}`,
+    ...(patientAge !== null && patientAge >= 18
+      ? [`Modalidade de atendimento: ${attendanceModeLabel(patient.attendanceMode)}`]
+      : serviceTypeRequiresEntryType(patient.serviceType)
+        ? [`Forma de ingresso: ${entryTypeLabel(patient.entryType)}`]
+        : []),
     `Primeira sessão: ${patient.firstSessionDate} às ${patient.firstSessionTime}`,
     `Modalidade da primeira sessão: ${firstSessionModeLabel(patient.firstSessionMode)}`,
     `Autorização de imagens e vídeos: ${mediaConsentLabel(patient.mediaConsent)}`,

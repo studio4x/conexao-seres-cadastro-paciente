@@ -58,7 +58,6 @@ test("defines stable attendance codes and centralized labels", () => {
     ["DIRECT_START", "Início Direto – Sem Avaliação Completa"],
     ["IN_PERSON", "Presencial"],
     ["ONLINE", "Online"],
-    ["UNDEFINED", "Ainda não definido"],
   ];
   for (const [code, label] of labels) assert.ok(attendanceContract.includes(`${code}: "${label}"`));
   for (const backend of [typescriptBackend, phpBackend]) {
@@ -73,13 +72,40 @@ test("defines stable attendance codes and centralized labels", () => {
 });
 
 test("keeps adult and minor attendance whitelists conditional on patient age", () => {
-  assert.match(attendanceContract, /ADULT_SERVICE_TYPES[\s\S]*ADULT_NEURO_REHAB[\s\S]*ADULT_PSYCHOANALYSIS_INTEGRATED[\s\S]*ADULT_SENSORY_STIMULATION[\s\S]*UNDEFINED/);
-  assert.match(attendanceContract, /CHILD_SERVICE_TYPES[\s\S]*CHILD_OT[\s\S]*CHILD_NEURO_REHAB[\s\S]*CHILD_SENSORY_INTEGRATION[\s\S]*UNDEFINED/);
-  assert.match(typescriptBackend, /if \(age >= 18\) \{[\s\S]*isAdultServiceType\(value\.serviceType\)[\s\S]*isAttendanceMode\(value\.attendanceMode\)[\s\S]*value\.entryType !== ""/);
-  assert.match(typescriptBackend, /else \{[\s\S]*isChildServiceType\(value\.serviceType\)[\s\S]*isEntryType\(value\.entryType\)[\s\S]*value\.attendanceMode !== ""/);
+  assert.match(attendanceContract, /ADULT_SERVICE_TYPES[\s\S]*ADULT_NEURO_REHAB[\s\S]*ADULT_PSYCHOANALYSIS_INTEGRATED[\s\S]*ADULT_SENSORY_STIMULATION/);
+  assert.match(attendanceContract, /CHILD_SERVICE_TYPES[\s\S]*CHILD_OT[\s\S]*CHILD_NEURO_REHAB[\s\S]*CHILD_SENSORY_INTEGRATION/);
+  assert.doesNotMatch(attendanceContract.match(/ADULT_SERVICE_TYPES[\s\S]*?\] as const/)?.[0] ?? "", /UNDEFINED/);
+  assert.doesNotMatch(attendanceContract.match(/CHILD_SERVICE_TYPES[\s\S]*?\] as const/)?.[0] ?? "", /UNDEFINED/);
+  assert.match(typescriptBackend, /if \(age >= 18\) \{[\s\S]*isAdultServiceType\(value\.serviceType\)[\s\S]*isAttendanceMode\(value\.attendanceMode\)[\s\S]*isAttendanceModeValidForServiceType/);
+  assert.match(typescriptBackend, /else \{[\s\S]*isChildServiceType\(value\.serviceType\)[\s\S]*isEntryTypeValidForServiceType[\s\S]*value\.attendanceMode !== ""/);
   assert.match(phpBackend, /service_type_is_valid_for_age\(\$values\['serviceType'\], \$patientAge\)/);
   assert.match(phpBackend, /attendance_mode_is_valid\(\$values\['attendanceMode'\]\)/);
-  assert.match(phpBackend, /entry_type_is_valid\(\$values\['entryType'\]\)/);
+  assert.match(phpBackend, /entry_type_is_valid\(\$entryType\)/);
+});
+
+test("centralizes the complete attendance compatibility matrix", () => {
+  assert.match(attendanceContract, /value === "ONLINE"\) return \["ADULT_PSYCHOANALYSIS_INTEGRATED"\]/);
+  assert.match(attendanceContract, /serviceTypeAllowsOnline/);
+  assert.match(attendanceContract, /serviceType === "ADULT_NEURO_REHAB" \|\| serviceType === "ADULT_SENSORY_STIMULATION"/);
+  assert.match(attendanceContract, /serviceType === "ADULT_PSYCHOANALYSIS_INTEGRATED"/);
+  assert.match(attendanceContract, /serviceTypeRequiresEntryType/);
+  assert.match(attendanceContract, /serviceType === "CHILD_SENSORY_INTEGRATION"/);
+  assert.match(typescriptBackend, /isAttendanceModeValidForServiceType\(value\.serviceType, value\.attendanceMode\)/);
+  assert.match(typescriptBackend, /isFirstSessionModeValidForServiceType\(value\.serviceType, value\.firstSessionMode, age < 18\)/);
+  assert.match(phpBackend, /attendance_mode_is_valid_for_service_type\(\$values\['serviceType'\], \$values\['attendanceMode'\]\)/);
+  assert.match(phpBackend, /first_session_mode_is_valid_for_service_type\(/);
+});
+
+test("rejects legacy UNDEFINED attendance values while preserving the payment billing contract", () => {
+  for (const source of [attendanceContract, frontend]) {
+    assert.doesNotMatch(source, /Ainda não (?:foi |foi |)definid/);
+  }
+  for (const backend of [typescriptBackend, phpBackend]) {
+    const attendanceSection = backend.replace(/(?:billingType|FIRST_SESSION_BILLING_TYPE)[^\n]*UNDEFINED/g, "");
+    assert.doesNotMatch(attendanceSection, /UNDEFINED/);
+  }
+  assert.match(typescriptBackend, /FIRST_SESSION_BILLING_TYPE = "UNDEFINED"/);
+  assert.match(phpBackend, /'billingType' => 'UNDEFINED'/);
 });
 
 test("defines the structured media consent contract for both environments", () => {
@@ -208,9 +234,10 @@ test("does not clear first-session data when the patient age group changes", () 
     /function updateBirthDate\(value: string\)[\s\S]*?\n  function updateResponsibleBirthDate/,
   )?.[0];
   assert.ok(birthDateFunction);
-  for (const field of ["firstSessionDate", "firstSessionTime", "firstSessionMode"]) {
+  for (const field of ["firstSessionDate", "firstSessionTime"]) {
     assert.doesNotMatch(birthDateFunction, new RegExp(`${field}:`));
   }
+  assert.match(birthDateFunction, /firstSessionMode:/);
 });
 
 test("renders the requested success message and hides the form intro after submission", () => {
@@ -236,11 +263,23 @@ test("renders the Sobre o atendimento section with accessible conditional radio 
   assert.match(frontend, /isAdult \? \(/);
   assert.match(frontend, /type="radio"/);
   assert.match(frontend, /A continuidade do atendimento online dependerá da avaliação profissional\./);
-  assert.match(frontend, /Se ainda não foi definido, não se preocupe\./);
+  assert.doesNotMatch(frontend, /Se ainda não foi definido/);
+  assert.match(frontend, /allowedAdultServiceTypesForAttendanceMode/);
+  assert.match(frontend, /isMinor && serviceTypeRequiresEntryType/);
+  assert.ok(frontend.indexOf("Qual modalidade de atendimento foi combinada?") < frontend.indexOf("Qual tipo de atendimento foi combinado com a Conexão Seres?"));
+  assert.match(frontend, /allowedFirstSessionModesForServiceType\(values\.serviceType, Boolean\(isMinor\)\)/);
+});
+
+test("requires explicit empty values for fields that do not apply", () => {
+  assert.match(typescriptBackend, /entryType: z\.string\(\)\.trim\(\)\.max\(50\),/);
+  assert.match(typescriptBackend, /attendanceMode: z\.string\(\)\.trim\(\)\.max\(50\),/);
+  assert.match(phpBackend, /if \(!array_key_exists\(\$optionalField, \$payload\)\) \{[\s\S]*respond\(/);
+  assert.match(frontend, /entryType: ""/);
+  assert.match(frontend, /attendanceMode: ""/);
 });
 
 test("clears incompatible attendance choices when the birth date changes age group", () => {
-  assert.match(frontend, /function updateBirthDate\(value: string\)[\s\S]*?isAdultServiceType\(current\.serviceType\) \? current\.serviceType : ""/);
+  assert.match(frontend, /function updateBirthDate\(value: string\)[\s\S]*?isAdultServiceType\(current\.serviceType\)\s*&&[\s\S]*?isAttendanceModeValidForServiceType/);
   assert.match(frontend, /function updateBirthDate\(value: string\)[\s\S]*?entryType: ""[\s\S]*?attendanceMode:/);
   assert.match(frontend, /function updateBirthDate\(value: string\)[\s\S]*?isChildServiceType\(current\.serviceType\) \? current\.serviceType : ""/);
   assert.match(frontend, /function updateBirthDate\(value: string\)[\s\S]*?attendanceMode: ""/);
@@ -382,7 +421,7 @@ test("keeps TypeScript and PHP observations equivalent by patient age and respon
   assert.match(phpObservations, /return implode\("\\n", array_merge\(\$lines, \$attendanceLines\)\)/);
   assert.match(
     phpObservations,
-    /: 'Forma de ingresso: ' \. entry_type_label\(\$values\['entryType'\]\),\s*'Primeira sessão:/,
+    /service_type_requires_entry_type\(\$values\['serviceType'\]\)[\s\S]*Forma de ingresso: ' \. entry_type_label\(\$values\['entryType'\]\)/,
   );
   assert.doesNotMatch(phpObservations, /entry_type_label\(\$values\['entryType'\]\);/);
   assert.doesNotMatch(phpObservations, /substr|mb_substr/);
