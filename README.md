@@ -542,6 +542,7 @@ npm run db:generate
 - [ ] A build foi executada depois da última alteração de código.
 - [ ] `Build vX.Y.Z` foi confirmado.
 - [ ] `cpanel-dist/` foi regenerado quando aplicável.
+- [ ] A sintaxe dos PHPs da fonte e do `cpanel-dist/` foi validada com `php -l`; sem isso, o deploy cPanel não deve ser considerado validado.
 - [ ] O webhook de produção respondeu com sucesso ao push.
 - [ ] O commit publicado no cPanel corresponde a `origin/main`.
 - [ ] O formulário e integração com Asaas foram testados quando aplicável.

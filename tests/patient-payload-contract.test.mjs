@@ -380,6 +380,11 @@ test("keeps TypeScript and PHP observations equivalent by patient age and respon
   );
   assert.match(typescriptObservations, /return \[\.\.\.lines, \.\.\.attendanceLines\]\.join\("\\n"\)/);
   assert.match(phpObservations, /return implode\("\\n", array_merge\(\$lines, \$attendanceLines\)\)/);
+  assert.match(
+    phpObservations,
+    /: 'Forma de ingresso: ' \. entry_type_label\(\$values\['entryType'\]\),\s*'Primeira sessão:/,
+  );
+  assert.doesNotMatch(phpObservations, /entry_type_label\(\$values\['entryType'\]\);/);
   assert.doesNotMatch(phpObservations, /substr|mb_substr/);
 });
 

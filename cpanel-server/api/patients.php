@@ -399,7 +399,7 @@ function build_observations(array $values, int $patientAge): ?string
         'Tipo de atendimento: ' . service_type_label($values['serviceType']),
         $patientAge >= 18
         ? 'Modalidade de atendimento: ' . attendance_mode_label($values['attendanceMode'])
-        : 'Forma de ingresso: ' . entry_type_label($values['entryType']);
+        : 'Forma de ingresso: ' . entry_type_label($values['entryType']),
         'Primeira sessão: ' . $values['firstSessionDate'] . ' às ' . $values['firstSessionTime'],
         'Modalidade da primeira sessão: ' . first_session_mode_label($values['firstSessionMode']),
         'Autorização de imagens e vídeos: ' . media_consent_label($values['mediaConsent']),

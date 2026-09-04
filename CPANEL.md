@@ -197,7 +197,7 @@ O erro de criação de cliente pode ser investigado no `error_log` da instalaç�
 ## Fluxo recomendado de publicação
 
 1. Faça a alteração na fonte correta.
-2. Execute as validações relevantes.
+2. Execute as validações relevantes. Quando PHP estiver disponível, execute `php -l` para os arquivos PHP da fonte e de `cpanel-dist`; a publicação cPanel não deve ser considerada validada sem a verificação de sintaxe do artefato gerado.
 3. Execute `npm run build:cpanel`.
 4. Confirme o novo `Build vX.Y.Z`.
 5. Confirme que `cpanel-dist/` contém os artefatos atualizados.
@@ -205,6 +205,8 @@ O erro de criação de cliente pode ser investigado no `error_log` da instalaç�
 7. O GitHub dispara o webhook imediatamente.
 8. O cPanel executa `git pull --ff-only origin main`.
 9. Confirme o deploy pelo log e pelo commit publicado.
+
+O workflow `PHP syntax` no GitHub Actions executa esse lint com PHP 8.3 em cada push e pull request para `main`, cobrindo `patients.php` e `asaas-webhook.php` tanto na fonte quanto no artefato gerado. Ele complementa a verificação local, mas não confirma sozinho o deploy no servidor cPanel.
 
 ## Requisitos do servidor
 
