@@ -13,6 +13,13 @@ import {
   serviceTypeLabel,
 } from "../../../lib/attendance";
 import { isMediaConsent, mediaConsentLabel } from "../../../lib/consent";
+import {
+  firstSessionModeLabel,
+  isFirstSessionDateTodayOrFuture,
+  isFirstSessionMode,
+  isValidFirstSessionDate,
+  isValidFirstSessionTime,
+} from "../../../lib/first-session";
 
 export const runtime = "edge";
 
@@ -138,6 +145,9 @@ const patientSchema = z
     entryType: z.string().trim().max(50).optional().default(""),
     attendanceMode: z.string().trim().max(50).optional().default(""),
     mediaConsent: z.string().trim().max(30),
+    firstSessionDate: z.string().trim().max(10),
+    firstSessionTime: z.string().trim().max(5),
+    firstSessionMode: z.string().trim().max(20),
     consent: z.literal(true),
     website: z.string().max(0),
     turnstileToken: z.string().min(1).max(2048),
@@ -170,6 +180,11 @@ const patientSchema = z
     };
 
     const age = calculateAge(value.patientBirthDate);
+    if (!isValidFirstSessionDate(value.firstSessionDate) || !isFirstSessionDateTodayOrFuture(value.firstSessionDate)) {
+      add("firstSessionDate");
+    }
+    if (!isValidFirstSessionTime(value.firstSessionTime)) add("firstSessionTime");
+    if (!isFirstSessionMode(value.firstSessionMode)) add("firstSessionMode");
     if (!isMediaConsent(value.mediaConsent)) add("mediaConsent");
     if (age === null) {
       add("patientBirthDate");
@@ -712,6 +727,8 @@ function buildObservations(patient: Patient) {
     patientAge !== null && patientAge >= 18
       ? `Modalidade de atendimento: ${attendanceModeLabel(patient.attendanceMode)}`
       : `Forma de ingresso: ${entryTypeLabel(patient.entryType)}`,
+    `Primeira sessão: ${patient.firstSessionDate} às ${patient.firstSessionTime}`,
+    `Modalidade da primeira sessão: ${firstSessionModeLabel(patient.firstSessionMode)}`,
     `Autorização de imagens e vídeos: ${mediaConsentLabel(patient.mediaConsent)}`,
   ];
 

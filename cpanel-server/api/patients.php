@@ -146,6 +146,37 @@ function calculate_age(string $value): ?int
     return $birth->diff($today)->y;
 }
 
+function parse_first_session_date(string $value): ?DateTimeImmutable
+{
+    if (preg_match('/^(\d{2})\/(\d{2})\/(\d{4})$/', $value) !== 1) {
+        return null;
+    }
+
+    $date = DateTimeImmutable::createFromFormat('!d/m/Y', $value);
+    $errors = DateTimeImmutable::getLastErrors();
+    if (!$date || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))) {
+        return null;
+    }
+
+    return $date->format('d/m/Y') === $value ? $date : null;
+}
+
+function first_session_date_is_valid(string $value): bool
+{
+    $date = parse_first_session_date($value);
+    if (!$date) {
+        return false;
+    }
+
+    $today = new DateTimeImmutable('today', new DateTimeZone('America/Sao_Paulo'));
+    return $date->format('Y-m-d') >= $today->format('Y-m-d');
+}
+
+function first_session_time_is_valid(string $value): bool
+{
+    return preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $value) === 1;
+}
+
 function service_type_label(string $value): string
 {
     return [
@@ -182,6 +213,19 @@ function media_consent_label(string $value): string
     return [
         'AUTHORIZED' => 'Autorizado',
         'NOT_AUTHORIZED' => 'Não autorizado',
+    ][$value] ?? '';
+}
+
+function first_session_mode_is_valid(string $value): bool
+{
+    return in_array($value, ['IN_PERSON', 'ONLINE'], true);
+}
+
+function first_session_mode_label(string $value): string
+{
+    return [
+        'IN_PERSON' => 'Presencial',
+        'ONLINE' => 'Online',
     ][$value] ?? '';
 }
 
@@ -371,6 +415,8 @@ function build_observations(array $values, int $patientAge): ?string
     $lines[] = $patientAge >= 18
         ? 'Modalidade de atendimento: ' . attendance_mode_label($values['attendanceMode'])
         : 'Forma de ingresso: ' . entry_type_label($values['entryType']);
+    $lines[] = 'Primeira sessão: ' . $values['firstSessionDate'] . ' às ' . $values['firstSessionTime'];
+    $lines[] = 'Modalidade da primeira sessão: ' . first_session_mode_label($values['firstSessionMode']);
     $lines[] = 'Autorização de imagens e vídeos: ' . media_consent_label($values['mediaConsent']);
 
     return implode("\n", $lines);
@@ -745,6 +791,9 @@ $fieldLimits = [
     'responsibleState' => 2,
     'serviceType' => 50,
     'mediaConsent' => 30,
+    'firstSessionDate' => 10,
+    'firstSessionTime' => 5,
+    'firstSessionMode' => 20,
     'website' => 1,
     'turnstileToken' => 2048,
 ];
@@ -785,6 +834,15 @@ if ($patientAge === null) {
 }
 if (!in_array($values['mediaConsent'], ['AUTHORIZED', 'NOT_AUTHORIZED'], true)) {
     respond(['message' => 'Confira os dados de autorização de imagens e vídeos e tente novamente.'], 400);
+}
+if (!first_session_date_is_valid($values['firstSessionDate'])) {
+    respond(['message' => 'Confira a data da primeira sessão e tente novamente.'], 400);
+}
+if (!first_session_time_is_valid($values['firstSessionTime'])) {
+    respond(['message' => 'Confira o horário da primeira sessão e tente novamente.'], 400);
+}
+if (!first_session_mode_is_valid($values['firstSessionMode'])) {
+    respond(['message' => 'Confira a modalidade da primeira sessão e tente novamente.'], 400);
 }
 if (!service_type_is_valid_for_age($values['serviceType'], $patientAge)) {
     respond(['message' => 'Confira os dados do atendimento e tente novamente.'], 400);

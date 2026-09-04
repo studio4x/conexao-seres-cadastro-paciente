@@ -38,6 +38,15 @@ import {
   MINOR_MEDIA_CONSENT_TEXT,
   isMediaConsent,
 } from "@/lib/consent";
+import {
+  FIRST_SESSION_MODE_LABELS,
+  FIRST_SESSION_MODES,
+  formatFirstSessionDateInput,
+  isFirstSessionDateTodayOrFuture,
+  isFirstSessionMode,
+  isValidFirstSessionDate,
+  isValidFirstSessionTime,
+} from "@/lib/first-session";
 
 const onlyDigits = (value: string) => value.replace(/\D/g, "");
 
@@ -134,6 +143,16 @@ function birthDateError(field: BirthDateField, value: string) {
   return undefined;
 }
 
+function firstSessionDateError(value: string) {
+  if (!isValidFirstSessionDate(value)) return "Informe uma data válida no formato DD/MM/AAAA.";
+  if (!isFirstSessionDateTodayOrFuture(value)) return "A primeira sessão não pode estar em uma data passada.";
+  return undefined;
+}
+
+function firstSessionTimeError(value: string) {
+  return isValidFirstSessionTime(value) ? undefined : "Informe um horário válido no formato HH:MM.";
+}
+
 const formSchema = z
   .object({
     patientName: z.string().trim().max(120).refine(isValidFullName, "Informe o nome completo do paciente."),
@@ -169,6 +188,9 @@ const formSchema = z
     entryType: z.string(),
     attendanceMode: z.string(),
     mediaConsent: z.string(),
+    firstSessionDate: z.string(),
+    firstSessionTime: z.string(),
+    firstSessionMode: z.string(),
     consent: z.boolean().refine((value) => value, "Confirme a autorização para continuar."),
     website: z.string().max(0),
   })
@@ -208,6 +230,13 @@ const formSchema = z
     };
 
     const patientAge = calculateAge(value.patientBirthDate);
+    const firstSessionDateMessage = firstSessionDateError(value.firstSessionDate);
+    if (firstSessionDateMessage) add("firstSessionDate", firstSessionDateMessage);
+    const firstSessionTimeMessage = firstSessionTimeError(value.firstSessionTime);
+    if (firstSessionTimeMessage) add("firstSessionTime", firstSessionTimeMessage);
+    if (!isFirstSessionMode(value.firstSessionMode)) {
+      add("firstSessionMode", "Selecione como será realizada a primeira sessão.");
+    }
     if (!isMediaConsent(value.mediaConsent)) {
       add("mediaConsent", "Selecione uma opção sobre o registro e uso de imagens e vídeos.");
     }
@@ -306,6 +335,9 @@ const initialValues: FormValues = {
   entryType: "",
   attendanceMode: "",
   mediaConsent: "",
+  firstSessionDate: "",
+  firstSessionTime: "",
+  firstSessionMode: "",
   consent: false,
   website: "",
 };
@@ -852,6 +884,22 @@ export function CadastroForm({ onSuccessChange }: CadastroFormProps) {
     setFieldValidation("responsibleBirthDate", birthDateError("responsibleBirthDate", value));
   }
 
+  function updateFirstSessionDate(value: string) {
+    const formatted = formatFirstSessionDateInput(value);
+    update("firstSessionDate", formatted);
+    if (formatted.length === 10) {
+      setFieldValidation("firstSessionDate", firstSessionDateError(formatted));
+    }
+  }
+
+  function validateFirstSessionDate() {
+    setFieldValidation("firstSessionDate", firstSessionDateError(values.firstSessionDate));
+  }
+
+  function validateFirstSessionTime() {
+    setFieldValidation("firstSessionTime", firstSessionTimeError(values.firstSessionTime));
+  }
+
   function validateBirthDateField(field: BirthDateField) {
     setFieldValidation(field, birthDateError(field, values[field]));
   }
@@ -1290,6 +1338,66 @@ export function CadastroForm({ onSuccessChange }: CadastroFormProps) {
               <FieldError message={errors.attendanceMode} />
             </fieldset>
           ) : null}
+
+          <div className="space-y-5 rounded-md border border-[#d7e2d1] bg-[#f8fbf6] p-4 sm:p-5">
+            <div>
+              <h4 className="text-sm font-semibold text-secondary-foreground sm:text-base">Primeira sessão</h4>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                Informe a data, o horário e a modalidade da primeira sessão que já foram combinados com a Conexão Seres.
+              </p>
+            </div>
+
+            <div className="grid gap-5 sm:grid-cols-2">
+              <InputField
+                field="firstSessionDate"
+                label="Data da primeira sessão"
+                value={values.firstSessionDate}
+                error={errors.firstSessionDate}
+                placeholder="DD/MM/AAAA"
+                inputMode="numeric"
+                maxLength={10}
+                onChange={updateFirstSessionDate}
+                onBlur={validateFirstSessionDate}
+              />
+              <InputField
+                field="firstSessionTime"
+                label="Horário da primeira sessão"
+                value={values.firstSessionTime}
+                error={errors.firstSessionTime}
+                type="time"
+                onChange={(value) => update("firstSessionTime", value)}
+                onBlur={validateFirstSessionTime}
+              />
+            </div>
+
+            <fieldset className="space-y-3" aria-labelledby="first-session-mode-label">
+              <legend id="first-session-mode-label" className="text-sm font-medium text-foreground">
+                Como será realizada a primeira sessão?
+              </legend>
+              <div className="grid gap-3">
+                {FIRST_SESSION_MODES.map((option) => (
+                  <label
+                    key={option}
+                    className="flex min-h-12 min-w-0 cursor-pointer items-center gap-3 rounded-md border border-[#d4d4d4] bg-white px-4 py-3 text-base leading-6 has-[:checked]:border-primary has-[:checked]:ring-2 has-[:checked]:ring-primary/20"
+                  >
+                    <input
+                      type="radio"
+                      name="firstSessionMode"
+                      value={option}
+                      checked={values.firstSessionMode === option}
+                      onChange={(event) => update("firstSessionMode", event.target.value)}
+                    />
+                    <span>{FIRST_SESSION_MODE_LABELS[option]}</span>
+                  </label>
+                ))}
+              </div>
+              <FieldError message={errors.firstSessionMode} />
+            </fieldset>
+
+            <p className="text-xs leading-5 text-muted-foreground">
+              Esses campos apenas registram o agendamento já combinado com nossa equipe. Eles não realizam um novo agendamento.
+            </p>
+          </div>
 
           <fieldset className="space-y-3" aria-labelledby="media-consent-label">
             <legend id="media-consent-label" className="text-sm font-medium text-foreground">

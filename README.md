@@ -93,6 +93,14 @@ Os backends validam os códigos conforme a idade calculada a partir da data de n
 
 `mediaConsent` registra a autorização de uso de imagens e vídeos e não altera a cobrança ou o atendimento.
 
+O formulário também registra os dados estruturados da primeira sessão já combinada:
+
+- `firstSessionDate`: data no formato visível `DD/MM/AAAA`, aceita a data atual ou futura considerando `America/Sao_Paulo`;
+- `firstSessionTime`: horário no formato `HH:MM` em 24 horas;
+- `firstSessionMode`: `IN_PERSON` ou `ONLINE`.
+
+Esses campos são informativos, aparecem na seção “Sobre o atendimento”, são gravados nas observações do cliente no Asaas e não alteram a cobrança ou o atendimento. Eles ficam preparados para a futura confirmação de agendamento via WhatsApp.
+
 ## Deduplicação no Asaas
 
 A referência externa segue o formato:

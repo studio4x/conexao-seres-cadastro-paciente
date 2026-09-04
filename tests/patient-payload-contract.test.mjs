@@ -41,6 +41,10 @@ const consentContract = await readFile(
   new URL("../lib/consent.ts", import.meta.url),
   "utf8",
 );
+const firstSessionContract = await readFile(
+  new URL("../lib/first-session.ts", import.meta.url),
+  "utf8",
+);
 
 test("defines stable attendance codes and centralized labels", () => {
   const labels = [
@@ -127,6 +131,67 @@ test("keeps media consent independent from billing, n8n and age-reset state", ()
   )?.[0];
   assert.ok(paymentFunction);
   assert.doesNotMatch(paymentFunction, /mediaConsent/);
+});
+
+test("defines the structured first-session contract for all patient ages", () => {
+  assert.match(firstSessionContract, /FIRST_SESSION_MODES = \["IN_PERSON", "ONLINE"\]/);
+  assert.match(firstSessionContract, /IN_PERSON: "Presencial, na clínica Conexão Seres"/);
+  assert.match(firstSessionContract, /ONLINE: "Online"/);
+  for (const field of ["firstSessionDate", "firstSessionTime", "firstSessionMode"]) {
+    assert.match(frontend, new RegExp(field));
+    assert.match(typescriptBackend, new RegExp(field));
+    assert.match(phpBackend, new RegExp(field));
+  }
+  assert.match(frontend, /Primeira sessão/);
+  assert.match(frontend, /Informe a data, o horário e a modalidade da primeira sessão que já foram combinados com a Conexão Seres\./);
+  assert.match(frontend, /Esses campos apenas registram o agendamento já combinado com nossa equipe\./);
+  assert.match(frontend, /Como será realizada a primeira sessão\?/);
+  assert.match(firstSessionContract, /Presencial, na clínica Conexão Seres/);
+});
+
+test("validates first-session date, time and mode in the frontend and both backends", () => {
+  assert.match(firstSessionContract, /formatFirstSessionDateInput/);
+  assert.match(firstSessionContract, /parseFirstSessionDate/);
+  assert.match(firstSessionContract, /America\/Sao_Paulo/);
+  assert.match(firstSessionContract, /isFirstSessionDateTodayOrFuture/);
+  assert.match(firstSessionContract, /isValidFirstSessionTime/);
+  assert.match(frontend, /placeholder="DD\/MM\/AAAA"/);
+  assert.match(frontend, /type="time"/);
+  assert.match(frontend, /firstSessionDateError/);
+  assert.match(frontend, /firstSessionTimeError/);
+  assert.match(typescriptBackend, /isValidFirstSessionDate\(value\.firstSessionDate\)/);
+  assert.match(typescriptBackend, /isFirstSessionDateTodayOrFuture\(value\.firstSessionDate\)/);
+  assert.match(typescriptBackend, /isValidFirstSessionTime\(value\.firstSessionTime\)/);
+  assert.match(typescriptBackend, /isFirstSessionMode\(value\.firstSessionMode\)/);
+  assert.match(phpBackend, /first_session_date_is_valid\(\$values\['firstSessionDate'\]\)/);
+  assert.match(phpBackend, /first_session_time_is_valid\(\$values\['firstSessionTime'\]\)/);
+  assert.match(phpBackend, /first_session_mode_is_valid\(\$values\['firstSessionMode'\]\)/);
+});
+
+test("records first-session data in observations without changing existing payment contracts", () => {
+  for (const backend of [typescriptBackend, phpBackend]) {
+    assert.match(backend, /Primeira sessão:/);
+    assert.match(backend, /Modalidade da primeira sessão:/);
+    assert.match(backend, /firstSessionDate/);
+    assert.match(backend, /firstSessionTime/);
+    assert.match(backend, /firstSessionMode/);
+    assert.match(backend, /230(?:\.00)?/);
+    assert.match(backend, /sessao-1/);
+  }
+  assert.match(typescriptBackend, /patient\.firstSessionDate\} às \$\{patient\.firstSessionTime\}/);
+  assert.match(typescriptBackend, /firstSessionModeLabel\(patient\.firstSessionMode\)/);
+  assert.match(phpBackend, /\$values\['firstSessionDate'\] \. ' às ' \. \$values\['firstSessionTime'\]/);
+  assert.match(phpBackend, /first_session_mode_label\(\$values\['firstSessionMode'\]\)/);
+});
+
+test("does not clear first-session data when the patient age group changes", () => {
+  const birthDateFunction = frontend.match(
+    /function updateBirthDate\(value: string\)[\s\S]*?\n  function updateResponsibleBirthDate/,
+  )?.[0];
+  assert.ok(birthDateFunction);
+  for (const field of ["firstSessionDate", "firstSessionTime", "firstSessionMode"]) {
+    assert.doesNotMatch(birthDateFunction, new RegExp(`${field}:`));
+  }
 });
 
 test("renders the requested success message and hides the form intro after submission", () => {
