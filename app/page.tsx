@@ -1,4 +1,4 @@
-import { CheckCircle2, LockKeyhole, ShieldCheck } from "lucide-react";
+import { CheckCircle2, ChevronDown, LockKeyhole, ShieldCheck } from "lucide-react";
 
 import { CadastroForm } from "@/components/cadastro-form";
 import { AppVersion } from "@/components/layout/AppVersion";
@@ -34,6 +34,27 @@ const FLOW_STEPS = [
   },
 ];
 
+function FlowSteps() {
+  return (
+    <ol className="mt-4 divide-y divide-[#cfddc7] border-t border-[#cfddc7]">
+      {FLOW_STEPS.map((step, index) => (
+        <li key={step.title} className="flex gap-4 py-4 first:pt-4 last:pb-0">
+          <span
+            className="mt-0.5 w-7 shrink-0 text-sm font-semibold tracking-[0.08em] text-primary"
+            aria-hidden="true"
+          >
+            {String(index + 1).padStart(2, "0")}
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold leading-6 text-secondary-foreground">{step.title}</h3>
+            <p className="mt-1 text-sm leading-6 text-[#4f5e4b]">{step.description}</p>
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 export default function Home() {
   return (
     <main className="min-h-screen overflow-x-hidden bg-background text-foreground">
@@ -66,29 +87,24 @@ export default function Home() {
               </span>
             </div>
 
-            <section className="mt-12 max-w-xl lg:mt-20" aria-labelledby="how-it-works-heading">
+            <details className="group mt-12 max-w-xl lg:hidden">
+              <summary className="flex cursor-pointer list-none items-center justify-between border-b border-[#cfddc7] pb-4 text-xs font-semibold uppercase tracking-[0.16em] text-secondary-foreground marker:hidden [&::-webkit-details-marker]:hidden">
+                <span role="heading" aria-level={2}>
+                  COMO FUNCIONA
+                </span>
+                <ChevronDown className="size-4 transition-transform duration-200 group-open:rotate-180" aria-hidden="true" />
+              </summary>
+              <FlowSteps />
+            </details>
+
+            <section className="mt-12 hidden max-w-xl lg:mt-20 lg:block" aria-labelledby="how-it-works-heading">
               <h2
                 id="how-it-works-heading"
                 className="text-xs font-semibold uppercase tracking-[0.16em] text-secondary-foreground"
               >
                 COMO FUNCIONA
               </h2>
-              <ol className="mt-4 divide-y divide-[#cfddc7] border-t border-[#cfddc7]">
-                {FLOW_STEPS.map((step, index) => (
-                  <li key={step.title} className="flex gap-4 py-4 first:pt-4 last:pb-0">
-                    <span
-                      className="mt-0.5 w-7 shrink-0 text-sm font-semibold tracking-[0.08em] text-primary"
-                      aria-hidden="true"
-                    >
-                      {String(index + 1).padStart(2, "0")}
-                    </span>
-                    <div>
-                      <h3 className="text-sm font-semibold leading-6 text-secondary-foreground">{step.title}</h3>
-                      <p className="mt-1 text-sm leading-6 text-[#4f5e4b]">{step.description}</p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
+              <FlowSteps />
             </section>
           </div>
 
