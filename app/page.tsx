@@ -57,12 +57,12 @@ function FlowSteps({ compact = false }: { compact?: boolean }) {
 
 export default function Home() {
   return (
-    <main className="min-h-screen overflow-x-hidden bg-background text-foreground">
+    <main className="min-h-screen overflow-x-clip bg-background text-foreground">
       <div className="h-1.5 bg-primary" aria-hidden="true" />
 
       <div className="mx-auto grid min-h-[calc(100vh-0.375rem)] max-w-[1480px] lg:grid-cols-[minmax(320px,0.72fr)_minmax(0,1.28fr)]">
         <aside className="brand-panel border-b border-[#cfddc7] lg:flex lg:flex-col lg:border-r lg:border-b-0">
-          <div className="px-5 py-8 sm:px-9 sm:py-10 lg:sticky lg:top-0 lg:flex lg:min-h-[calc(100vh-0.375rem)] lg:flex-col lg:justify-between lg:px-12 lg:py-12 xl:px-16">
+          <div className="px-5 py-8 sm:px-9 sm:py-10 lg:sticky lg:top-0 lg:z-10 lg:flex lg:min-h-[calc(100vh-0.375rem)] lg:self-start lg:flex-col lg:justify-between lg:px-12 lg:py-12 xl:px-16">
             <div>
             <div className="flex items-center justify-between gap-3">
               <a
