@@ -61,8 +61,9 @@ export default function Home() {
       <div className="h-1.5 bg-primary" aria-hidden="true" />
 
       <div className="mx-auto grid min-h-[calc(100vh-0.375rem)] max-w-[1480px] lg:grid-cols-[minmax(320px,0.72fr)_minmax(0,1.28fr)]">
-        <aside className="brand-panel border-b border-[#cfddc7] px-5 py-8 sm:px-9 sm:py-10 lg:sticky lg:top-0 lg:flex lg:flex-col lg:justify-between lg:border-r lg:border-b-0 lg:px-12 lg:py-12 xl:px-16">
-          <div>
+        <aside className="brand-panel border-b border-[#cfddc7] lg:flex lg:flex-col lg:border-r lg:border-b-0">
+          <div className="px-5 py-8 sm:px-9 sm:py-10 lg:sticky lg:top-0 lg:flex lg:max-h-[calc(100vh-0.375rem)] lg:min-h-[calc(100vh-0.375rem)] lg:flex-col lg:justify-between lg:overflow-y-auto lg:px-12 lg:py-12 xl:px-16">
+            <div>
             <div className="flex items-center justify-between gap-3">
               <a
                 href="https://conexaoseres.com.br/"
@@ -110,11 +111,12 @@ export default function Home() {
               </h2>
               <FlowSteps />
             </section>
-          </div>
+            </div>
 
-          <div className="mt-10 hidden items-center gap-3 border-t border-[#c9d9c2] pt-6 text-sm leading-6 text-[#4f5e4b] lg:flex">
-            <ShieldCheck className="size-5 shrink-0 text-secondary-foreground" aria-hidden="true" />
-            Suas informações ficam protegidas e são usadas somente para o seu atendimento.
+            <div className="mt-10 hidden items-center gap-3 border-t border-[#c9d9c2] pt-6 text-sm leading-6 text-[#4f5e4b] lg:flex">
+              <ShieldCheck className="size-5 shrink-0 text-secondary-foreground" aria-hidden="true" />
+              Suas informações ficam protegidas e são usadas somente para o seu atendimento.
+            </div>
           </div>
         </aside>
 
