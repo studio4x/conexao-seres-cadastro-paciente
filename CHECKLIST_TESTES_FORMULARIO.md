@@ -321,6 +321,36 @@ Conferir as observações:
 - [ ] `CHILD_OT` e `CHILD_NEURO_REHAB` não registram `Forma de ingresso`.
 - [ ] A cobrança de R$ 230,00, `externalReference`, NFS-e, notificações, n8n e webhooks permanecem inalterados.
 
+### 9.7 Cenário Playwright — condicionais e limpeza de estado
+
+Executar em uma sessão anônima, sem concluir o cadastro. Usar os grupos pelo nome acessível para evitar ambiguidade entre os radios de modalidade do atendimento e da primeira sessão.
+
+Fluxo adulto:
+
+- [ ] Informar uma data de nascimento que resulte em idade igual ou superior a 18 anos.
+- [ ] Em `Sobre o atendimento`, confirmar que `Qual modalidade de atendimento foi combinada?` aparece antes de `Qual tipo de atendimento foi combinado com a Conexão Seres?`.
+- [ ] Selecionar `Presencial` no grupo de modalidade do atendimento; confirmar as três opções adultas: `Terapia Ocupacional – Reabilitação Neurológica`, `Terapia Ocupacional com Psicanálise Integrada` e `Terapia Ocupacional com Estimulação Sensorial`.
+- [ ] Selecionar `Terapia Ocupacional – Reabilitação Neurológica`; no grupo `Como será realizada a primeira sessão?`, confirmar que somente `Presencial, na clínica Conexão Seres` está disponível e que `Online via Google Meet` não está visível.
+- [ ] Com Neuro selecionado, trocar a modalidade do atendimento para `Online`; confirmar que o radio de tipo fica sem seleção e que somente `Terapia Ocupacional com Psicanálise Integrada` é exibido.
+- [ ] Selecionar Psicanálise Integrada; confirmar que `Presencial, na clínica Conexão Seres` e `Online via Google Meet` aparecem na primeira sessão.
+- [ ] Selecionar `Online via Google Meet` na primeira sessão, trocar a modalidade do atendimento para `Presencial` e confirmar que a primeira sessão continua `Online`.
+
+Fluxo menor:
+
+- [ ] Alterar a data de nascimento para uma idade inferior a 18 anos; confirmar que não existe grupo/pergunta de modalidade planejada do atendimento e que somente os três serviços infantis são exibidos.
+- [ ] Selecionar `Terapia Ocupacional com Integração Sensorial`; confirmar a exibição de `Qual forma de início do acompanhamento foi combinada com a Conexão Seres?` com somente `Processo Avaliativo Completo` e `Início Direto – Sem Avaliação Completa`.
+- [ ] Selecionar `Processo Avaliativo Completo`; confirmar que a primeira sessão exibe somente `Presencial, na clínica Conexão Seres`.
+- [ ] Trocar o serviço para `Terapia Ocupacional`; confirmar que a pergunta de forma de início desaparece e que a seleção anterior de `entryType` não permanece no estado nem no DOM.
+- [ ] Repetir com `Terapia Ocupacional – Reabilitação Neurológica`; confirmar que a forma de início não aparece e que `entryType` permanece vazio.
+
+Asserções Playwright sugeridas:
+
+- [ ] `getByRole('group', { name: 'Qual modalidade de atendimento foi combinada?' })` precede `getByRole('group', { name: 'Qual tipo de atendimento foi combinado com a Conexão Seres?' })` no DOM para adulto.
+- [ ] O grupo de tipo adulto com `Online` contém exatamente um radio selecionável, com nome `Terapia Ocupacional com Psicanálise Integrada`.
+- [ ] O grupo de primeira sessão de Neuro, Estimulação Sensorial e qualquer menor não contém o radio `Online via Google Meet`.
+- [ ] O grupo de forma de início não existe para `CHILD_OT` e `CHILD_NEURO_REHAB`, e existe para `CHILD_SENSORY_INTEGRATION`.
+- [ ] Nenhum texto `Ainda não definido`, `Ainda não foi definido` ou `Ainda não definida` é encontrado na página.
+
 ## 10. Falhas de integração e recuperação
 
 Em ambiente controlado, simular ou observar os seguintes casos:
