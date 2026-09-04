@@ -32,72 +32,72 @@ Sempre que possível, execute os testes em ambiente de homologação ou Sandbox 
 
 - [OK] Informar paciente com idade maior que 18 anos.
 - [OK] Marcar/confirmar que não há responsável.
-- [] Preencher WhatsApp, e-mail e endereço válidos do paciente.
-- [ ] Informar complemento do paciente, por exemplo `Apto 12`.
-- [ ] Enviar o formulário.
+- [OK] Preencher WhatsApp, e-mail e endereço válidos do paciente.
+- [OK] Informar complemento do paciente, por exemplo `Apto 12`.
+- [OK] Enviar o formulário.
 
 Conferir no Asaas:
 
-- [ ] O paciente é o titular: nome, CPF, telefone, e-mail e endereço correspondem ao paciente.
-- [ ] O grupo é `Adultos`.
-- [ ] O campo `complement` contém o complemento do paciente.
-- [ ] O campo `company` não é preenchido apenas por ser um adulto sem responsável.
-- [ ] `observations` não repete os dados principais do próprio paciente.
+- [OK] O paciente é o titular: nome, CPF, telefone, e-mail e endereço correspondem ao paciente.
+- [OK] O grupo é `Adultos`.
+- [OK] O campo `complement` contém o complemento do paciente.
+- [OK] O campo `company` não é preenchido apenas por ser um adulto sem responsável.
+- [OK] `observations` não repete os dados principais do próprio paciente.
 
 ### 1.2 Limite de idade
 
-- [ ] Testar paciente que completa 18 anos exatamente na data do teste: deve ser tratado como adulto.
-- [ ] Testar paciente que completa 18 anos no dia seguinte: deve ser tratado como menor.
+- [OK] Testar paciente que completa 18 anos exatamente na data do teste: deve ser tratado como adulto.
+- [OK] Testar paciente que completa 18 anos no dia seguinte: deve ser tratado como menor.
 
 ## 2. Paciente adulto com responsável financeiro
 
-- [ ] Informar paciente com idade maior que 18 anos.
-- [ ] Selecionar responsável financeiro.
-- [ ] Preencher dados válidos do paciente e do responsável.
-- [ ] Usar datas diferentes para paciente e responsável, no formato exibido pelo campo de data.
-- [ ] Informar complemento do responsável, por exemplo `Sala 4, bloco B`.
-- [ ] Enviar o formulário.
+- [OK] Informar paciente com idade maior que 18 anos.
+- [OK] Selecionar responsável financeiro.
+- [OK] Preencher dados válidos do paciente e do responsável.
+- [OK] Usar datas diferentes para paciente e responsável, no formato exibido pelo campo de data.
+- [OK] Informar complemento do responsável, por exemplo `Sala 4, bloco B`.
+- [OK] Enviar o formulário.
 
 Conferir no Asaas:
 
-- [ ] O responsável financeiro é o titular do cliente.
-- [ ] Nome, CPF, telefone, e-mail e endereço principais correspondem ao responsável financeiro.
-- [ ] O campo `company` contém exatamente o nome do paciente.
-- [ ] O campo `complement` contém exatamente o complemento do responsável financeiro.
-- [ ] O grupo é `Adultos`.
-- [ ] `observations` contém o nome e CPF do paciente.
-- [ ] `observations` contém contato e endereço do paciente.
-- [ ] A data do paciente aparece como `DD/MM/AAAA`.
-- [ ] A data do responsável aparece como `DD/MM/AAAA`.
-- [ ] As datas não aparecem como `AAAA-MM-DD` nas observações.
+- [OK] O responsável financeiro é o titular do cliente.
+- [OK] Nome, CPF, telefone, e-mail e endereço principais correspondem ao responsável financeiro.
+- [OK] O campo `company` contém exatamente o nome do paciente.
+- [OK] O campo `complement` contém exatamente o complemento do responsável financeiro.
+- [OK] O grupo é `Adultos`.
+- [OK] `observations` contém o nome e CPF do paciente.
+- [OK] `observations` contém contato e endereço do paciente.
+- [OK] A data do paciente aparece como `DD/MM/AAAA`.
+- [OK] A data do responsável aparece como `DD/MM/AAAA`.
+- [OK] As datas não aparecem como `AAAA-MM-DD` nas observações.
 
 ## 3. Paciente adulto com responsável legal
 
-- [ ] Repetir o cenário anterior selecionando responsável legal.
-- [ ] Usar um responsável legal diferente do responsável financeiro usado no cenário anterior.
-- [ ] Informar complemento do responsável legal.
-- [ ] Confirmar que o responsável legal é o titular.
-- [ ] Confirmar que `company` contém o nome do paciente.
-- [ ] Confirmar que `complement` contém o complemento do responsável legal.
-- [ ] Confirmar grupo `Adultos` e datas em `DD/MM/AAAA` nas observações.
+- [OK] Repetir o cenário anterior selecionando responsável legal.
+- [OK] Usar um responsável legal diferente do responsável financeiro usado no cenário anterior.
+- [OK] Informar complemento do responsável legal.
+- [OK] Confirmar que o responsável legal é o titular.
+- [OK] Confirmar que `company` contém o nome do paciente.
+- [OK] Confirmar que `complement` contém o complemento do responsável legal.
+- [OK] Confirmar grupo `Adultos` e datas em `DD/MM/AAAA` nas observações.
 
 ## 4. Paciente menor de 18 anos com responsável
 
-- [ ] Informar paciente menor de 18 anos.
-- [ ] Confirmar que o responsável é obrigatório.
-- [ ] Preencher dados válidos do responsável.
-- [ ] Informar complemento do responsável.
-- [ ] Enviar o formulário.
+- [OK] Informar paciente menor de 18 anos.
+- [OK] Confirmar que o responsável é obrigatório.
+- [OK] Preencher dados válidos do responsável.
+- [OK] Informar complemento do responsável.
+- [OK] Enviar o formulário.
 
 Conferir no Asaas:
 
-- [ ] O responsável é o titular do cliente.
-- [ ] O campo `company` contém o nome do paciente.
-- [ ] O campo `complement` contém o complemento do responsável.
-- [ ] O grupo é `Crianças`.
-- [ ] `observations` contém nome e CPF do paciente.
-- [ ] `observations` contém a data do paciente e a data do responsável em `DD/MM/AAAA`.
-- [ ] Não são exigidos contato e endereço próprios do menor, pois o formulário não os solicita nesse cenário.
+- [OK] O responsável é o titular do cliente.
+- [OK] O campo `company` contém o nome do paciente.
+- [OK] O campo `complement` contém o complemento do responsável.
+- [OK] O grupo é `Crianças`.
+- [OK] `observations` contém nome e CPF do paciente.
+- [OK] `observations` contém a data do paciente e a data do responsável em `DD/MM/AAAA`.
+- [OK] Não são exigidos contato e endereço próprios do menor, pois o formulário não os solicita nesse cenário.
 
 ## 5. Complemento e endereço
 
@@ -123,17 +123,17 @@ Conferir no Asaas:
 
 ## 7. Validações de identificação e idade
 
-- [ ] CPF do paciente inválido.
-- [ ] CPF do responsável inválido.
-- [ ] CPF composto apenas por dígitos repetidos.
-- [ ] Data do paciente inválida ou inexistente.
-- [ ] Data do paciente futura.
-- [ ] Data do responsável futura.
-- [ ] Responsável com menos de 18 anos.
-- [ ] Adulto sem responsável com dados de contato inválidos.
-- [ ] Menor sem responsável.
-- [ ] Nome do paciente muito curto.
-- [ ] Nome do responsável vazio ou muito curto.
+- [OK] CPF do paciente inválido.
+- [OK] CPF do responsável inválido.
+- [OK] CPF composto apenas por dígitos repetidos.
+- [OK] Data do paciente inválida ou inexistente.
+- [OK] Data do paciente futura.
+- [OK] Data do responsável futura.
+- [OK] Responsável com menos de 18 anos.
+- [OK] Adulto sem responsável com dados de contato inválidos.
+- [OK] Menor sem responsável.
+- [OK] Nome do paciente muito curto.
+- [OK] Nome do responsável vazio ou muito curto.
 
 Para cada caso inválido:
 
@@ -143,37 +143,96 @@ Para cada caso inválido:
 
 ## 8. Validações de contato e endereço
 
-- [ ] WhatsApp do paciente com DDD válido.
-- [ ] WhatsApp do responsável com DDD válido.
-- [ ] WhatsApp com DDD inexistente.
-- [ ] WhatsApp sem o nono dígito.
-- [ ] E-mail válido.
-- [ ] E-mail inválido.
-- [ ] E-mail com pontos consecutivos.
-- [ ] CEP válido do paciente.
-- [ ] CEP válido do responsável.
-- [ ] CEP inexistente ou não localizado.
+- [OK] WhatsApp do paciente com DDD válido.
+- [OK] WhatsApp do responsável com DDD válido.
+- [OK] WhatsApp com DDD inexistente.
+- [OK] WhatsApp sem o nono dígito.
+- [OK] E-mail válido.
+- [OK] E-mail inválido.
+- [OK] E-mail com pontos consecutivos.
+- [OK] CEP válido do paciente.
+- [OK] CEP válido do responsável.
+- [OK] CEP inexistente ou não localizado.
 - [ ] Endereço incompleto após a consulta do CEP.
-- [ ] Número do endereço vazio.
-- [ ] Estado com mais ou menos de duas letras.
+- [OK] Número do endereço vazio.
+- [OK] Estado com mais ou menos de duas letras.
 
 Conferir que:
 
-- [ ] O CEP válido preenche os campos esperados.
-- [ ] O CEP inválido apresenta erro amigável.
-- [ ] O usuário pode revisar e editar os dados preenchidos pelo CEP.
-- [ ] O backend rejeita dados inválidos mesmo que a validação do frontend seja contornada.
+- [OK] O CEP válido preenche os campos esperados.
+- [OK] O CEP inválido apresenta erro amigável.
+- [OK] O usuário pode revisar e editar os dados preenchidos pelo CEP.
+- [OK] O backend rejeita dados inválidos mesmo que a validação do frontend seja contornada.
 
 ## 9. Consentimento, segurança e abuso
 
-- [ ] Tentar enviar sem marcar o consentimento.
-- [ ] Tentar enviar sem token do Turnstile.
-- [ ] Tentar enviar com token expirado ou inválido.
-- [ ] Testar o honeypot `website` preenchido.
-- [ ] Testar payload acima do tamanho máximo permitido.
-- [ ] Fazer requisição com método diferente de `POST` diretamente na API.
-- [ ] Confirmar os status HTTP esperados para validação, configuração ausente e método não permitido.
-- [ ] Confirmar que nenhuma resposta expõe a chave do Asaas, segredo do Turnstile ou detalhes internos.
+- [OK] Tentar enviar sem marcar o consentimento.
+- [OK] Tentar enviar sem token do Turnstile.
+- [OK] Tentar enviar com token expirado ou inválido.
+- [OK] Testar o honeypot `website` preenchido.
+- [OK] Testar payload acima do tamanho máximo permitido.
+- [OK] Fazer requisição com método diferente de `POST` diretamente na API.
+- [OK] Confirmar os status HTTP esperados para validação, configuração ausente e método não permitido.
+- [OK] Confirmar que nenhuma resposta expõe a chave do Asaas, segredo do Turnstile ou detalhes internos.
+
+### 9.1 Autorização para registro e uso de imagens e vídeos
+
+Executar estes cenários nos ambientes Sites / Cloudflare e cPanel:
+
+- [ ] Confirmar que a seção “Sobre o atendimento” exibe “Registro e uso de imagens e vídeos”.
+- [ ] Confirmar que existem exatamente as opções “Autorizo” e “Não autorizo”, em seleção única.
+- [ ] Confirmar que os radios são navegáveis por teclado, possuem foco visível e têm labels associados.
+- [ ] Tentar enviar sem selecionar nenhuma opção; confirmar erro visual no campo e ausência de requisição de cadastro.
+- [ ] Selecionar “Autorizo” em um paciente adulto sem responsável e concluir o cadastro.
+- [ ] Selecionar “Não autorizo” em um paciente adulto sem responsável e concluir o cadastro.
+- [ ] Selecionar “Autorizo” em um paciente menor com responsável e concluir o cadastro.
+- [ ] Selecionar “Não autorizo” em um paciente menor com responsável e concluir o cadastro.
+
+Conferir o payload enviado ao backend:
+
+- [ ] “Autorizo” envia exatamente `mediaConsent: "AUTHORIZED"`.
+- [ ] “Não autorizo” envia exatamente `mediaConsent: "NOT_AUTHORIZED"`.
+- [ ] O texto completo do TCLE não é enviado no payload nem nas observações do Asaas.
+
+### 9.2 Modal do consentimento
+
+- [ ] No desktop, confirmar o link “Saiba mais”.
+- [ ] No mobile, confirmar o link “Saiba mais sobre esta autorização”.
+- [ ] Abrir o modal e confirmar o título `Autorização para registro e uso de imagens e vídeos`.
+- [ ] Confirmar que o modal possui botão “Fechar”, foco acessível e fechamento por `ESC`.
+- [ ] Em viewport móvel reduzida, confirmar que o modal não ultrapassa a tela e permite rolagem interna.
+- [ ] Com paciente adulto (18 anos ou mais), confirmar o texto integral da autorização adulta.
+- [ ] Com paciente menor de 18 anos, confirmar o texto integral destinado ao responsável legal.
+- [ ] Alterar a data de nascimento de adulto para menor e reabrir o modal; confirmar que o texto muda para a versão de menor.
+- [ ] Alterar a data de nascimento de menor para adulto e reabrir o modal; confirmar que o texto muda para a versão adulta.
+- [ ] Após alterar a idade, confirmar que `mediaConsent` continua selecionado e não é apagado.
+
+### 9.3 Validação server-side do consentimento
+
+Enviar requisições controladas diretamente para `/api/patients` em ambos os ambientes:
+
+- [ ] Omitir `mediaConsent`; confirmar rejeição HTTP `400`.
+- [ ] Enviar `mediaConsent` como `null`; confirmar rejeição HTTP `400`.
+- [ ] Enviar `mediaConsent` como `true`; confirmar rejeição HTTP `400`.
+- [ ] Enviar `mediaConsent` como `false`; confirmar rejeição HTTP `400`.
+- [ ] Enviar `mediaConsent` como número; confirmar rejeição HTTP `400`.
+- [ ] Enviar string arbitrária, por exemplo `"AUTHORIZED_TEXT"`; confirmar rejeição HTTP `400`.
+- [ ] Confirmar que somente `AUTHORIZED` e `NOT_AUTHORIZED` são aceitos.
+- [ ] Confirmar que TypeScript/Sites e PHP/cPanel aplicam a mesma whitelist e não dependem apenas da validação do frontend.
+
+### 9.4 Observações do Asaas e preservação das regras
+
+Para os quatro cenários — adulto autorizado, adulto não autorizado, menor autorizado e menor não autorizado — conferir:
+
+- [ ] Com `AUTHORIZED`, `observations` contém exatamente uma linha `Autorização de imagens e vídeos: Autorizado`.
+- [ ] Com `NOT_AUTHORIZED`, `observations` contém exatamente uma linha `Autorização de imagens e vídeos: Não autorizado`.
+- [ ] As observações anteriores continuam preservadas: pessoa atendida, CPF, datas, responsável, contato, endereço, tipo de atendimento, forma de ingresso e modalidade.
+- [ ] Adulto sem responsável continua sem duplicar seus próprios dados pessoais nas observações.
+- [ ] Menor continua com o responsável como titular e o paciente no campo `company`.
+- [ ] A linha de consentimento não contém o texto completo do TCLE.
+- [ ] O valor da primeira sessão continua em R$ 230,00.
+- [ ] `billingType`, vencimento, `externalReference`, NFS-e, impostos e notificações permanecem inalterados.
+- [ ] O payload e o momento do webhook n8n permanecem inalterados e não incluem `mediaConsent`.
 
 ## 10. Falhas de integração e recuperação
 
@@ -190,12 +249,12 @@ Em ambiente controlado, simular ou observar os seguintes casos:
 
 Após um cadastro novo ou atualização de cliente existente:
 
-- [ ] Eventos de criação, alteração, vencimento, atraso, confirmação e lembretes mantêm WhatsApp do cliente ativo.
-- [ ] `SEND_LINHA_DIGITAVEL` mantém WhatsApp do cliente desativado.
-- [ ] E-mail, SMS e ligação para o cliente permanecem desativados conforme a regra.
-- [ ] E-mail e SMS para o provedor permanecem desativados conforme a regra.
-- [ ] O aviso antes do vencimento usa `scheduleOffset = 5`.
-- [ ] O lembrete após o vencimento usa `scheduleOffset = 1`.
+- [OK] Eventos de criação, alteração, vencimento, atraso, confirmação e lembretes mantêm WhatsApp do cliente ativo.
+- [OK] `SEND_LINHA_DIGITAVEL` mantém WhatsApp do cliente desativado.
+- [OK] E-mail, SMS e ligação para o cliente permanecem desativados conforme a regra.
+- [OK] E-mail e SMS para o provedor permanecem desativados conforme a regra.
+- [OK] O aviso antes do vencimento usa `scheduleOffset = 5`.
+- [OK] O lembrete após o vencimento usa `scheduleOffset = 1`.
 
 ## Resultado da rodada
 
