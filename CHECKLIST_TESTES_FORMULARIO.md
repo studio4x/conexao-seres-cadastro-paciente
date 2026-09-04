@@ -264,7 +264,9 @@ Executar nos ambientes Sites / Cloudflare e cPanel, para paciente adulto sem res
 - [ ] Confirmar que datas anteriores ao dia atual ficam desabilitadas no calendário.
 - [ ] Confirmar que a digitação manual no campo continua funcionando e mantém o mesmo formato e validações.
 - [ ] Confirmar que o calendário pode ser operado por teclado e que o foco permanece visível.
-- [ ] Confirmar as opções de modalidade `Presencial, na clínica Conexão Seres` e `Online` em seleção única.
+- [ ] Confirmar as opções de modalidade `Presencial, na clínica Conexão Seres` e `Online via Google Meet` em seleção única.
+- [ ] Na opção presencial, confirmar a exibição discreta do endereço da clínica: `Rua Petrobrás, 683 – Vila Antonieta` e `São Paulo/SP – CEP 03474-060`.
+- [ ] Na opção `Online via Google Meet`, confirmar a exibição da orientação sobre o envio do link pelo WhatsApp antes da sessão.
 - [ ] Tentar enviar sem data, horário ou modalidade; confirmar erro visual e ausência de requisição de cadastro.
 - [ ] Informar data inexistente, como `31/02/2026`; confirmar rejeição.
 - [ ] Informar data anterior ao dia atual em `America/Sao_Paulo`; confirmar rejeição.
@@ -279,7 +281,7 @@ Conferir o payload de cadastro e o cliente novo no Asaas:
 - [ ] `firstSessionMode` é enviado exatamente como `IN_PERSON` ou `ONLINE`.
 - [ ] `observations` contém exatamente `Primeira sessão: DD/MM/AAAA às HH:MM`.
 - [ ] `observations` contém `Modalidade da primeira sessão: Presencial, na clínica Conexão Seres` para `IN_PERSON`.
-- [ ] `observations` contém `Modalidade da primeira sessão: Online` para `ONLINE`.
+- [ ] `observations` contém `Modalidade da primeira sessão: Online via Google Meet` para `ONLINE`.
 - [ ] As informações da primeira sessão são preservadas para adulto sem responsável, adulto com responsável e menor com responsável.
 - [ ] A cobrança da primeira sessão continua em R$ 230,00, com `billingType`, vencimento, `externalReference`, grupos, notificações e NFS-e inalterados.
 
@@ -331,7 +333,8 @@ Conferir o parsing seguro das `observations`:
 - [ ] Linha válida `Primeira sessão: DD/MM/AAAA às HH:MM` preenche data e horário.
 - [ ] Data inexistente, horário inválido, linha ausente ou texto adicional fazem `firstSessionDate` e `firstSessionTime` permanecerem strings vazias.
 - [ ] Somente `Modalidade da primeira sessão: Presencial` gera `firstSessionMode: "IN_PERSON"`.
-- [ ] Somente `Modalidade da primeira sessão: Online` gera `firstSessionMode: "ONLINE"`.
+- [ ] Somente `Modalidade da primeira sessão: Online via Google Meet` gera `firstSessionMode: "ONLINE"`.
+- [ ] O rótulo legado `Modalidade da primeira sessão: Online` continua sendo reconhecido para clientes cadastrados antes da alteração.
 - [ ] Modalidade ausente, alterada ou com texto adicional faz `firstSessionMode` permanecer vazio.
 - [ ] `observations` ausente, nulo ou em formato inesperado não interrompe o encaminhamento; os campos não identificados permanecem vazios.
 - [ ] Confirmar que `serviceType`, `entryType`, `attendanceMode` e `mediaConsent` não são usados para preencher os quatro novos campos.

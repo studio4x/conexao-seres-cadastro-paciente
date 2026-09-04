@@ -136,7 +136,7 @@ test("keeps media consent independent from billing, n8n and age-reset state", ()
 test("defines the structured first-session contract for all patient ages", () => {
   assert.match(firstSessionContract, /FIRST_SESSION_MODES = \["IN_PERSON", "ONLINE"\]/);
   assert.match(firstSessionContract, /IN_PERSON: "Presencial, na clínica Conexão Seres"/);
-  assert.match(firstSessionContract, /ONLINE: "Online"/);
+  assert.match(firstSessionContract, /ONLINE: "Online via Google Meet"/);
   for (const field of ["firstSessionDate", "firstSessionTime", "firstSessionMode"]) {
     assert.match(frontend, new RegExp(field));
     assert.match(typescriptBackend, new RegExp(field));
@@ -146,6 +146,11 @@ test("defines the structured first-session contract for all patient ages", () =>
   assert.match(frontend, /Informe a data, o horário e a modalidade da primeira sessão que já foram combinados com a Conexão Seres\./);
   assert.match(frontend, /Esses campos apenas registram o agendamento já combinado com nossa equipe\./);
   assert.match(frontend, /Como será realizada a primeira sessão\?/);
+  assert.match(frontend, /Endereço:/);
+  assert.match(frontend, /Rua Petrobrás, 683 – Vila Antonieta/);
+  assert.match(frontend, /São Paulo\/SP – CEP 03474-060/);
+  assert.match(frontend, /O link da sessão será enviado para o seu WhatsApp momentos antes do horário da sessão/);
+  assert.match(frontend, /através do número da Conexão Seres que você está conversando/);
   assert.match(firstSessionContract, /Presencial, na clínica Conexão Seres/);
 });
 
@@ -544,6 +549,7 @@ test("keeps observation parsing strict, failure-safe and free of extra customer 
   assert.ok(firstSessionContract.includes("((?:[01]\\d|2[0-3]):[0-5]\\d)$/.exec(line)"));
   assert.match(firstSessionContract, /Modalidade da primeira sessão: Presencial/);
   assert.match(firstSessionContract, /Modalidade da primeira sessão: Online/);
+  assert.match(firstSessionContract, /Modalidade da primeira sessão: Online via Google Meet/);
   assert.match(firstSessionContract, /patientNameLinePresent/);
   assert.match(firstSessionContract, /let firstSessionDate = ""/);
   assert.match(firstSessionContract, /let firstSessionTime = ""/);

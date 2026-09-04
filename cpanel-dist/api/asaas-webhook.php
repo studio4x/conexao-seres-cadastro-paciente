@@ -145,7 +145,10 @@ function parse_first_session_from_observations(mixed $observations): array
         }
         if ($line === 'Modalidade da primeira sessão: Presencial') {
             $firstSessionMode = 'IN_PERSON';
-        } elseif ($line === 'Modalidade da primeira sessão: Online') {
+        } elseif (
+            $line === 'Modalidade da primeira sessão: Online via Google Meet'
+            || $line === 'Modalidade da primeira sessão: Online'
+        ) {
             $firstSessionMode = 'ONLINE';
         }
     }

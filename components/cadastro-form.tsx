@@ -154,6 +154,23 @@ function firstSessionDateError(value: string) {
   return undefined;
 }
 
+const FIRST_SESSION_MODE_DETAILS = {
+  IN_PERSON: (
+    <span className="mt-1 block text-xs font-normal leading-5 text-muted-foreground">
+      Endereço:
+      <br />
+      Rua Petrobrás, 683 – Vila Antonieta
+      <br />
+      São Paulo/SP – CEP 03474-060
+    </span>
+  ),
+  ONLINE: (
+    <span className="mt-1 block text-xs font-normal leading-5 text-muted-foreground">
+      O link da sessão será enviado para o seu WhatsApp momentos antes do horário da sessão, através do número da Conexão Seres que você está conversando.
+    </span>
+  ),
+} as const;
+
 function firstSessionTimeError(value: string) {
   return isValidFirstSessionTime(value) ? undefined : "Informe um horário válido no formato HH:MM.";
 }
@@ -1466,7 +1483,10 @@ export function CadastroForm({ onSuccessChange }: CadastroFormProps) {
                       checked={values.firstSessionMode === option}
                       onChange={(event) => update("firstSessionMode", event.target.value)}
                     />
-                    <span>{FIRST_SESSION_MODE_LABELS[option]}</span>
+                    <span className="min-w-0">
+                      <span className="block">{FIRST_SESSION_MODE_LABELS[option]}</span>
+                      {FIRST_SESSION_MODE_DETAILS[option]}
+                    </span>
                   </label>
                 ))}
               </div>

@@ -2,7 +2,7 @@ export const FIRST_SESSION_MODES = ["IN_PERSON", "ONLINE"] as const;
 
 export const FIRST_SESSION_MODE_LABELS = {
   IN_PERSON: "Presencial, na clínica Conexão Seres",
-  ONLINE: "Online",
+  ONLINE: "Online via Google Meet",
 } as const;
 
 const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
@@ -100,7 +100,10 @@ export function parseFirstSessionFromObservations(observations: unknown) {
 
     if (line === "Modalidade da primeira sessão: Presencial") {
       firstSessionMode = "IN_PERSON";
-    } else if (line === "Modalidade da primeira sessão: Online") {
+    } else if (
+      line === "Modalidade da primeira sessão: Online via Google Meet" ||
+      line === "Modalidade da primeira sessão: Online"
+    ) {
       firstSessionMode = "ONLINE";
     }
   }
