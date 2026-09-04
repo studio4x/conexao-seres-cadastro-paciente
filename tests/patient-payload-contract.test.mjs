@@ -164,6 +164,7 @@ test("validates first-session date, time and mode in the frontend and both backe
   assert.match(frontend, /FirstSessionDateField/);
   assert.match(frontend, /CalendarDays/);
   assert.match(frontend, /Abrir calendário para escolher a data da primeira sessão/);
+  assert.match(frontend, /onClick=\{\(\) => setOpen\(true\)\}/);
   assert.match(frontend, /locale=\{ptBR\}/);
   assert.match(frontend, /disabled=\{\{ before: today \}\}/);
   assert.match(frontend, /formatCalendarDate\(date\)/);

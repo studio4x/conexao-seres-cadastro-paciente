@@ -505,6 +505,7 @@ function FirstSessionDateField({ value, error, onChange, onBlur }: FirstSessionD
             placeholder="DD/MM/AAAA"
             value={value}
             maxLength={10}
+            onClick={() => setOpen(true)}
             onChange={(event) => onChange(event.target.value)}
             onBlur={onBlur}
             aria-invalid={Boolean(error)}
