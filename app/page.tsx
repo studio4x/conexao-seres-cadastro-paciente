@@ -34,13 +34,13 @@ const FLOW_STEPS = [
   },
 ];
 
-function FlowSteps() {
+function FlowSteps({ compact = false }: { compact?: boolean }) {
   return (
-    <ol className="mt-4 divide-y divide-[#cfddc7] border-t border-[#cfddc7]">
+    <ol className={`${compact ? "" : "mt-4 border-t border-[#cfddc7]"} divide-y divide-[#cfddc7]`}>
       {FLOW_STEPS.map((step, index) => (
         <li key={step.title} className="flex gap-4 py-4 first:pt-4 last:pb-0">
           <span
-            className="mt-0.5 w-7 shrink-0 text-sm font-semibold tracking-[0.08em] text-primary"
+            className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-accent text-xs font-semibold tracking-[0.08em] text-accent-foreground"
             aria-hidden="true"
           >
             {String(index + 1).padStart(2, "0")}
@@ -87,21 +87,25 @@ export default function Home() {
               </span>
             </div>
 
-            <details className="group mt-12 max-w-xl lg:hidden">
-              <summary className="flex cursor-pointer list-none items-center justify-between border-b border-[#cfddc7] pb-4 text-xs font-semibold uppercase tracking-[0.16em] text-secondary-foreground marker:hidden [&::-webkit-details-marker]:hidden">
-                <span role="heading" aria-level={2}>
+            <details className="group mt-12 max-w-xl overflow-hidden rounded-xl border border-[#c9d9c2] bg-white/60 shadow-[0_8px_24px_rgba(65,56,30,0.06)] lg:hidden">
+              <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-secondary-foreground marker:hidden [&::-webkit-details-marker]:hidden">
+                <span className="flex items-center gap-3" role="heading" aria-level={2}>
+                  <span className="h-5 w-1 rounded-full bg-primary" aria-hidden="true" />
                   COMO FUNCIONA
                 </span>
                 <ChevronDown className="size-4 transition-transform duration-200 group-open:rotate-180" aria-hidden="true" />
               </summary>
-              <FlowSteps />
+              <div className="border-t border-[#cfddc7] px-4 pb-4">
+                <FlowSteps compact />
+              </div>
             </details>
 
             <section className="mt-12 hidden max-w-xl lg:mt-20 lg:block" aria-labelledby="how-it-works-heading">
               <h2
                 id="how-it-works-heading"
-                className="text-xs font-semibold uppercase tracking-[0.16em] text-secondary-foreground"
+                className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.16em] text-secondary-foreground"
               >
+                <span className="h-5 w-1 rounded-full bg-primary" aria-hidden="true" />
                 COMO FUNCIONA
               </h2>
               <FlowSteps />
