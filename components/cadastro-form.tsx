@@ -395,21 +395,21 @@ function AddressFields({
           : "Digite os 8 números do CEP.";
 
   return (
-    <fieldset className="space-y-5 rounded-lg border border-[#dedede] bg-[#fafafa] p-5 sm:p-6">
+    <fieldset className="space-y-5 rounded-lg border border-[#dedede] bg-[#fafafa] p-4 sm:p-6">
       <legend className="px-1 text-sm font-semibold text-secondary-foreground">Endereço completo</legend>
       {copyFromPatient ? (
         <div className="rounded-md border border-[#d7e2d1] bg-[#f3f8f0] p-4">
           <div className="flex items-start gap-3">
             <Checkbox
               id="copyPatientAddress"
-              className="mt-0.5 size-5 rounded-sm border-[#aebea7] data-[state=checked]:border-primary data-[state=checked]:bg-primary"
+              className="mt-0.5 size-5 shrink-0 rounded-sm border-[#aebea7] data-[state=checked]:border-primary data-[state=checked]:bg-primary"
               checked={copyFromPatient.checked}
               disabled={copyFromPatient.disabled}
               onCheckedChange={(checked) => copyFromPatient.onCheckedChange(checked === true)}
             />
             <Label
               htmlFor="copyPatientAddress"
-              className="cursor-pointer text-sm font-normal leading-6 text-[#315f31] data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-60"
+              className="min-w-0 cursor-pointer text-sm font-normal leading-6 text-[#315f31] data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-60"
               data-disabled={copyFromPatient.disabled}
             >
               O responsável mora no mesmo endereço
@@ -826,7 +826,7 @@ export function CadastroForm() {
 
   if (status === "success") {
     return (
-      <div className="rounded-lg border border-[#c9ddc0] bg-[#f4f8f1] px-6 py-10 text-center sm:px-10 sm:py-12">
+      <div className="rounded-lg border border-[#c9ddc0] bg-[#f4f8f1] px-4 py-8 text-center sm:px-10 sm:py-12">
         <div className="mx-auto grid size-14 place-items-center rounded-full bg-secondary-foreground text-white shadow-[0_10px_30px_rgba(0,80,0,0.16)]">
           <Check className="size-7" strokeWidth={2.4} aria-hidden="true" />
         </div>
@@ -838,7 +838,7 @@ export function CadastroForm() {
         <Button
           type="button"
           variant="outline"
-          className="mt-7 h-11 rounded-md border-primary/30 bg-white px-5 text-[#b35f00] hover:bg-accent"
+          className="mt-7 h-11 w-full rounded-md border-primary/30 bg-white px-5 text-[#b35f00] hover:bg-accent sm:w-auto"
           onClick={() => {
             setValues(initialValues);
             setErrors({});
@@ -860,12 +860,12 @@ export function CadastroForm() {
   return (
     <form className="space-y-8" onSubmit={handleSubmit} noValidate>
       <section className="space-y-6" aria-labelledby="patient-heading">
-        <div className="flex items-center gap-3 border-b border-[#e1e1e1] pb-4">
+        <div className="flex items-start gap-3 border-b border-[#e1e1e1] pb-4">
           <span className="grid size-9 place-items-center rounded-full bg-secondary text-secondary-foreground">
             <UserRound className="size-4.5" aria-hidden="true" />
           </span>
-          <div>
-            <h3 id="patient-heading" className="text-lg font-semibold tracking-[-0.02em] text-secondary-foreground">
+          <div className="min-w-0">
+            <h3 id="patient-heading" className="text-base font-semibold tracking-[-0.02em] text-secondary-foreground sm:text-lg">
               Quem receberá o atendimento?
             </h3>
             <p className="mt-0.5 text-sm text-muted-foreground">Comece pelos dados da pessoa que será atendida.</p>
@@ -894,7 +894,7 @@ export function CadastroForm() {
             ].map((option) => (
               <label
                 key={option.value}
-                className="flex min-h-12 cursor-pointer items-center gap-3 rounded-md border border-[#d4d4d4] bg-white px-4 text-base has-[:checked]:border-primary has-[:checked]:ring-2 has-[:checked]:ring-primary/20"
+                className="flex min-h-12 min-w-0 cursor-pointer items-center gap-3 rounded-md border border-[#d4d4d4] bg-white px-4 text-base has-[:checked]:border-primary has-[:checked]:ring-2 has-[:checked]:ring-primary/20"
               >
                 <input
                   type="radio"
@@ -988,7 +988,7 @@ export function CadastroForm() {
             <Checkbox
               id="hasResponsible"
               name="hasResponsible"
-              className="mt-0.5 size-5 rounded-sm border-[#bdbdbd] data-[state=checked]:border-primary data-[state=checked]:bg-primary"
+              className="mt-0.5 size-5 shrink-0 rounded-sm border-[#bdbdbd] data-[state=checked]:border-primary data-[state=checked]:bg-primary"
               checked={values.hasResponsible}
               onCheckedChange={(checked) => {
                 const enabled = checked === true;
@@ -996,7 +996,7 @@ export function CadastroForm() {
                 if (!enabled) setSameAddress(false);
               }}
             />
-            <Label htmlFor="hasResponsible" className="cursor-pointer text-sm font-normal leading-6">
+            <Label htmlFor="hasResponsible" className="min-w-0 cursor-pointer text-sm font-normal leading-6">
               Quero adicionar um responsável legal ou financeiro
             </Label>
           </div>
@@ -1004,9 +1004,9 @@ export function CadastroForm() {
       ) : null}
 
       {showResponsible ? (
-        <section className="space-y-6 rounded-lg border border-[#dedede] bg-white p-5 shadow-[0_12px_30px_rgba(65,56,30,0.05)] sm:p-7" aria-labelledby="responsible-heading">
+        <section className="space-y-6 rounded-lg border border-[#dedede] bg-white p-4 shadow-[0_12px_30px_rgba(65,56,30,0.05)] sm:p-7" aria-labelledby="responsible-heading">
           <div className="border-b border-[#e1e1e1] pb-4">
-            <h3 id="responsible-heading" className="text-lg font-semibold tracking-[-0.02em] text-secondary-foreground">
+            <h3 id="responsible-heading" className="text-base font-semibold tracking-[-0.02em] text-secondary-foreground sm:text-lg">
               Dados do responsável
             </h3>
             <p className="mt-1 text-sm text-muted-foreground">Conte-nos quem será o responsável legal ou financeiro.</p>
@@ -1115,12 +1115,12 @@ export function CadastroForm() {
           <Checkbox
             id="consent"
             name="consent"
-            className="mt-0.5 size-5 rounded-sm border-[#bdbdbd] data-[state=checked]:border-primary data-[state=checked]:bg-primary"
+            className="mt-0.5 size-5 shrink-0 rounded-sm border-[#bdbdbd] data-[state=checked]:border-primary data-[state=checked]:bg-primary"
             checked={values.consent}
             onCheckedChange={(checked) => update("consent", checked === true)}
             aria-invalid={Boolean(errors.consent)}
           />
-          <Label htmlFor="consent" className="cursor-pointer text-sm font-normal leading-6 text-muted-foreground">
+          <Label htmlFor="consent" className="min-w-0 cursor-pointer text-sm font-normal leading-6 text-muted-foreground">
             Autorizo a Conexão Seres a usar estas informações para realizar o cadastro, organizar o atendimento e enviar as comunicações necessárias.
           </Label>
         </div>

@@ -36,13 +36,13 @@ const FLOW_STEPS = [
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main className="min-h-screen overflow-x-hidden bg-background text-foreground">
       <div className="h-1.5 bg-primary" aria-hidden="true" />
 
       <div className="mx-auto grid min-h-[calc(100vh-0.375rem)] max-w-[1480px] lg:grid-cols-[minmax(320px,0.72fr)_minmax(0,1.28fr)]">
         <aside className="brand-panel border-b border-[#cfddc7] px-5 py-8 sm:px-9 sm:py-10 lg:sticky lg:top-0 lg:flex lg:h-fit lg:min-h-[calc(100vh-0.375rem)] lg:flex-col lg:justify-between lg:border-r lg:border-b-0 lg:px-12 lg:py-12 xl:px-16">
           <div>
-            <div className="flex items-center justify-between gap-5">
+            <div className="flex items-center justify-between gap-3">
               <a
                 href="https://conexaoseres.com.br/"
                 aria-label="Voltar ao site da Conexão Seres"
@@ -57,9 +57,12 @@ export default function Home() {
                 />
               </a>
 
-              <span className="flex shrink-0 items-center gap-2 text-xs font-medium text-[#315f31] lg:hidden">
+              <span
+                className="flex shrink-0 items-center gap-2 text-xs font-medium text-[#315f31] lg:hidden"
+                aria-label="Ambiente seguro"
+              >
                 <LockKeyhole className="size-4" aria-hidden="true" />
-                Ambiente seguro
+                <span className="hidden sm:inline">Ambiente seguro</span>
               </span>
             </div>
 
@@ -95,8 +98,8 @@ export default function Home() {
           </div>
         </aside>
 
-        <section className="px-4 py-8 sm:px-8 sm:py-10 lg:px-10 lg:py-12 xl:px-14">
-          <div className="mx-auto mb-8 max-w-4xl px-1 sm:px-2 xl:px-3">
+        <section className="px-3 py-6 sm:px-8 sm:py-10 lg:px-10 lg:py-12 xl:px-14">
+          <div className="mx-auto mb-7 max-w-4xl px-1 sm:mb-8 sm:px-2 xl:px-3">
             <p className="text-sm font-semibold uppercase tracking-[0.14em] text-secondary-foreground">
               Conexão Seres
             </p>
@@ -115,7 +118,7 @@ export default function Home() {
             </ul>
           </div>
 
-          <div className="mx-auto max-w-4xl border border-border bg-white px-5 py-7 shadow-[0_12px_38px_rgba(65,56,30,0.07)] sm:px-9 sm:py-10 xl:px-12">
+          <div className="mx-auto max-w-4xl border border-border bg-white px-4 py-6 shadow-[0_12px_38px_rgba(65,56,30,0.07)] sm:px-9 sm:py-10 xl:px-12">
             <div className="mb-9 border-l-4 border-primary bg-[#fff8ee] px-4 py-3 sm:px-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
