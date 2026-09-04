@@ -395,31 +395,35 @@ function create_first_session_payment(
 
 function build_observations(array $values, int $patientAge): ?string
 {
+    $attendanceLines = [
+        'Tipo de atendimento: ' . service_type_label($values['serviceType']),
+        $patientAge >= 18
+        ? 'Modalidade de atendimento: ' . attendance_mode_label($values['attendanceMode'])
+        : 'Forma de ingresso: ' . entry_type_label($values['entryType']);
+        'Primeira sessão: ' . $values['firstSessionDate'] . ' às ' . $values['firstSessionTime'],
+        'Modalidade da primeira sessão: ' . first_session_mode_label($values['firstSessionMode']),
+        'Autorização de imagens e vídeos: ' . media_consent_label($values['mediaConsent']),
+    ];
+
+    if ($patientAge >= 18 && !$values['hasResponsible']) {
+        return implode("\n", $attendanceLines);
+    }
+
     $lines = [
         'Pessoa atendida: ' . clean_text($values['patientName']),
         'CPF da pessoa atendida: ' . digits($values['patientCpf']),
         'Nascimento da pessoa atendida: ' . format_birth_date($values['patientBirthDate']),
     ];
-
     if ($patientAge >= 18) {
         $lines[] = 'Contato da pessoa atendida: ' . digits($values['patientPhone'])
             . ' | ' . clean_text($values['patientEmail']);
         $lines[] = 'Endereço da pessoa atendida: ' . full_address($values, 'patient');
     }
-
     if ($values['hasResponsible']) {
         $lines[] = 'Nascimento do responsável: ' . format_birth_date($values['responsibleBirthDate']);
     }
 
-    $lines[] = 'Tipo de atendimento: ' . service_type_label($values['serviceType']);
-    $lines[] = $patientAge >= 18
-        ? 'Modalidade de atendimento: ' . attendance_mode_label($values['attendanceMode'])
-        : 'Forma de ingresso: ' . entry_type_label($values['entryType']);
-    $lines[] = 'Primeira sessão: ' . $values['firstSessionDate'] . ' às ' . $values['firstSessionTime'];
-    $lines[] = 'Modalidade da primeira sessão: ' . first_session_mode_label($values['firstSessionMode']);
-    $lines[] = 'Autorização de imagens e vídeos: ' . media_consent_label($values['mediaConsent']);
-
-    return implode("\n", $lines);
+    return implode("\n", array_merge($lines, $attendanceLines));
 }
 
 function normalized_name(string $name): string

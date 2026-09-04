@@ -253,8 +253,8 @@ test("adds attendance labels to observations without duplicating an adult patien
     assert.match(backend, /Forma de ingresso/);
   }
   assert.match(typescriptBackend, /if \(patientAge !== null && patientAge >= 18 && !patient\.hasResponsible\) \{[\s\S]*return attendanceLines\.join/);
-  assert.match(phpBackend, /\$lines\[\] = 'Tipo de atendimento: '/);
-  assert.match(phpBackend, /\$lines\[\] = \$patientAge >= 18[\s\S]*Modalidade de atendimento/);
+  assert.match(phpBackend, /\$attendanceLines = \[[\s\S]*'Tipo de atendimento: '/);
+  assert.match(phpBackend, /if \(\$patientAge >= 18 && !\$values\['hasResponsible'\]\) \{[\s\S]*return implode\("\\n", \$attendanceLines\)/);
 });
 
 test("keeps the first-session payment independent from attendance fields", () => {
@@ -349,6 +349,38 @@ test("formats patient and responsible birth dates in observations", () => {
     phpBackend,
     /Nascimento do responsável: ' \. format_birth_date\(\$values\['responsibleBirthDate'\]\)/,
   );
+});
+
+test("keeps TypeScript and PHP observations equivalent by patient age and responsibility", () => {
+  const typescriptObservations = typescriptBackend.slice(
+    typescriptBackend.indexOf("function buildObservations"),
+    typescriptBackend.indexOf("export async function POST"),
+  );
+  const phpObservations = phpBackend.slice(
+    phpBackend.indexOf("function build_observations"),
+    phpBackend.indexOf("function normalized_name"),
+  );
+
+  for (const source of [typescriptObservations, phpObservations]) {
+    assert.match(source, /Tipo de atendimento/);
+    assert.match(source, /Primeira sessão/);
+    assert.match(source, /Modalidade da primeira sessão/);
+    assert.match(source, /Autorização de imagens e vídeos/);
+    assert.match(source, /Pessoa atendida/);
+    assert.match(source, /CPF da pessoa atendida/);
+    assert.match(source, /Nascimento da pessoa atendida/);
+  }
+  assert.match(
+    typescriptObservations,
+    /const attendanceLines[\s\S]*?if \(patientAge !== null && patientAge >= 18 && !patient\.hasResponsible\) \{\s*return attendanceLines\.join\("\\n"\);/,
+  );
+  assert.match(
+    phpObservations,
+    /\$attendanceLines[\s\S]*?if \(\$patientAge >= 18 && !\$values\['hasResponsible'\]\) \{\s*return implode\("\\n", \$attendanceLines\);/,
+  );
+  assert.match(typescriptObservations, /return \[\.\.\.lines, \.\.\.attendanceLines\]\.join\("\\n"\)/);
+  assert.match(phpObservations, /return implode\("\\n", array_merge\(\$lines, \$attendanceLines\)\)/);
+  assert.doesNotMatch(phpObservations, /substr|mb_substr/);
 });
 
 test("validates birth dates when they change and when the field loses focus", () => {
