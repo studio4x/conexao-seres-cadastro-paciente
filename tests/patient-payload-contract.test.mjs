@@ -99,6 +99,10 @@ test("validates media consent and switches modal copy by patient age", () => {
   assert.match(frontend, /isMediaConsent\(value\.mediaConsent\)/);
   assert.match(frontend, /DialogTrigger/);
   assert.match(frontend, /Saiba mais/);
+  assert.match(frontend, /variant="outline"/);
+  assert.match(frontend, /aria-haspopup="dialog"/);
+  assert.match(frontend, /Info className/);
+  assert.match(frontend, /ChevronRight className/);
   assert.match(frontend, /max-h-\[calc\(100dvh-2rem\)\]/);
   assert.match(frontend, /ADULT_MEDIA_CONSENT_TEXT/);
   assert.match(frontend, /MINOR_MEDIA_CONSENT_TEXT/);

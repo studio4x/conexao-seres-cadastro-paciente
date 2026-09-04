@@ -213,8 +213,8 @@ Conferir o payload enviado ao backend:
 
 ### 9.2 Modal do consentimento
 
-- [ ] No desktop, confirmar o link “Saiba mais”.
-- [ ] No mobile, confirmar o link “Saiba mais sobre esta autorização”.
+- [ ] No desktop, confirmar que “Saiba mais” tem aparência de botão, ícone informativo e indicação visual de abertura de modal.
+- [ ] No mobile, confirmar que “Saiba mais sobre esta autorização” mantém aparência de botão, ícone informativo e indicação visual de abertura de modal.
 - [ ] Abrir o modal e confirmar o título `Autorização para registro e uso de imagens e vídeos`.
 - [ ] Confirmar que o modal possui botão “Fechar”, foco acessível e fechamento por `ESC`.
 - [ ] Em viewport móvel reduzida, confirmar que o modal não ultrapassa a tela e permite rolagem interna.

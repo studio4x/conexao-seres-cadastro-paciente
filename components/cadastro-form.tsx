@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { ptBR } from "date-fns/locale/pt-BR";
-import { CalendarDays, Check, LoaderCircle, RotateCcw, ShieldCheck, UserRound } from "lucide-react";
+import { CalendarDays, Check, ChevronRight, Info, LoaderCircle, RotateCcw, ShieldCheck, UserRound } from "lucide-react";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
@@ -1535,9 +1535,17 @@ export function CadastroForm({ onSuccessChange }: CadastroFormProps) {
             </div>
             <Dialog>
               <DialogTrigger asChild>
-                <Button type="button" variant="link" className="h-auto px-0 text-sm">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  aria-haspopup="dialog"
+                  className="mt-1 border-primary/30 bg-primary/5 font-semibold text-secondary-foreground shadow-sm hover:border-primary/50 hover:bg-primary/10"
+                >
+                  <Info className="size-4 text-primary" aria-hidden="true" />
                   <span className="sm:hidden">Saiba mais sobre esta autorização</span>
                   <span className="hidden sm:inline">Saiba mais</span>
+                  <ChevronRight className="size-4 text-muted-foreground" aria-hidden="true" />
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl">
