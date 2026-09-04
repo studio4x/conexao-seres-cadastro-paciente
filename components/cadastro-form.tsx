@@ -45,6 +45,7 @@ import {
   FIRST_SESSION_MODE_LABELS,
   FIRST_SESSION_MODES,
   formatFirstSessionDateInput,
+  firstSessionDateToIso,
   parseFirstSessionDate,
   saoPauloTodayIso,
   isFirstSessionDateTodayOrFuture,
@@ -728,6 +729,7 @@ export function CadastroForm({ onSuccessChange }: CadastroFormProps) {
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [sameAddress, setSameAddress] = useState(false);
+  const [birthDateInputs, setBirthDateInputs] = useState({ patient: "", responsible: "" });
   const [cepLookup, setCepLookup] = useState<Record<"patient" | "responsible", CepLookupState>>({
     patient: { status: "idle" },
     responsible: { status: "idle" },
@@ -963,11 +965,14 @@ export function CadastroForm({ onSuccessChange }: CadastroFormProps) {
   }
 
   function updateBirthDate(value: string) {
-    const age = calculateAge(value);
+    const formatted = formatFirstSessionDateInput(value);
+    const isoValue = firstSessionDateToIso(formatted) ?? "";
+    const age = calculateAge(isoValue);
+    setBirthDateInputs((current) => ({ ...current, patient: formatted }));
     if (age !== null && age < 18) setSameAddress(false);
     setValues((current) => ({
       ...current,
-      patientBirthDate: value,
+      patientBirthDate: isoValue,
       hasResponsible: age === null ? current.hasResponsible : age < 18,
       ...(age !== null && age >= 18
         ? {
@@ -991,12 +996,21 @@ export function CadastroForm({ onSuccessChange }: CadastroFormProps) {
         attendanceMode: undefined,
       }));
     }
-    setFieldValidation("patientBirthDate", birthDateError("patientBirthDate", value));
+    setFieldValidation(
+      "patientBirthDate",
+      formatted.length === 10 ? birthDateError("patientBirthDate", isoValue) : undefined,
+    );
   }
 
   function updateResponsibleBirthDate(value: string) {
-    update("responsibleBirthDate", value);
-    setFieldValidation("responsibleBirthDate", birthDateError("responsibleBirthDate", value));
+    const formatted = formatFirstSessionDateInput(value);
+    const isoValue = firstSessionDateToIso(formatted) ?? "";
+    setBirthDateInputs((current) => ({ ...current, responsible: formatted }));
+    update("responsibleBirthDate", isoValue);
+    setFieldValidation(
+      "responsibleBirthDate",
+      formatted.length === 10 ? birthDateError("responsibleBirthDate", isoValue) : undefined,
+    );
   }
 
   function updateFirstSessionDate(value: string) {
@@ -1098,6 +1112,7 @@ export function CadastroForm({ onSuccessChange }: CadastroFormProps) {
           className="mt-7 h-11 w-full rounded-md border-primary/30 bg-white px-5 text-[#b35f00] hover:bg-accent sm:w-auto"
           onClick={() => {
             setValues(initialValues);
+            setBirthDateInputs({ patient: "", responsible: "" });
             setErrors({});
             setSameAddress(false);
             setCepLookup({ patient: { status: "idle" }, responsible: { status: "idle" } });
@@ -1172,9 +1187,12 @@ export function CadastroForm({ onSuccessChange }: CadastroFormProps) {
           <InputField
             field="patientBirthDate"
             label="Data de nascimento"
-            value={values.patientBirthDate}
+            value={birthDateInputs.patient}
             error={errors.patientBirthDate}
-            type="date"
+            type="text"
+            inputMode="numeric"
+            placeholder="DD/MM/AAAA"
+            maxLength={10}
             autoComplete="bday"
             onChange={updateBirthDate}
             onBlur={() => validateBirthDateField("patientBirthDate")}
@@ -1296,9 +1314,12 @@ export function CadastroForm({ onSuccessChange }: CadastroFormProps) {
             <InputField
               field="responsibleBirthDate"
               label="Data de nascimento"
-              value={values.responsibleBirthDate}
+              value={birthDateInputs.responsible}
               error={errors.responsibleBirthDate}
-              type="date"
+              type="text"
+              inputMode="numeric"
+              placeholder="DD/MM/AAAA"
+              maxLength={10}
               autoComplete="bday"
               onChange={updateResponsibleBirthDate}
               onBlur={() => validateBirthDateField("responsibleBirthDate")}

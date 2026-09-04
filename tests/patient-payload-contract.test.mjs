@@ -358,7 +358,7 @@ test("validates birth dates when they change and when the field loses focus", ()
   );
   assert.match(
     frontend,
-    /setFieldValidation\("patientBirthDate", birthDateError\("patientBirthDate", value\)\)/,
+    /setFieldValidation\(\s*"patientBirthDate",\s*formatted\.length === 10 \? birthDateError\("patientBirthDate", isoValue\)/,
   );
   assert.match(
     frontend,
@@ -368,6 +368,10 @@ test("validates birth dates when they change and when the field loses focus", ()
     frontend,
     /onChange=\{updateResponsibleBirthDate\}[\s\S]*?onBlur=\{\(\) => validateBirthDateField\("responsibleBirthDate"\)\}/,
   );
+  assert.match(frontend, /field="patientBirthDate"[\s\S]*?type="text"[\s\S]*?inputMode="numeric"/);
+  assert.match(frontend, /field="responsibleBirthDate"[\s\S]*?type="text"[\s\S]*?inputMode="numeric"/);
+  assert.match(frontend, /setBirthDateInputs\(\(current\) => \(\{ \.\.\.current, patient: formatted \}\)\)/);
+  assert.match(frontend, /setBirthDateInputs\(\(current\) => \(\{ \.\.\.current, responsible: formatted \}\)\)/);
 });
 
 test("requires full names and rejects equal patient and responsible names", () => {
