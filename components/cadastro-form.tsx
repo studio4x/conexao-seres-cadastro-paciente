@@ -569,12 +569,15 @@ function AddressFields({
   );
 }
 
-export function CadastroForm() {
+type CadastroFormProps = {
+  onSuccessChange?: (isSuccess: boolean) => void;
+};
+
+export function CadastroForm({ onSuccessChange }: CadastroFormProps) {
   const [values, setValues] = useState<FormValues>(initialValues);
   const [errors, setErrors] = useState<Errors>({});
   const [status, setStatus] = useState<"idle" | "sending" | "success">("idle");
   const [submitError, setSubmitError] = useState("");
-  const [submitSuccessMessage, setSubmitSuccessMessage] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [sameAddress, setSameAddress] = useState(false);
@@ -893,8 +896,8 @@ export function CadastroForm() {
         }
       }
       if (!response.ok) throw new Error(result.message || "Não foi possível concluir o cadastro.");
-      setSubmitSuccessMessage(result.message || "");
       setStatus("success");
+      onSuccessChange?.(true);
     } catch (error) {
       setStatus("idle");
       setTurnstileToken("");
@@ -913,11 +916,19 @@ export function CadastroForm() {
         <div className="mx-auto grid size-14 place-items-center rounded-full bg-secondary-foreground text-white shadow-[0_10px_30px_rgba(0,80,0,0.16)]">
           <Check className="size-7" strokeWidth={2.4} aria-hidden="true" />
         </div>
-        <h3 className="mt-6 text-2xl font-semibold tracking-[-0.035em]">Tudo certo!</h3>
-        <p className="mx-auto mt-3 max-w-sm text-base leading-7 text-muted-foreground">
-          {submitSuccessMessage ||
-            "Recebemos seu cadastro. A equipe da Conexão Seres dará continuidade ao seu atendimento."}
-        </p>
+        <h3 className="mt-6 text-2xl font-semibold tracking-[-0.035em]">Cadastro concluído!</h3>
+        <div className="mx-auto mt-4 max-w-2xl space-y-4 text-left text-base leading-7 text-muted-foreground">
+          <p>Recebemos seus dados com sucesso.</p>
+          <p>
+            Agora, fique de olho no <strong>WhatsApp e o e-mail informados no cadastro</strong>. Você receberá a confirmação do cadastro e, em seguida, o <strong>Asaas enviará pelo WhatsApp o link para pagamento da primeira sessão</strong>.
+          </p>
+          <p>
+            Assim que o pagamento for identificado, nossa equipe dará continuidade à <strong>confirmação do agendamento</strong> e enviará as informações do atendimento.
+          </p>
+          <p>
+            Após a primeira sessão, caso haja continuidade do acompanhamento, enviaremos o <strong>contrato de prestação de serviços para leitura e assinatura</strong>.
+          </p>
+        </div>
         <Button
           type="button"
           variant="outline"
@@ -929,8 +940,8 @@ export function CadastroForm() {
             setCepLookup({ patient: { status: "idle" }, responsible: { status: "idle" } });
             setTurnstileToken("");
             setTurnstileResetKey((current) => current + 1);
-            setSubmitSuccessMessage("");
             setStatus("idle");
+            onSuccessChange?.(false);
           }}
         >
           <RotateCcw className="size-4" aria-hidden="true" />

@@ -29,6 +29,10 @@ const frontend = await readFile(
   new URL("../components/cadastro-form.tsx", import.meta.url),
   "utf8",
 );
+const homePage = await readFile(
+  new URL("../app/page.tsx", import.meta.url),
+  "utf8",
+);
 const attendanceContract = await readFile(
   new URL("../lib/attendance.ts", import.meta.url),
   "utf8",
@@ -123,6 +127,19 @@ test("keeps media consent independent from billing, n8n and age-reset state", ()
   )?.[0];
   assert.ok(paymentFunction);
   assert.doesNotMatch(paymentFunction, /mediaConsent/);
+});
+
+test("renders the requested success message and hides the form intro after submission", () => {
+  assert.match(homePage, /isRegistrationComplete/);
+  assert.match(homePage, /!isRegistrationComplete/);
+  assert.match(homePage, /<CadastroForm onSuccessChange=\{setIsRegistrationComplete\} \/>/);
+  assert.match(frontend, /Cadastro concluído!/);
+  assert.match(frontend, /Recebemos seus dados com sucesso\./);
+  assert.match(frontend, /WhatsApp e o e-mail informados no cadastro/);
+  assert.match(frontend, /Asaas enviará pelo WhatsApp o link para pagamento da primeira sessão/);
+  assert.match(frontend, /confirmação do agendamento/);
+  assert.match(frontend, /contrato de prestação de serviços para leitura e assinatura/);
+  assert.doesNotMatch(frontend, /Tudo certo!/);
 });
 
 test("renders the Sobre o atendimento section with accessible conditional radio groups", () => {

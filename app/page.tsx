@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { CheckCircle2, ChevronDown, LockKeyhole, ShieldCheck } from "lucide-react";
 
 import { CadastroForm } from "@/components/cadastro-form";
@@ -56,6 +59,8 @@ function FlowSteps({ compact = false }: { compact?: boolean }) {
 }
 
 export default function Home() {
+  const [isRegistrationComplete, setIsRegistrationComplete] = useState(false);
+
   return (
     <main className="min-h-screen overflow-x-clip bg-background text-foreground">
       <div className="h-1.5 bg-primary" aria-hidden="true" />
@@ -141,21 +146,23 @@ export default function Home() {
           </div>
 
           <div className="mx-auto max-w-4xl border border-border bg-white px-4 py-6 shadow-[0_12px_38px_rgba(65,56,30,0.07)] sm:px-9 sm:py-10 xl:px-12">
-            <div className="mb-9 border-l-4 border-primary bg-[#fff8ee] px-4 py-3 sm:px-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-xl font-medium text-secondary-foreground sm:text-2xl">
-                    Conte-nos sobre você
-                  </h2>
-                  <p className="mt-1.5 text-sm leading-6 text-muted-foreground sm:text-base">
-                    Preencha com calma. Mostraremos apenas o que for necessário em cada etapa.
-                  </p>
+            {!isRegistrationComplete ? (
+              <div className="mb-9 border-l-4 border-primary bg-[#fff8ee] px-4 py-3 sm:px-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-medium text-secondary-foreground sm:text-2xl">
+                      Conte-nos sobre você
+                    </h2>
+                    <p className="mt-1.5 text-sm leading-6 text-muted-foreground sm:text-base">
+                      Preencha com calma. Mostraremos apenas o que for necessário em cada etapa.
+                    </p>
+                  </div>
+                  <LockKeyhole className="mt-1 hidden size-5 shrink-0 text-secondary-foreground sm:block" aria-hidden="true" />
                 </div>
-                <LockKeyhole className="mt-1 hidden size-5 shrink-0 text-secondary-foreground sm:block" aria-hidden="true" />
               </div>
-            </div>
+            ) : null}
 
-            <CadastroForm />
+            <CadastroForm onSuccessChange={setIsRegistrationComplete} />
           </div>
 
           <p className="mx-auto mt-6 max-w-4xl text-center text-xs leading-5 text-muted-foreground">
