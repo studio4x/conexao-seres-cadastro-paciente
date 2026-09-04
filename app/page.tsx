@@ -6,13 +6,41 @@ import { AppVersion } from "@/components/layout/AppVersion";
 const LOGO_URL =
   "https://conexaoseres.com.br/wp-content/uploads/2024/04/LOGOTIPO-CONEXAO-SERES-HORIZONTAL-TRANSPARENTE.png";
 
+const FLOW_STEPS = [
+  {
+    title: "Faça seu cadastro",
+    description:
+      "Preencha os dados da pessoa que será atendida e, quando necessário, do responsável.",
+  },
+  {
+    title: "Receba a confirmação",
+    description:
+      "Ao concluir, você receberá uma confirmação do cadastro pelo WhatsApp e por e-mail.",
+  },
+  {
+    title: "Realize o pagamento da primeira sessão",
+    description:
+      "Em seguida, o Asaas enviará pelo WhatsApp o link para pagamento da primeira sessão.",
+  },
+  {
+    title: "Aguarde a confirmação do agendamento",
+    description:
+      "Assim que o pagamento for identificado, nossa equipe dará continuidade ao agendamento e você receberá as informações completas, como data, horário, modalidade, endereço e orientações importantes.",
+  },
+  {
+    title: "Receba sua nota fiscal",
+    description:
+      "Após a identificação do pagamento, a nota fiscal será enviada automaticamente para o e-mail informado no cadastro.",
+  },
+];
+
 export default function Home() {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="h-1.5 bg-primary" aria-hidden="true" />
 
       <div className="mx-auto grid min-h-[calc(100vh-0.375rem)] max-w-[1480px] lg:grid-cols-[minmax(320px,0.72fr)_minmax(0,1.28fr)]">
-        <aside className="brand-panel border-b border-[#cfddc7] px-5 py-8 sm:px-9 sm:py-10 lg:sticky lg:top-0 lg:flex lg:h-[calc(100vh-0.375rem)] lg:flex-col lg:justify-between lg:border-r lg:border-b-0 lg:px-12 lg:py-12 xl:px-16">
+        <aside className="brand-panel border-b border-[#cfddc7] px-5 py-8 sm:px-9 sm:py-10 lg:sticky lg:top-0 lg:flex lg:h-fit lg:min-h-[calc(100vh-0.375rem)] lg:flex-col lg:justify-between lg:border-r lg:border-b-0 lg:px-12 lg:py-12 xl:px-16">
           <div>
             <div className="flex items-center justify-between gap-5">
               <a
@@ -49,9 +77,34 @@ export default function Home() {
               <ul className="mt-8 grid gap-3 text-sm leading-6 text-[#315f31]">
                 <li className="flex items-start gap-3">
                   <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
-                  Um formulário simples, passo a passo
+                  Cadastro, pagamento e confirmação — tudo de forma simples e segura.
                 </li>
               </ul>
+
+              <section className="mt-10" aria-labelledby="how-it-works-heading">
+                <h2
+                  id="how-it-works-heading"
+                  className="text-xs font-semibold uppercase tracking-[0.16em] text-secondary-foreground"
+                >
+                  COMO FUNCIONA
+                </h2>
+                <ol className="mt-4 divide-y divide-[#cfddc7] border-t border-[#cfddc7]">
+                  {FLOW_STEPS.map((step, index) => (
+                    <li key={step.title} className="flex gap-4 py-4 first:pt-4 last:pb-0">
+                      <span
+                        className="mt-0.5 w-7 shrink-0 text-sm font-semibold tracking-[0.08em] text-primary"
+                        aria-hidden="true"
+                      >
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      <div>
+                        <h3 className="text-sm font-semibold leading-6 text-secondary-foreground">{step.title}</h3>
+                        <p className="mt-1 text-sm leading-6 text-[#4f5e4b]">{step.description}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              </section>
             </div>
           </div>
 
