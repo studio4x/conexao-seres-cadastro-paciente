@@ -46,6 +46,15 @@ const firstSessionContract = await readFile(
   "utf8",
 );
 
+function extractModeLabels(source, sectionPattern) {
+  const section = source.match(sectionPattern)?.[1];
+  assert.ok(section, `Could not find mode-label section: ${sectionPattern}`);
+  return Object.fromEntries(
+    [...section.matchAll(/["']?(IN_PERSON|ONLINE)["']?\s*(?::|=>)\s*["']([^"']+)["']/g)]
+      .map((match) => [match[1], match[2]]),
+  );
+}
+
 test("defines stable attendance codes and centralized labels", () => {
   const labels = [
     ["ADULT_NEURO_REHAB", "Terapia Ocupacional – Reabilitação Neurológica"],
@@ -227,6 +236,80 @@ test("records first-session data in observations without changing existing payme
   assert.match(typescriptBackend, /firstSessionModeLabel\(patient\.firstSessionMode\)/);
   assert.match(phpBackend, /\$values\['firstSessionDate'\] \. ' às ' \. \$values\['firstSessionTime'\]/);
   assert.match(phpBackend, /first_session_mode_label\(\$values\['firstSessionMode'\]\)/);
+});
+
+test("keeps TypeScript and PHP first-session mode labels equivalent", () => {
+  const expected = {
+    IN_PERSON: "Presencial, na clínica Conexão Seres",
+    ONLINE: "Online via Google Meet",
+  };
+  const typescriptLabels = extractModeLabels(
+    firstSessionContract,
+    /FIRST_SESSION_MODE_LABELS\s*=\s*\{([\s\S]*?)\}\s*as const/,
+  );
+  const phpLabels = extractModeLabels(
+    phpBackend,
+    /function first_session_mode_label\(string \$value\): string[\s\S]*?return \[([\s\S]*?)\]\[\$value\]/,
+  );
+
+  assert.deepEqual(typescriptLabels, expected);
+  assert.deepEqual(phpLabels, expected);
+});
+
+test("writes the exact first-session mode text in both observation builders", () => {
+  const labels = {
+    IN_PERSON: "Presencial, na clínica Conexão Seres",
+    ONLINE: "Online via Google Meet",
+  };
+  const typescriptObservations = typescriptBackend.slice(
+    typescriptBackend.indexOf("function buildObservations"),
+    typescriptBackend.indexOf("export async function POST"),
+  );
+  const phpObservations = phpBackend.slice(
+    phpBackend.indexOf("function build_observations"),
+    phpBackend.indexOf("function normalized_name"),
+  );
+
+  assert.match(
+    typescriptObservations,
+    /`Modalidade da primeira sessão: \$\{firstSessionModeLabel\(patient\.firstSessionMode\)\}`/,
+  );
+  assert.match(
+    phpObservations,
+    /'Modalidade da primeira sessão: ' \. first_session_mode_label\(\$values\['firstSessionMode'\]\)/,
+  );
+  for (const [mode, label] of Object.entries(labels)) {
+    assert.equal(`Modalidade da primeira sessão: ${label}`, {
+      IN_PERSON: "Modalidade da primeira sessão: Presencial, na clínica Conexão Seres",
+      ONLINE: "Modalidade da primeira sessão: Online via Google Meet",
+    }[mode]);
+  }
+});
+
+test("keeps attendance mode labels independent from first-session labels", () => {
+  const expectedAttendanceLabels = { IN_PERSON: "Presencial", ONLINE: "Online" };
+  const typescriptAttendanceLabels = extractModeLabels(
+    attendanceContract,
+    /ATTENDANCE_MODE_LABELS\s*=\s*\{([\s\S]*?)\}\s*as const/,
+  );
+  const phpAttendanceLabels = extractModeLabels(
+    phpBackend,
+    /function attendance_mode_label\(string \$value\): string[\s\S]*?return \[([\s\S]*?)\]\[\$value\]/,
+  );
+  const phpFirstSessionFunction = phpBackend.match(
+    /function first_session_mode_label\(string \$value\): string[\s\S]*?\n\}/,
+  )?.[0];
+
+  assert.deepEqual(typescriptAttendanceLabels, expectedAttendanceLabels);
+  assert.deepEqual(phpAttendanceLabels, expectedAttendanceLabels);
+  assert.notDeepEqual(phpAttendanceLabels, {
+    IN_PERSON: "Presencial, na clínica Conexão Seres",
+    ONLINE: "Online via Google Meet",
+  });
+  assert.match(phpBackend, /'Modalidade de atendimento: ' \. attendance_mode_label\(\$values\['attendanceMode'\]\)/);
+  assert.match(phpBackend, /'Modalidade da primeira sessão: ' \. first_session_mode_label\(\$values\['firstSessionMode'\]\)/);
+  assert.ok(phpFirstSessionFunction);
+  assert.doesNotMatch(phpFirstSessionFunction, /attendance_mode_label/);
 });
 
 test("does not clear first-session data when the patient age group changes", () => {

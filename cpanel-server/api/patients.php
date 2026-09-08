@@ -280,8 +280,8 @@ function first_session_mode_is_valid(string $value): bool
 function first_session_mode_label(string $value): string
 {
     return [
-        'IN_PERSON' => 'Presencial',
-        'ONLINE' => 'Online',
+        'IN_PERSON' => 'Presencial, na clínica Conexão Seres',
+        'ONLINE' => 'Online via Google Meet',
     ][$value] ?? '';
 }
 
