@@ -307,6 +307,8 @@ function sanitizeAsaasLogText(value: string) {
       /(access[_-]?token|authorization|asaas[_-]?api[_-]?key|turnstile[_-]?(?:secret|token))\s*[:=]\s*("[^"]*"|'[^']*'|[^,\s}]+)/gi,
       "$1=[REDACTED]",
     )
+    .replace(/(e2e[_-]?)?hmac[_-]?secret\s*[:=]\s*("[^"]*"|'[^']*'|[^,\s}]+)/gi, "$1hmac_secret=[REDACTED]")
+    .replace(new RegExp(E2E_TURNSTILE_TEST_SECRET, "g"), "[REDACTED]")
     .replace(/Bearer\s+\S+/gi, "Bearer [REDACTED]")
     .replace(/\b\d{3}[.\s]?\d{3}[.\s]?\d{3}[-\s]?\d{2}\b/g, "[CPF_REDACTED]")
     .replace(/\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b/g, "[EMAIL_REDACTED]")
@@ -327,6 +329,20 @@ async function asaasErrorDetails(response: Response) {
   } catch {
     return { response: sanitizedResponse || "Resposta não JSON ou indisponível" };
   }
+}
+
+function e2eAsaasCustomerCreateDiagnostic(
+  status: number,
+  details: Awaited<ReturnType<typeof asaasErrorDetails>>,
+) {
+  return {
+    code: "ASAAS_CUSTOMER_CREATE_REJECTED",
+    e2eDiagnostic: {
+      operation: "CREATE_CUSTOMER",
+      asaasStatus: status,
+      errors: details.errors ?? [],
+    },
+  };
 }
 
 function asaasErrorSummary(details: Awaited<ReturnType<typeof asaasErrorDetails>>) {
@@ -885,13 +901,21 @@ export async function POST(request: Request) {
         `Asaas customer creation failed. HTTP ${createResponse.status}. ${asaasErrorSummary(details)}`,
       );
       const status = createResponse.status >= 500 ? 502 : 400;
+      const responsePayload: {
+        message: string;
+        code?: string;
+        e2eDiagnostic?: ReturnType<typeof e2eAsaasCustomerCreateDiagnostic>["e2eDiagnostic"];
+      } = {
+        message:
+          status === 400
+            ? "Algumas informações precisam ser conferidas. Revise os dados e tente novamente."
+            : "Não conseguimos enviar o cadastro agora. Tente novamente em instantes.",
+      };
+      if (e2e.authorized && createResponse.status >= 400 && createResponse.status < 500) {
+        Object.assign(responsePayload, e2eAsaasCustomerCreateDiagnostic(createResponse.status, details));
+      }
       return NextResponse.json(
-        {
-          message:
-            status === 400
-              ? "Algumas informações precisam ser conferidas. Revise os dados e tente novamente."
-              : "Não conseguimos enviar o cadastro agora. Tente novamente em instantes.",
-        },
+        responsePayload,
         { status },
       );
     }

@@ -544,6 +544,12 @@ function sanitize_asaas_log_text(string $value, int $limit = 800): string
         '$1=[REDACTED]',
         $value
     ) ?? $value;
+    $sanitized = preg_replace(
+        '/(e2e[_-]?)?hmac[_-]?secret\s*[:=]\s*("[^"]*"|\'[^\']*\'|[^,\s}]+)/i',
+        '$1hmac_secret=[REDACTED]',
+        $sanitized
+    ) ?? $sanitized;
+    $sanitized = str_replace(E2E_TURNSTILE_TEST_SECRET, '[REDACTED]', $sanitized);
     $sanitized = preg_replace('/Bearer\s+\S+/i', 'Bearer [REDACTED]', $sanitized) ?? $sanitized;
     $sanitized = preg_replace('/\b\d{3}[.\s]?\d{3}[.\s]?\d{3}[-\s]?\d{2}\b/', '[CPF_REDACTED]', $sanitized) ?? $sanitized;
     $sanitized = preg_replace('/\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b/', '[EMAIL_REDACTED]', $sanitized) ?? $sanitized;
@@ -584,6 +590,29 @@ function log_asaas_failure(string $operation, array $response): void
 {
     $status = (int) ($response['status'] ?? 0);
     error_log(substr($operation . '. HTTP ' . $status . '. ' . asaas_error_summary($response), 0, 1400));
+}
+
+function e2e_asaas_customer_create_diagnostic(int $status, array $response): array
+{
+    $errors = [];
+    foreach (array_slice(is_array($response['data']['errors'] ?? null) ? $response['data']['errors'] : [], 0, 3) as $error) {
+        if (!is_array($error)) {
+            continue;
+        }
+        $errors[] = [
+            'code' => sanitize_asaas_log_text((string) ($error['code'] ?? 'unknown'), 120),
+            'description' => sanitize_asaas_log_text((string) ($error['description'] ?? 'Sem descrição'), 240),
+        ];
+    }
+
+    return [
+        'code' => 'ASAAS_CUSTOMER_CREATE_REJECTED',
+        'e2eDiagnostic' => [
+            'operation' => 'CREATE_CUSTOMER',
+            'asaasStatus' => $status,
+            'errors' => $errors,
+        ],
+    ];
 }
 
 function asaas_request(string $method, string $url, string $apiKey, ?array $payload = null): array
@@ -1148,7 +1177,16 @@ $created = asaas_request('POST', $baseUrl . '/customers', $apiKey, $customer);
 if ($created['error'] !== '' || $created['status'] < 200 || $created['status'] >= 300) {
     log_asaas_failure('Asaas customer creation failed', $created);
     if ($created['status'] >= 400 && $created['status'] < 500) {
-        respond(['message' => 'Algumas informações precisam ser conferidas. Revise os dados e tente novamente.'], 400);
+        $responsePayload = [
+            'message' => 'Algumas informações precisam ser conferidas. Revise os dados e tente novamente.',
+        ];
+        if (($e2e['authorized'] ?? false) === true) {
+            $responsePayload = array_merge(
+                $responsePayload,
+                e2e_asaas_customer_create_diagnostic((int) $created['status'], $created)
+            );
+        }
+        respond($responsePayload, 400);
     }
     respond(['message' => 'Não conseguimos enviar o cadastro agora. Tente novamente em instantes.'], 502);
 }
