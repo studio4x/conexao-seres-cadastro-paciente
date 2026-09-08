@@ -220,6 +220,8 @@ O workflow `PHP syntax` no GitHub Actions executa esse lint com PHP 8.3 em cada 
 
 ## Cloudflare Turnstile
 
+Os testes E2E usam o contrato HMAC descrito em `PROTOCOLO-BACKEND-E2E.md`. No servidor cPanel, configure `E2E_TURNSTILE_ENABLED=true` e `E2E_TURNSTILE_HMAC_SECRET` somente no ambiente privado ou no `config.php` privado. Nunca publique o segredo HMAC. Sem os headers válidos, `api/turnstile.php` mantém o sitekey real e `api/patients.php` mantém a validação real do Turnstile.
+
 No painel do Cloudflare Turnstile, autorize:
 
 ```text

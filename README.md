@@ -397,6 +397,8 @@ A action utilizada é:
 cadastro_paciente
 ```
 
+Para os testes E2E da v1.3.3, os endpoints aceitam o modo `turnstile-test-v1` somente quando o servidor estiver configurado com `E2E_TURNSTILE_ENABLED=true` e `E2E_TURNSTILE_HMAC_SECRET` em ambiente privado. Cada requisição deve conter a assinatura HMAC descrita em `PROTOCOLO-BACKEND-E2E.md`; sem essa autorização, o sitekey real e a validação real permanecem ativos.
+
 O domínio de produção deve estar autorizado no Cloudflare:
 
 ```text

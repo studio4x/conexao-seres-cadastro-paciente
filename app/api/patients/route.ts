@@ -23,6 +23,10 @@ import {
   isValidFirstSessionDate,
   isValidFirstSessionTime,
 } from "../../../lib/first-session";
+import {
+  authorizeE2eTurnstile,
+  E2E_TURNSTILE_TEST_SECRET,
+} from "../../../lib/turnstile-e2e";
 
 export const runtime = "edge";
 
@@ -264,8 +268,10 @@ type TurnstileVerification = {
   action?: string;
 };
 
-async function verifyTurnstile(request: Request, token: string) {
-  const secret = (env.TURNSTILE_SECRET_KEY as string | undefined)?.trim();
+async function verifyTurnstile(request: Request, token: string, useE2eSecret: boolean) {
+  const secret = useE2eSecret
+    ? E2E_TURNSTILE_TEST_SECRET
+    : (env.TURNSTILE_SECRET_KEY as string | undefined)?.trim();
   if (!secret) return { configured: false, valid: false };
 
   const remoteIp =
@@ -781,9 +787,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Dados enviados são muito extensos." }, { status: 413 });
   }
 
+  const rawBody = await request.text();
+  const e2e = await authorizeE2eTurnstile(
+    request,
+    rawBody,
+    env as unknown as Parameters<typeof authorizeE2eTurnstile>[2],
+  );
+  if (e2e.error) {
+    return NextResponse.json({ code: e2e.error }, { status: 403 });
+  }
+
   let body: unknown;
   try {
-    body = await request.json();
+    body = JSON.parse(rawBody);
   } catch {
     return NextResponse.json({ message: "Não foi possível ler os dados enviados." }, { status: 400 });
   }
@@ -796,7 +812,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const turnstile = await verifyTurnstile(request, parsed.data.turnstileToken);
+  const turnstile = await verifyTurnstile(request, parsed.data.turnstileToken, e2e.authorized);
   if (!turnstile.configured) {
     return NextResponse.json(
       { message: "A verificação de segurança ainda não foi configurada. Fale com a clínica para que possamos ajudar." },

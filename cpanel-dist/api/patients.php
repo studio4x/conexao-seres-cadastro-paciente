@@ -6,6 +6,9 @@ date_default_timezone_set('America/Sao_Paulo');
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 
+const E2E_TURNSTILE_MODE = 'turnstile-test-v1';
+const E2E_TURNSTILE_TEST_SECRET = '1x0000000000000000000000000000000AA';
+
 function respond(array $payload, int $status = 200): never
 {
     http_response_code($status);
@@ -112,6 +115,62 @@ function valid_email(string $value): bool
     return strlen($email) <= 150
         && !str_contains($email, '..')
         && filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+}
+
+function e2e_turnstile_authorize(array $fileConfig, string $method, string $rawBody, string $fallbackPath): array
+{
+    $mode = array_key_exists('HTTP_X_CS_E2E_MODE', $_SERVER) ? (string) $_SERVER['HTTP_X_CS_E2E_MODE'] : null;
+    if ($mode === null) {
+        return ['authorized' => false, 'error' => null];
+    }
+    if ($mode !== E2E_TURNSTILE_MODE) {
+        return ['authorized' => false, 'error' => 'E2E_AUTH_INVALID'];
+    }
+
+    $enabled = strtolower(trim((string) (getenv('E2E_TURNSTILE_ENABLED') ?: ($fileConfig['e2e_turnstile_enabled'] ?? '')))) === 'true';
+    if (!$enabled) {
+        return ['authorized' => false, 'error' => 'E2E_DISABLED'];
+    }
+
+    $runId = array_key_exists('HTTP_X_CS_E2E_RUN', $_SERVER) ? (string) $_SERVER['HTTP_X_CS_E2E_RUN'] : '';
+    $timestamp = array_key_exists('HTTP_X_CS_E2E_TIMESTAMP', $_SERVER) ? (string) $_SERVER['HTTP_X_CS_E2E_TIMESTAMP'] : '';
+    $signature = array_key_exists('HTTP_X_CS_E2E_SIGNATURE', $_SERVER) ? (string) $_SERVER['HTTP_X_CS_E2E_SIGNATURE'] : '';
+    if ($runId === '' || $timestamp === '' || $signature === '') {
+        return ['authorized' => false, 'error' => 'E2E_AUTH_MISSING'];
+    }
+    if (preg_match('/^\d{1,12}$/', $timestamp) !== 1) {
+        return ['authorized' => false, 'error' => 'E2E_AUTH_INVALID'];
+    }
+    if (abs(time() - (int) $timestamp) > 180) {
+        return ['authorized' => false, 'error' => 'E2E_AUTH_EXPIRED'];
+    }
+
+    $secret = trim((string) (getenv('E2E_TURNSTILE_HMAC_SECRET') ?: ($fileConfig['e2e_turnstile_hmac_secret'] ?? '')));
+    if ($secret === '' || preg_match('/^v1=[0-9a-f]{64}$/i', $signature) !== 1) {
+        return ['authorized' => false, 'error' => 'E2E_AUTH_INVALID'];
+    }
+
+    $host = strtolower(trim((string) ($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? '')));
+    if (str_starts_with($host, '[')) {
+        $host = preg_replace('/^\[([^\]]+)\](?::\d+)?$/', '$1', $host) ?? $host;
+    } else {
+        $host = preg_replace('/:\d+$/', '', $host) ?? $host;
+    }
+    $path = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
+    $pathname = is_string($path) && $path !== '' ? $path : $fallbackPath;
+    $canonical = implode("\n", [
+        'v1',
+        strtoupper($method),
+        $host,
+        $pathname,
+        $timestamp,
+        $runId,
+        hash('sha256', $rawBody),
+    ]);
+    $expected = hash_hmac('sha256', $canonical, $secret);
+    return hash_equals($expected, substr($signature, 3))
+        ? ['authorized' => true, 'error' => null]
+        : ['authorized' => false, 'error' => 'E2E_AUTH_INVALID'];
 }
 
 function valid_full_name(string $value): bool
@@ -840,6 +899,22 @@ if ((int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 18000) {
 }
 
 $rawBody = file_get_contents('php://input');
+$rawBody = is_string($rawBody) ? $rawBody : '';
+
+$fileConfig = [];
+$configPath = __DIR__ . '/config.php';
+if (is_file($configPath)) {
+    $loaded = require $configPath;
+    if (is_array($loaded)) {
+        $fileConfig = $loaded;
+    }
+}
+
+$e2e = e2e_turnstile_authorize($fileConfig, 'POST', $rawBody, '/api/patients');
+if ($e2e['error'] !== null) {
+    respond(['code' => $e2e['error']], 403);
+}
+
 $payload = is_string($rawBody) ? json_decode($rawBody, true) : null;
 if (!is_array($payload)) {
     respond(['message' => 'Não foi possível ler os dados enviados.'], 400);
@@ -987,15 +1062,6 @@ if (!$valid) {
     respond(['message' => 'Confira os dados informados e tente novamente.'], 400);
 }
 
-$fileConfig = [];
-$configPath = __DIR__ . '/config.php';
-if (is_file($configPath)) {
-    $loaded = require $configPath;
-    if (is_array($loaded)) {
-        $fileConfig = $loaded;
-    }
-}
-
 $apiKey = trim((string) (getenv('ASAAS_API_KEY') ?: ($fileConfig['asaas_api_key'] ?? '')));
 $baseUrl = rtrim((string) (getenv('ASAAS_API_URL') ?: ($fileConfig['asaas_api_url'] ?? 'https://api.asaas.com/v3')), '/');
 $n8nWebhookUrl = trim((string) (getenv('N8N_CONEXAO_SERES_CADASTRO_WEBHOOK_URL') ?: ($fileConfig['n8n_cadastro_webhook_url'] ?? '')));
@@ -1009,7 +1075,9 @@ if (!function_exists('curl_init')) {
     respond(['message' => 'A integração de cadastro não está disponível no servidor.'], 503);
 }
 
-$turnstileSecret = trim((string) (getenv('TURNSTILE_SECRET_KEY') ?: ($fileConfig['turnstile_secret_key'] ?? '')));
+$turnstileSecret = $e2e['authorized']
+    ? E2E_TURNSTILE_TEST_SECRET
+    : trim((string) (getenv('TURNSTILE_SECRET_KEY') ?: ($fileConfig['turnstile_secret_key'] ?? '')));
 $turnstileHostname = trim((string) (getenv('TURNSTILE_EXPECTED_HOSTNAME') ?: ($fileConfig['turnstile_expected_hostname'] ?? '')));
 if ($turnstileSecret === '' || $turnstileSecret === 'COLE_AQUI_A_CHAVE_SECRETA_DO_TURNSTILE') {
     respond(['message' => 'A verificação de segurança ainda não foi configurada. Fale com a clínica para que possamos ajudar.'], 503);
