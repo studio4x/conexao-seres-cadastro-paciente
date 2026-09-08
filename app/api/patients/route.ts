@@ -304,7 +304,7 @@ const DESIRED_SCHEDULE_OFFSETS = {
 function sanitizeAsaasLogText(value: string) {
   return value
     .replace(
-      /(access[_-]?token|authorization|asaas[_-]?api[_-]?key|turnstile[_-]?(?:secret|token))\s*[:=]\s*("[^"]*"|'[^']*'|[^,\s}]+)/gi,
+      /(access[_-]?token|authorization|asaas[_-]?api[_-]?key|api[_-]?key|token|turnstile[_-]?(?:secret|token))\s*[:=]\s*("[^"]*"|'[^']*'|[^,\s}]+)/gi,
       "$1=[REDACTED]",
     )
     .replace(/(e2e[_-]?)?hmac[_-]?secret\s*[:=]\s*("[^"]*"|'[^']*'|[^,\s}]+)/gi, "$1hmac_secret=[REDACTED]")

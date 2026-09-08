@@ -540,7 +540,7 @@ function normalized_name(string $name): string
 function sanitize_asaas_log_text(string $value, int $limit = 800): string
 {
     $sanitized = preg_replace(
-        '/(access[_-]?token|authorization|asaas[_-]?api[_-]?key|turnstile[_-]?(?:secret|token))\s*[:=]\s*("[^"]*"|\'[^\']*\'|[^,\s}]+)/i',
+        '/(access[_-]?token|authorization|asaas[_-]?api[_-]?key|api[_-]?key|token|turnstile[_-]?(?:secret|token))\s*[:=]\s*("[^"]*"|\'[^\']*\'|[^,\s}]+)/i',
         '$1=[REDACTED]',
         $value
     ) ?? $value;

@@ -92,6 +92,8 @@ test("does not expose Asaas response bodies or credentials in the diagnostic", (
     assert.match(source, /access\[_-\]\?token/);
     assert.match(source, /authorization/);
     assert.match(source, /asaas\[_-\]\?api\[_-\]\?key/);
+    assert.match(source, /api\[_-\]\?key/);
+    assert.match(source, /token/);
     assert.match(source, /hmac\[_-\]\?secret/);
     assert.match(source, /E2E_TURNSTILE_TEST_SECRET/);
   }
