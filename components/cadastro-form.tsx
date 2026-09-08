@@ -223,8 +223,8 @@ const formSchema = z
   .superRefine((value, context) => {
     const add = (field: keyof typeof value, message: string) =>
       context.addIssue({ code: "custom", path: [field], message });
-    const requireText = (field: keyof typeof value, message: string) => {
-      if (String(value[field]).trim().length < 2) add(field, message);
+    const requireText = (field: keyof typeof value, message: string, minimumLength = 2) => {
+      if (String(value[field]).trim().length < minimumLength) add(field, message);
     };
     const requireWhatsapp = (field: "patientPhone" | "responsiblePhone") => {
       if (!isValidWhatsapp(value[field])) {
@@ -247,7 +247,7 @@ const formSchema = z
         add(postalCode, "Informe um CEP válido.");
       }
       requireText(address, "Informe o logradouro.");
-      requireText(number, "Informe o número.");
+      requireText(number, "Informe o número.", 1);
       requireText(province, "Informe o bairro.");
       requireText(city, "Informe a cidade.");
       if (!/^[A-Za-z]{2}$/.test(String(value[state]).trim())) {

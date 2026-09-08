@@ -121,6 +121,8 @@ Conferir no Asaas:
 - [ ] Criar cadastro com complemento do paciente e sem responsável; conferir `complement` do paciente.
 - [ ] Criar cadastro com complemento do responsável; conferir `complement` do responsável.
 - [ ] Criar cadastro sem complemento; confirmar que os demais campos continuam sendo enviados corretamente.
+- [ ] Informar apenas um caractere no campo “Número”, por exemplo `3`; confirmar que o erro “Informe o número” não aparece e que o cadastro pode prosseguir.
+- [ ] Deixar o campo “Número” vazio; confirmar que a mensagem “Informe o número” continua sendo exibida.
 - [ ] Informar complemento com acentos, pontuação e espaços; confirmar que o texto é preservado e que quebras de linha não são aceitas no payload.
 - [ ] Testar complemento no limite permitido pelo formulário.
 - [ ] Testar complemento acima do limite; confirmar mensagem de validação e ausência de envio.

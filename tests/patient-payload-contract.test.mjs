@@ -489,6 +489,14 @@ test("requires full names and rejects equal patient and responsible names", () =
   );
 });
 
+test("accepts a one-character address number in frontend and both backends", () => {
+  assert.match(frontend, /const requireText = \(field: keyof typeof value, message: string, minimumLength = 2\)/);
+  assert.match(frontend, /requireText\(number, "Informe o número\."\, 1\)/);
+  assert.match(typescriptBackend, /const required = \(field: keyof typeof value, minimumLength = 2\)/);
+  assert.match(typescriptBackend, /required\(number, 1\)/);
+  assert.match(phpBackend, /text_length\(trim\(\$values\[\$prefix \. 'AddressNumber'\]\)\) >= 1/);
+});
+
 test("builds a safe, customer-scoped Asaas notification batch", () => {
   for (const backend of [typescriptBackend, phpBackend]) {
     assert.match(backend, /deleted[^\n]*true/);

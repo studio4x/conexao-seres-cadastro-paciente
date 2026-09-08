@@ -158,8 +158,8 @@ const patientSchema = z
   .superRefine((value, context) => {
     const add = (field: keyof typeof value) =>
       context.addIssue({ code: "custom", path: [field], message: "Invalid field" });
-    const required = (field: keyof typeof value) => {
-      if (String(value[field]).trim().length < 2) add(field);
+    const required = (field: keyof typeof value, minimumLength = 2) => {
+      if (String(value[field]).trim().length < minimumLength) add(field);
     };
     const validWhatsapp = (field: "patientPhone" | "responsiblePhone") => {
       if (!isValidWhatsapp(value[field])) add(field);
@@ -176,7 +176,7 @@ const patientSchema = z
       const state = `${prefix}State` as keyof typeof value;
       if (onlyDigits(String(value[postalCode])).length !== 8) add(postalCode);
       required(address);
-      required(number);
+      required(number, 1);
       required(province);
       required(city);
       if (!/^[A-Za-z]{2}$/.test(String(value[state]))) add(state);
