@@ -1,4 +1,4 @@
-export const BUILD_VERSION = "1.0.113";
+export const BUILD_VERSION = "1.0.114";
 
 export function AppVersion() {
   return <span>Build v{BUILD_VERSION}</span>;

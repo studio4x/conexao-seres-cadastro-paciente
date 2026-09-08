@@ -855,7 +855,7 @@ function notify_n8n_customer_created_safely(string $webhookUrl, string $webhookT
     }
 }
 
-function turnstile_is_valid(string $secret, string $token, string $expectedHostname): bool
+function turnstile_is_valid(string $secret, string $token, string $expectedHostname, bool $isE2eAuthorized = false): bool
 {
     $remoteIp = trim((string) ($_SERVER['HTTP_CF_CONNECTING_IP'] ?? $_SERVER['REMOTE_ADDR'] ?? ''));
     $data = [
@@ -884,6 +884,10 @@ function turnstile_is_valid(string $secret, string $token, string $expectedHostn
     }
 
     $result = json_decode($body, true);
+    if ($isE2eAuthorized) {
+        return is_array($result) && ($result['success'] ?? false) === true;
+    }
+
     return is_array($result)
         && ($result['success'] ?? false) === true
         && ($result['action'] ?? '') === 'cadastro_paciente'
@@ -1082,7 +1086,7 @@ $turnstileHostname = trim((string) (getenv('TURNSTILE_EXPECTED_HOSTNAME') ?: ($f
 if ($turnstileSecret === '' || $turnstileSecret === 'COLE_AQUI_A_CHAVE_SECRETA_DO_TURNSTILE') {
     respond(['message' => 'A verificação de segurança ainda não foi configurada. Fale com a clínica para que possamos ajudar.'], 503);
 }
-if (!turnstile_is_valid($turnstileSecret, $values['turnstileToken'], $turnstileHostname)) {
+if (!turnstile_is_valid($turnstileSecret, $values['turnstileToken'], $turnstileHostname, $e2e['authorized'])) {
     respond(['message' => 'Não foi possível confirmar a verificação de segurança. Atualize a página e tente novamente.'], 400);
 }
 

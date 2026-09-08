@@ -27,6 +27,7 @@ import {
   authorizeE2eTurnstile,
   E2E_TURNSTILE_TEST_SECRET,
 } from "../../../lib/turnstile-e2e";
+import { verifyTurnstileToken } from "../../../lib/turnstile-verification";
 
 export const runtime = "edge";
 
@@ -262,46 +263,15 @@ type N8nCustomerCreatedPayload = {
   externalReference: string;
 };
 
-type TurnstileVerification = {
-  success?: boolean;
-  hostname?: string;
-  action?: string;
-};
-
 async function verifyTurnstile(request: Request, token: string, useE2eSecret: boolean) {
   const secret = useE2eSecret
     ? E2E_TURNSTILE_TEST_SECRET
     : (env.TURNSTILE_SECRET_KEY as string | undefined)?.trim();
-  if (!secret) return { configured: false, valid: false };
-
-  const remoteIp =
-    request.headers.get("cf-connecting-ip") ||
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8_000);
-
-  try {
-    const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ secret, response: token, ...(remoteIp ? { remoteip: remoteIp } : {}) }),
-      signal: controller.signal,
-    });
-    if (!response.ok) return { configured: true, valid: false };
-    const result = (await response.json()) as TurnstileVerification;
-    const expectedHostname = (env.TURNSTILE_EXPECTED_HOSTNAME as string | undefined)?.trim();
-    return {
-      configured: true,
-      valid:
-        result.success === true &&
-        result.action === "cadastro_paciente" &&
-        (!expectedHostname || result.hostname === expectedHostname),
-    };
-  } catch {
-    return { configured: true, valid: false };
-  } finally {
-    clearTimeout(timeout);
-  }
+  return verifyTurnstileToken(request, token, {
+    secret: secret || "",
+    expectedHostname: (env.TURNSTILE_EXPECTED_HOSTNAME as string | undefined)?.trim() || "",
+    useE2eSecret,
+  });
 }
 
 function asaasHeaders(apiKey: string) {
