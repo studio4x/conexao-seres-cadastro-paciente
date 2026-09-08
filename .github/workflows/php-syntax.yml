@@ -24,3 +24,5 @@ jobs:
           php -l cpanel-server/api/asaas-webhook.php
           php -l cpanel-dist/api/patients.php
           php -l cpanel-dist/api/asaas-webhook.php
+      - name: Validate PHP observations contract
+        run: php tests/php/asaas-customer-observations-contract.php

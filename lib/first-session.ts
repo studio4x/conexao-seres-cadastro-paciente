@@ -84,25 +84,30 @@ export function parseFirstSessionFromObservations(observations: unknown) {
   let firstSessionMode = "";
 
   for (const line of lines) {
-    const patientMatch = /^Pessoa atendida:(.*)$/.exec(line);
+    const patientMatch = /^(?:Pessoa atendida|Paciente):(.*)$/.exec(line);
     if (patientMatch) {
       patientNameLinePresent = true;
       patientName = patientMatch[1].trim();
       continue;
     }
 
-    const sessionMatch = /^Primeira sessão: (\d{2}\/\d{2}\/\d{4}) às ((?:[01]\d|2[0-3]):[0-5]\d)$/.exec(line);
+    const sessionMatch = /^(?:Primeira sessão|1ª sessão): (\d{2}\/\d{2}\/\d{4}) às ((?:[01]\d|2[0-3]):[0-5]\d)$/.exec(line);
     if (sessionMatch && isValidFirstSessionDate(sessionMatch[1])) {
       firstSessionDate = sessionMatch[1];
       firstSessionTime = sessionMatch[2];
       continue;
     }
 
-    if (line === "Modalidade da primeira sessão: Presencial") {
+    if (
+      line === "Modalidade da primeira sessão: Presencial" ||
+      line === "Modalidade da primeira sessão: Presencial, na clínica Conexão Seres" ||
+      line === "Modo 1ª sessão: Presencial, na clínica Conexão Seres"
+    ) {
       firstSessionMode = "IN_PERSON";
     } else if (
       line === "Modalidade da primeira sessão: Online via Google Meet" ||
-      line === "Modalidade da primeira sessão: Online"
+      line === "Modalidade da primeira sessão: Online" ||
+      line === "Modo 1ª sessão: Online via Google Meet"
     ) {
       firstSessionMode = "ONLINE";
     }

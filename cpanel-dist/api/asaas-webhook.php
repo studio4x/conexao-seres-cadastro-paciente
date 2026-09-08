@@ -126,14 +126,14 @@ function parse_first_session_from_observations(mixed $observations): array
         if (!is_string($line)) {
             continue;
         }
-        if (preg_match('/^Pessoa atendida:(.*)$/u', $line, $matches) === 1) {
+        if (preg_match('/^(?:Pessoa atendida|Paciente):(.*)$/u', $line, $matches) === 1) {
             $patientNameLinePresent = true;
             $patientName = trim($matches[1]);
             continue;
         }
         if (
             preg_match(
-                '/^Primeira sessão: (\d{2}\/\d{2}\/\d{4}) às ((?:[01]\d|2[0-3]):[0-5]\d)$/u',
+                '/^(?:Primeira sessão|1ª sessão): (\d{2}\/\d{2}\/\d{4}) às ((?:[01]\d|2[0-3]):[0-5]\d)$/u',
                 $line,
                 $matches
             ) === 1
@@ -143,11 +143,14 @@ function parse_first_session_from_observations(mixed $observations): array
             $firstSessionTime = $matches[2];
             continue;
         }
-        if ($line === 'Modalidade da primeira sessão: Presencial') {
+        if ($line === 'Modalidade da primeira sessão: Presencial'
+            || $line === 'Modalidade da primeira sessão: Presencial, na clínica Conexão Seres'
+            || $line === 'Modo 1ª sessão: Presencial, na clínica Conexão Seres') {
             $firstSessionMode = 'IN_PERSON';
         } elseif (
             $line === 'Modalidade da primeira sessão: Online via Google Meet'
             || $line === 'Modalidade da primeira sessão: Online'
+            || $line === 'Modo 1ª sessão: Online via Google Meet'
         ) {
             $firstSessionMode = 'ONLINE';
         }

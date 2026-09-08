@@ -243,9 +243,10 @@ Enviar requisições controladas diretamente para `/api/patients` em ambos os am
 
 Para os quatro cenários — adulto autorizado, adulto não autorizado, menor autorizado e menor não autorizado — conferir:
 
-- [ ] Com `AUTHORIZED`, `observations` contém exatamente uma linha `Autorização de imagens e vídeos: Autorizado`.
-- [ ] Com `NOT_AUTHORIZED`, `observations` contém exatamente uma linha `Autorização de imagens e vídeos: Não autorizado`.
-- [ ] As observações anteriores continuam preservadas: pessoa atendida, CPF, datas, responsável, contato, endereço, tipo de atendimento e modalidade; `Forma de ingresso` somente quando aplicável.
+- [ ] Com `AUTHORIZED`, `observations` contém `Autorização de imagens e vídeos: Autorizado` sem responsável ou `Mídia: Autorizado` quando há responsável.
+- [ ] Com `NOT_AUTHORIZED`, `observations` contém `Autorização de imagens e vídeos: Não autorizado` sem responsável ou `Mídia: Não autorizado` quando há responsável.
+- [ ] As observações continuam preservando todos os valores aplicáveis de paciente, CPF, datas, responsável, contato, endereço, tipo/modalidade de atendimento e ingresso; somente as labels ficam compactas quando há responsável.
+- [ ] O tamanho final permanece em até 500 bytes UTF-8; acima disso, o cadastro é bloqueado antes de qualquer chamada ao Asaas e nenhum valor é truncado.
 - [ ] Adulto sem responsável continua sem duplicar seus próprios dados pessoais nas observações.
 - [ ] Menor continua com o responsável como titular e o paciente no campo `company`.
 - [ ] A linha de consentimento não contém o texto completo do TCLE.
@@ -284,9 +285,9 @@ Conferir o payload de cadastro e o cliente novo no Asaas:
 - [ ] `firstSessionDate` é enviado como `DD/MM/AAAA`.
 - [ ] `firstSessionTime` é enviado como `HH:MM`.
 - [ ] `firstSessionMode` é enviado exatamente como `IN_PERSON` ou `ONLINE`.
-- [ ] `observations` contém exatamente `Primeira sessão: DD/MM/AAAA às HH:MM`.
-- [ ] `observations` contém `Modalidade da primeira sessão: Presencial, na clínica Conexão Seres` para `IN_PERSON`.
-- [ ] `observations` contém `Modalidade da primeira sessão: Online via Google Meet` somente para `ADULT_PSYCHOANALYSIS_INTEGRATED`.
+- [ ] `observations` contém `Primeira sessão: DD/MM/AAAA às HH:MM` sem responsável ou `1ª sessão: DD/MM/AAAA às HH:MM` quando há responsável.
+- [ ] `observations` contém a modalidade presencial como `Modalidade da primeira sessão: Presencial, na clínica Conexão Seres` sem responsável ou `Modo 1ª sessão: Presencial, na clínica Conexão Seres` quando há responsável.
+- [ ] `observations` contém a modalidade online como `Modalidade da primeira sessão: Online via Google Meet` sem responsável ou `Modo 1ª sessão: Online via Google Meet` quando há responsável, somente para `ADULT_PSYCHOANALYSIS_INTEGRATED`.
 - [ ] As informações da primeira sessão são preservadas para adulto sem responsável, adulto com responsável e menor com responsável, respeitando a restrição de modalidade.
 - [ ] A cobrança da primeira sessão continua em R$ 230,00, com `billingType`, vencimento, `externalReference`, grupos, notificações e NFS-e inalterados.
 
@@ -400,9 +401,9 @@ Conferir o parsing seguro das `observations`:
 - [ ] Quando a linha `Pessoa atendida:` está vazia ou inválida, `patientName` permanece vazio e não usa o nome do titular como substituição.
 - [ ] Linha válida `Primeira sessão: DD/MM/AAAA às HH:MM` preenche data e horário.
 - [ ] Data inexistente, horário inválido, linha ausente ou texto adicional fazem `firstSessionDate` e `firstSessionTime` permanecerem strings vazias.
-- [ ] Somente `Modalidade da primeira sessão: Presencial` gera `firstSessionMode: "IN_PERSON"`.
-- [ ] Somente `Modalidade da primeira sessão: Online via Google Meet` gera `firstSessionMode: "ONLINE"`.
-- [ ] O rótulo legado `Modalidade da primeira sessão: Online` continua sendo reconhecido para clientes cadastrados antes da alteração.
+- [ ] `Modo 1ª sessão: Presencial, na clínica Conexão Seres` e o formato anterior presencial geram `firstSessionMode: "IN_PERSON"`.
+- [ ] `Modo 1ª sessão: Online via Google Meet` e o formato anterior equivalente geram `firstSessionMode: "ONLINE"`.
+- [ ] Os rótulos anteriores `Pessoa atendida`, `Primeira sessão` e `Modalidade da primeira sessão`, inclusive o legado `Online`, continuam reconhecidos para clientes cadastrados antes da alteração.
 - [ ] Modalidade ausente, alterada ou com texto adicional faz `firstSessionMode` permanecer vazio.
 - [ ] `observations` ausente, nulo ou em formato inesperado não interrompe o encaminhamento; os campos não identificados permanecem vazios.
 - [ ] Confirmar que `serviceType`, `entryType`, `attendanceMode` e `mediaConsent` não são usados para preencher os quatro novos campos.

@@ -45,6 +45,10 @@ const firstSessionContract = await readFile(
   new URL("../lib/first-session.ts", import.meta.url),
   "utf8",
 );
+const observationsContract = await readFile(
+  new URL("../lib/asaas-customer-observations.ts", import.meta.url),
+  "utf8",
+);
 
 function extractModeLabels(source, sectionPattern) {
   const section = source.match(sectionPattern)?.[1];
@@ -147,14 +151,15 @@ test("validates media consent and switches modal copy by patient age", () => {
 });
 
 test("adds one concise media-consent observation line and preserves existing observations", () => {
-  for (const backend of [typescriptBackend, phpBackend]) {
+  for (const backend of [observationsContract, phpBackend]) {
     assert.match(backend, /Autorização de imagens e vídeos/);
+    assert.match(backend, /Mídia/);
   }
   assert.match(consentContract, /Autorizado/);
   assert.match(consentContract, /Não autorizado/);
   assert.match(typescriptBackend, /mediaConsentLabel\(patient\.mediaConsent\)/);
   assert.match(phpBackend, /media_consent_label\(\$values\['mediaConsent'\]\)/);
-  assert.match(typescriptBackend, /return attendanceLines\.join/);
+  assert.match(observationsContract, /return attendanceLines\.join/);
   assert.match(phpBackend, /Pessoa atendida/);
 });
 
@@ -223,16 +228,18 @@ test("validates first-session date, time and mode in the frontend and both backe
 });
 
 test("records first-session data in observations without changing existing payment contracts", () => {
-  for (const backend of [typescriptBackend, phpBackend]) {
-    assert.match(backend, /Primeira sessão:/);
-    assert.match(backend, /Modalidade da primeira sessão:/);
+  for (const backend of [observationsContract, phpBackend]) {
+    assert.match(backend, /Primeira sessão/);
+    assert.match(backend, /Modalidade da primeira sessão/);
     assert.match(backend, /firstSessionDate/);
     assert.match(backend, /firstSessionTime/);
     assert.match(backend, /firstSessionMode/);
+  }
+  for (const backend of [typescriptBackend, phpBackend]) {
     assert.match(backend, /230(?:\.00)?/);
     assert.match(backend, /sessao-1/);
   }
-  assert.match(typescriptBackend, /patient\.firstSessionDate\} às \$\{patient\.firstSessionTime\}/);
+  assert.match(observationsContract, /details\.firstSessionDate\} às \$\{details\.firstSessionTime\}/);
   assert.match(typescriptBackend, /firstSessionModeLabel\(patient\.firstSessionMode\)/);
   assert.match(phpBackend, /\$values\['firstSessionDate'\] \. ' às ' \. \$values\['firstSessionTime'\]/);
   assert.match(phpBackend, /first_session_mode_label\(\$values\['firstSessionMode'\]\)/);
@@ -261,10 +268,7 @@ test("writes the exact first-session mode text in both observation builders", ()
     IN_PERSON: "Presencial, na clínica Conexão Seres",
     ONLINE: "Online via Google Meet",
   };
-  const typescriptObservations = typescriptBackend.slice(
-    typescriptBackend.indexOf("function buildObservations"),
-    typescriptBackend.indexOf("export async function POST"),
-  );
+  const typescriptObservations = observationsContract;
   const phpObservations = phpBackend.slice(
     phpBackend.indexOf("function build_observations"),
     phpBackend.indexOf("function normalized_name"),
@@ -272,11 +276,11 @@ test("writes the exact first-session mode text in both observation builders", ()
 
   assert.match(
     typescriptObservations,
-    /`Modalidade da primeira sessão: \$\{firstSessionModeLabel\(patient\.firstSessionMode\)\}`/,
+    /"Modalidade da primeira sessão"[\s\S]*?details\.firstSessionMode/,
   );
   assert.match(
     phpObservations,
-    /'Modalidade da primeira sessão: ' \. first_session_mode_label\(\$values\['firstSessionMode'\]\)/,
+    /'Modalidade da primeira sessão: '\)[\s\S]*?first_session_mode_label\(\$values\['firstSessionMode'\]\)/,
   );
   for (const [mode, label] of Object.entries(labels)) {
     assert.equal(`Modalidade da primeira sessão: ${label}`, {
@@ -306,8 +310,8 @@ test("keeps attendance mode labels independent from first-session labels", () =>
     IN_PERSON: "Presencial, na clínica Conexão Seres",
     ONLINE: "Online via Google Meet",
   });
-  assert.match(phpBackend, /'Modalidade de atendimento: ' \. attendance_mode_label\(\$values\['attendanceMode'\]\)/);
-  assert.match(phpBackend, /'Modalidade da primeira sessão: ' \. first_session_mode_label\(\$values\['firstSessionMode'\]\)/);
+  assert.match(phpBackend, /'Modalidade de atendimento: '\)[\s\S]*?attendance_mode_label\(\$values\['attendanceMode'\]\)/);
+  assert.match(phpBackend, /'Modalidade da primeira sessão: '\)[\s\S]*?first_session_mode_label\(\$values\['firstSessionMode'\]\)/);
   assert.ok(phpFirstSessionFunction);
   assert.doesNotMatch(phpFirstSessionFunction, /attendance_mode_label/);
 });
@@ -369,13 +373,13 @@ test("clears incompatible attendance choices when the birth date changes age gro
 });
 
 test("adds attendance labels to observations without duplicating an adult patient's own data", () => {
-  for (const backend of [typescriptBackend, phpBackend]) {
+  for (const backend of [observationsContract, phpBackend]) {
     assert.match(backend, /Tipo de atendimento/);
     assert.match(backend, /Modalidade de atendimento/);
     assert.match(backend, /Forma de ingresso/);
   }
-  assert.match(typescriptBackend, /if \(patientAge !== null && patientAge >= 18 && !patient\.hasResponsible\) \{[\s\S]*return attendanceLines\.join/);
-  assert.match(phpBackend, /\$attendanceLines = \[[\s\S]*'Tipo de atendimento: '/);
+  assert.match(observationsContract, /if \(details\.patientAge >= 18 && !details\.hasResponsible\) \{[\s\S]*return attendanceLines\.join/);
+  assert.match(phpBackend, /\$attendanceLines = \[[\s\S]*'Tipo de atendimento: '\)/);
   assert.match(phpBackend, /if \(\$patientAge >= 18 && !\$values\['hasResponsible'\]\) \{[\s\S]*return implode\("\\n", \$attendanceLines\)/);
 });
 
@@ -453,11 +457,11 @@ test("formats patient and responsible birth dates in observations", () => {
   );
   assert.match(
     typescriptBackend,
-    /Nascimento da pessoa atendida: \$\{formatBirthDate\(patient\.patientBirthDate\)\}/,
+    /patientBirthDate: formatBirthDate\(patient\.patientBirthDate\)/,
   );
   assert.match(
     typescriptBackend,
-    /Nascimento do responsável: \$\{formatBirthDate\(patient\.responsibleBirthDate\)\}/,
+    /responsibleBirthDate: formatBirthDate\(patient\.responsibleBirthDate\)/,
   );
   assert.match(
     phpBackend,
@@ -465,19 +469,16 @@ test("formats patient and responsible birth dates in observations", () => {
   );
   assert.match(
     phpBackend,
-    /Nascimento da pessoa atendida: ' \. format_birth_date\(\$values\['patientBirthDate'\]\)/,
+    /'Nasc\.: ' \. format_birth_date\(\$values\['patientBirthDate'\]\)/,
   );
   assert.match(
     phpBackend,
-    /Nascimento do responsável: ' \. format_birth_date\(\$values\['responsibleBirthDate'\]\)/,
+    /'Nasc\. resp\.: ' \. format_birth_date\(\$values\['responsibleBirthDate'\]\)/,
   );
 });
 
 test("keeps TypeScript and PHP observations equivalent by patient age and responsibility", () => {
-  const typescriptObservations = typescriptBackend.slice(
-    typescriptBackend.indexOf("function buildObservations"),
-    typescriptBackend.indexOf("export async function POST"),
-  );
+  const typescriptObservations = observationsContract;
   const phpObservations = phpBackend.slice(
     phpBackend.indexOf("function build_observations"),
     phpBackend.indexOf("function normalized_name"),
@@ -489,12 +490,12 @@ test("keeps TypeScript and PHP observations equivalent by patient age and respon
     assert.match(source, /Modalidade da primeira sessão/);
     assert.match(source, /Autorização de imagens e vídeos/);
     assert.match(source, /Pessoa atendida/);
-    assert.match(source, /CPF da pessoa atendida/);
-    assert.match(source, /Nascimento da pessoa atendida/);
+    assert.match(source, /CPF/);
+    assert.match(source, /Nasc|Nasc\./);
   }
   assert.match(
     typescriptObservations,
-    /const attendanceLines[\s\S]*?if \(patientAge !== null && patientAge >= 18 && !patient\.hasResponsible\) \{\s*return attendanceLines\.join\("\\n"\);/,
+    /const attendanceLines[\s\S]*?if \(details\.patientAge >= 18 && !details\.hasResponsible\) \{\s*return attendanceLines\.join\("\\n"\);/,
   );
   assert.match(
     phpObservations,
@@ -504,7 +505,7 @@ test("keeps TypeScript and PHP observations equivalent by patient age and respon
   assert.match(phpObservations, /return implode\("\\n", array_merge\(\$lines, \$attendanceLines\)\)/);
   assert.match(
     phpObservations,
-    /service_type_requires_entry_type\(\$values\['serviceType'\]\)[\s\S]*Forma de ingresso: ' \. entry_type_label\(\$values\['entryType'\]\)/,
+    /service_type_requires_entry_type\(\$values\['serviceType'\]\)[\s\S]*'Forma de ingresso: '\)[\s\S]*entry_type_label\(\$values\['entryType'\]\)/,
   );
   assert.doesNotMatch(phpObservations, /entry_type_label\(\$values\['entryType'\]\);/);
   assert.doesNotMatch(phpObservations, /substr|mb_substr/);
@@ -716,9 +717,9 @@ test("forwards the patient and first-session data parsed from Asaas observations
     assert.match(webhook, /asaas_first_session_paid/);
     assert.match(webhook, /customerName/);
   }
-  assert.match(firstSessionContract, /Pessoa atendida:/);
-  assert.match(firstSessionContract, /Primeira sessão:/);
-  assert.match(firstSessionContract, /Modalidade da primeira sessão:/);
+  assert.match(firstSessionContract, /Pessoa atendida\|Paciente/);
+  assert.match(firstSessionContract, /Primeira sessão\|1ª sessão/);
+  assert.match(firstSessionContract, /Modo 1ª sessão/);
   assert.match(firstSessionContract, /Presencial/);
   assert.match(firstSessionContract, /Online/);
   assert.match(
@@ -736,8 +737,8 @@ test("forwards the patient and first-session data parsed from Asaas observations
 test("keeps observation parsing strict, failure-safe and free of extra customer requests", () => {
   assert.match(firstSessionContract, /export function parseFirstSessionFromObservations\(observations: unknown\)/);
   assert.match(firstSessionContract, /typeof observations === "string" \? observations\.split\(\/\\r\?\\n\//);
-  assert.match(firstSessionContract, /\/\^Pessoa atendida:\(\.\*\)\$\/\.exec\(line\)/);
-  assert.ok(firstSessionContract.includes("const sessionMatch = /^Primeira sessão: (\\d{2}\\/\\d{2}\\/\\d{4}) às"));
+  assert.match(firstSessionContract, /\/\^\(\?:Pessoa atendida\|Paciente\):\(\.\*\)\$\/\.exec\(line\)/);
+  assert.ok(firstSessionContract.includes("const sessionMatch = /^(?:Primeira sessão|1ª sessão): (\\d{2}\\/\\d{2}\\/\\d{4}) às"));
   assert.match(firstSessionContract, /isValidFirstSessionDate\(sessionMatch\[1\]\)/);
   assert.ok(firstSessionContract.includes("((?:[01]\\d|2[0-3]):[0-5]\\d)$/.exec(line)"));
   assert.match(firstSessionContract, /Modalidade da primeira sessão: Presencial/);

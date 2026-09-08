@@ -8,6 +8,7 @@ header('Cache-Control: no-store');
 
 const E2E_TURNSTILE_MODE = 'turnstile-test-v1';
 const E2E_TURNSTILE_TEST_SECRET = '1x0000000000000000000000000000000AA';
+const ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES = 500;
 
 function respond(array $payload, int $status = 200): never
 {
@@ -492,16 +493,21 @@ function create_first_session_payment(
 
 function build_observations(array $values, int $patientAge): ?string
 {
+    $compact = $values['hasResponsible'];
     $attendanceLines = [
-        'Tipo de atendimento: ' . service_type_label($values['serviceType']),
+        ($compact ? 'Atendimento: ' : 'Tipo de atendimento: ') . service_type_label($values['serviceType']),
         ...($patientAge >= 18
-            ? ['Modalidade de atendimento: ' . attendance_mode_label($values['attendanceMode'])]
+            ? [($compact ? 'Modo: ' : 'Modalidade de atendimento: ')
+                . attendance_mode_label($values['attendanceMode'])]
             : (service_type_requires_entry_type($values['serviceType'])
-                ? ['Forma de ingresso: ' . entry_type_label($values['entryType'])]
+                ? [($compact ? 'Ingresso: ' : 'Forma de ingresso: ') . entry_type_label($values['entryType'])]
                 : [])),
-        'Primeira sessão: ' . $values['firstSessionDate'] . ' às ' . $values['firstSessionTime'],
-        'Modalidade da primeira sessão: ' . first_session_mode_label($values['firstSessionMode']),
-        'Autorização de imagens e vídeos: ' . media_consent_label($values['mediaConsent']),
+        ($compact ? '1ª sessão: ' : 'Primeira sessão: ')
+            . $values['firstSessionDate'] . ' às ' . $values['firstSessionTime'],
+        ($compact ? 'Modo 1ª sessão: ' : 'Modalidade da primeira sessão: ')
+            . first_session_mode_label($values['firstSessionMode']),
+        ($compact ? 'Mídia: ' : 'Autorização de imagens e vídeos: ')
+            . media_consent_label($values['mediaConsent']),
     ];
 
     if ($patientAge >= 18 && !$values['hasResponsible']) {
@@ -509,20 +515,31 @@ function build_observations(array $values, int $patientAge): ?string
     }
 
     $lines = [
-        'Pessoa atendida: ' . clean_text($values['patientName']),
-        'CPF da pessoa atendida: ' . digits($values['patientCpf']),
-        'Nascimento da pessoa atendida: ' . format_birth_date($values['patientBirthDate']),
+        ($compact ? 'Paciente: ' : 'Pessoa atendida: ') . clean_text($values['patientName']),
+        'CPF: ' . digits($values['patientCpf']),
+        'Nasc.: ' . format_birth_date($values['patientBirthDate']),
     ];
     if ($patientAge >= 18) {
-        $lines[] = 'Contato da pessoa atendida: ' . digits($values['patientPhone'])
+        $lines[] = 'Contato: ' . digits($values['patientPhone'])
             . ' | ' . clean_text($values['patientEmail']);
-        $lines[] = 'Endereço da pessoa atendida: ' . full_address($values, 'patient');
+        $lines[] = 'Endereço: ' . full_address($values, 'patient');
     }
     if ($values['hasResponsible']) {
-        $lines[] = 'Nascimento do responsável: ' . format_birth_date($values['responsibleBirthDate']);
+        $lines[] = 'Nasc. resp.: ' . format_birth_date($values['responsibleBirthDate']);
     }
 
     return implode("\n", array_merge($lines, $attendanceLines));
+}
+
+function asaas_customer_observations_utf8_bytes(string $value): int
+{
+    return strlen($value);
+}
+
+function asaas_customer_observations_within_safety_budget(string $value): bool
+{
+    return asaas_customer_observations_utf8_bytes($value)
+        <= ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES;
 }
 
 function normalized_name(string $name): string
@@ -551,9 +568,9 @@ function sanitize_asaas_log_text(string $value, int $limit = 800): string
     ) ?? $sanitized;
     $sanitized = str_replace(E2E_TURNSTILE_TEST_SECRET, '[REDACTED]', $sanitized);
     $sanitized = preg_replace('/Bearer\s+\S+/i', 'Bearer [REDACTED]', $sanitized) ?? $sanitized;
+    $sanitized = preg_replace('/(?<!\d)(?:\+?55\s*)?\(?[1-9]\d\)?[\s-]?9?\d{4}[-\s]?\d{4}(?!\d)/', '[PHONE_REDACTED]', $sanitized) ?? $sanitized;
     $sanitized = preg_replace('/\b\d{3}[.\s]?\d{3}[.\s]?\d{3}[-\s]?\d{2}\b/', '[CPF_REDACTED]', $sanitized) ?? $sanitized;
     $sanitized = preg_replace('/\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b/', '[EMAIL_REDACTED]', $sanitized) ?? $sanitized;
-    $sanitized = preg_replace('/(?<!\d)(?:\+?55\s*)?\(?[1-9]\d\)?[\s-]?9?\d{4}[-\s]?\d{4}(?!\d)/', '[PHONE_REDACTED]', $sanitized) ?? $sanitized;
     return substr($sanitized, 0, $limit);
 }
 
@@ -923,6 +940,11 @@ function turnstile_is_valid(string $secret, string $token, string $expectedHostn
         && ($expectedHostname === '' || ($result['hostname'] ?? '') === $expectedHostname);
 }
 
+if (defined('CONEXAO_SERES_OBSERVATIONS_CONTRACT_MODE')
+    && CONEXAO_SERES_OBSERVATIONS_CONTRACT_MODE === true) {
+    return;
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     respond(['message' => 'Método não permitido.'], 405);
 }
@@ -1127,6 +1149,18 @@ $externalReference = 'cs-paciente-' . substr(
 $customerGroup = $patientAge >= 18 ? 'Adultos' : 'Crianças';
 $holder = $values['hasResponsible'] ? 'responsible' : 'patient';
 $holderComplement = clean_text($values[$holder . 'Complement']);
+$observations = build_observations($values, $patientAge);
+if ($observations !== null && !asaas_customer_observations_within_safety_budget($observations)) {
+    error_log(
+        'Asaas customer observations blocked before request. UTF-8 bytes: '
+        . asaas_customer_observations_utf8_bytes($observations)
+        . '. Safety budget bytes: ' . ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES
+    );
+    respond(
+        ['message' => 'Os dados do cadastro ficaram muito extensos para envio. Fale com a clínica para que possamos ajudar.'],
+        400
+    );
+}
 
 $lookupUrl = $baseUrl . '/customers?' . http_build_query([
     'externalReference' => $externalReference,
@@ -1168,7 +1202,6 @@ if ($holderComplement !== '') {
 if ($values['hasResponsible']) {
     $customer['company'] = clean_text($values['patientName']);
 }
-$observations = build_observations($values, $patientAge);
 if ($observations !== null) {
     $customer['observations'] = $observations;
 }

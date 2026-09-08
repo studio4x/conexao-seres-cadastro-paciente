@@ -28,6 +28,12 @@ import {
   E2E_TURNSTILE_TEST_SECRET,
 } from "../../../lib/turnstile-e2e";
 import { verifyTurnstileToken } from "../../../lib/turnstile-verification";
+import {
+  ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES,
+  asaasCustomerObservationsUtf8Bytes,
+  buildAsaasCustomerObservations,
+  isAsaasCustomerObservationsWithinSafetyBudget,
+} from "../../../lib/asaas-customer-observations";
 
 export const runtime = "edge";
 
@@ -310,9 +316,9 @@ function sanitizeAsaasLogText(value: string) {
     .replace(/(e2e[_-]?)?hmac[_-]?secret\s*[:=]\s*("[^"]*"|'[^']*'|[^,\s}]+)/gi, "$1hmac_secret=[REDACTED]")
     .replace(new RegExp(E2E_TURNSTILE_TEST_SECRET, "g"), "[REDACTED]")
     .replace(/Bearer\s+\S+/gi, "Bearer [REDACTED]")
+    .replace(/(?<!\d)(?:\+?55\s*)?\(?[1-9]\d\)?[\s-]?9?\d{4}[-\s]?\d{4}(?!\d)/g, "[PHONE_REDACTED]")
     .replace(/\b\d{3}[.\s]?\d{3}[.\s]?\d{3}[-\s]?\d{2}\b/g, "[CPF_REDACTED]")
     .replace(/\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b/g, "[EMAIL_REDACTED]")
-    .replace(/(?<!\d)(?:\+?55\s*)?\(?[1-9]\d\)?[\s-]?9?\d{4}[-\s]?\d{4}(?!\d)/g, "[PHONE_REDACTED]")
     .slice(0, 800);
 }
 
@@ -735,36 +741,25 @@ function fullAddress(patient: Patient, prefix: "patient" | "responsible") {
 }
 
 function buildObservations(patient: Patient) {
-  const patientAge = calculateAge(patient.patientBirthDate);
-  const attendanceLines = [
-    `Tipo de atendimento: ${serviceTypeLabel(patient.serviceType)}`,
-    ...(patientAge !== null && patientAge >= 18
-      ? [`Modalidade de atendimento: ${attendanceModeLabel(patient.attendanceMode)}`]
-      : serviceTypeRequiresEntryType(patient.serviceType)
-        ? [`Forma de ingresso: ${entryTypeLabel(patient.entryType)}`]
-        : []),
-    `Primeira sessão: ${patient.firstSessionDate} às ${patient.firstSessionTime}`,
-    `Modalidade da primeira sessão: ${firstSessionModeLabel(patient.firstSessionMode)}`,
-    `Autorização de imagens e vídeos: ${mediaConsentLabel(patient.mediaConsent)}`,
-  ];
-
-  if (patientAge !== null && patientAge >= 18 && !patient.hasResponsible) {
-    return attendanceLines.join("\n");
-  }
-
-  const lines = [
-    `Pessoa atendida: ${clean(patient.patientName)}`,
-    `CPF da pessoa atendida: ${onlyDigits(patient.patientCpf)}`,
-    `Nascimento da pessoa atendida: ${formatBirthDate(patient.patientBirthDate)}`,
-  ];
-  if (patientAge !== null && patientAge >= 18) {
-    lines.push(`Contato da pessoa atendida: ${onlyDigits(patient.patientPhone)} | ${clean(patient.patientEmail)}`);
-    lines.push(`Endereço da pessoa atendida: ${fullAddress(patient, "patient")}`);
-  }
-  if (patient.hasResponsible) {
-    lines.push(`Nascimento do responsável: ${formatBirthDate(patient.responsibleBirthDate)}`);
-  }
-  return [...lines, ...attendanceLines].join("\n");
+  return buildAsaasCustomerObservations({
+    patientAge: calculateAge(patient.patientBirthDate)!,
+    hasResponsible: patient.hasResponsible,
+    patientName: clean(patient.patientName),
+    patientCpf: onlyDigits(patient.patientCpf),
+    patientBirthDate: formatBirthDate(patient.patientBirthDate),
+    patientPhone: onlyDigits(patient.patientPhone),
+    patientEmail: clean(patient.patientEmail),
+    patientAddress: fullAddress(patient, "patient"),
+    responsibleBirthDate: formatBirthDate(patient.responsibleBirthDate),
+    serviceType: serviceTypeLabel(patient.serviceType),
+    serviceTypeRequiresEntryType: serviceTypeRequiresEntryType(patient.serviceType),
+    entryType: entryTypeLabel(patient.entryType),
+    attendanceMode: attendanceModeLabel(patient.attendanceMode),
+    firstSessionDate: patient.firstSessionDate,
+    firstSessionTime: patient.firstSessionTime,
+    firstSessionMode: firstSessionModeLabel(patient.firstSessionMode),
+    mediaConsent: mediaConsentLabel(patient.mediaConsent),
+  });
 }
 
 export async function POST(request: Request) {
@@ -826,6 +821,17 @@ export async function POST(request: Request) {
   const customerGroup = patientAge >= 18 ? "Adultos" : "Crianças";
   const holder = patient.hasResponsible ? "responsible" : "patient";
   const holderComplement = clean(patient[`${holder}Complement`]);
+  const observations = buildObservations(patient);
+  if (!isAsaasCustomerObservationsWithinSafetyBudget(observations)) {
+    console.error("Asaas customer observations blocked before request", {
+      utf8Bytes: asaasCustomerObservationsUtf8Bytes(observations),
+      safetyBudgetBytes: ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES,
+    });
+    return NextResponse.json(
+      { message: "Os dados do cadastro ficaram muito extensos para envio. Fale com a clínica para que possamos ajudar." },
+      { status: 400 },
+    );
+  }
   const externalReference = await patientReference(patient.patientName, patient.patientCpf);
   const headers = asaasHeaders(apiKey);
   const controller = new AbortController();
@@ -865,7 +871,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const observations = buildObservations(patient);
     const customer = {
       name: clean(patient[`${holder}Name`]),
       cpfCnpj: onlyDigits(patient[`${holder}Cpf`]),
