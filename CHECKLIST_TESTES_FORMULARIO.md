@@ -243,8 +243,10 @@ Enviar requisições controladas diretamente para `/api/patients` em ambos os am
 
 Para os quatro cenários — adulto autorizado, adulto não autorizado, menor autorizado e menor não autorizado — conferir:
 
-- [ ] Com `AUTHORIZED`, `observations` contém `Autorização de imagens e vídeos: Autorizado` sem responsável ou `Mídia: Autorizado` quando há responsável.
-- [ ] Com `NOT_AUTHORIZED`, `observations` contém `Autorização de imagens e vídeos: Não autorizado` sem responsável ou `Mídia: Não autorizado` quando há responsável.
+- [ ] Com `AUTHORIZED`, `observations` contém `Autorização de imagens e vídeos: Autorizado` sem responsável ou `Img.: Autorizado` quando há responsável.
+- [ ] Com `NOT_AUTHORIZED`, `observations` contém `Autorização de imagens e vídeos: Não autorizado` sem responsável ou `Img.: Não autorizado` quando há responsável.
+- [ ] As observações preservam sexo e data de nascimento do paciente em todos os cenários aplicáveis.
+- [ ] As observações preservam cidade/UF do paciente e cidade/UF do responsável; no menor, não inventam contato/endereço que o formulário não solicita.
 - [ ] As observações continuam preservando todos os valores aplicáveis de paciente, CPF, datas, responsável, contato, endereço, tipo/modalidade de atendimento e ingresso; somente as labels ficam compactas quando há responsável.
 - [ ] O tamanho final permanece em até 500 bytes UTF-8; acima disso, o cadastro é bloqueado antes de qualquer chamada ao Asaas e nenhum valor é truncado.
 - [ ] Adulto sem responsável continua sem duplicar seus próprios dados pessoais nas observações.

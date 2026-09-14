@@ -273,6 +273,22 @@ function media_consent_label(string $value): string
     ][$value] ?? '';
 }
 
+function patient_sex_label(string $value): string
+{
+    return match ($value) {
+        'female' => 'Feminino',
+        'male' => 'Masculino',
+        default => 'Não binário',
+    };
+}
+
+function city_state_label(string $city, string $state): string
+{
+    $city = clean_text($city);
+    $state = strtoupper(clean_text($state));
+    return $city !== '' && $state !== '' ? $city . '/' . $state : ($city !== '' ? $city : $state);
+}
+
 function first_session_mode_is_valid(string $value): bool
 {
     return in_array($value, ['IN_PERSON', 'ONLINE'], true);
@@ -367,7 +383,7 @@ function full_address(array $values, string $prefix): string
     return $address . ', ' . $number
         . ($complement !== '' ? ', ' . $complement : '')
         . ' — ' . $province . ', ' . $city . '/' . $state
-        . ' — CEP ' . $postalCode;
+        . ' — ' . $postalCode;
 }
 
 function format_birth_date(string $value): string
@@ -495,7 +511,7 @@ function build_observations(array $values, int $patientAge): ?string
 {
     $compact = $values['hasResponsible'];
     $attendanceLines = [
-        ($compact ? 'Atendimento: ' : 'Tipo de atendimento: ') . service_type_label($values['serviceType']),
+        ($compact ? 'Atend.: ' : 'Tipo de atendimento: ') . service_type_label($values['serviceType']),
         ...($patientAge >= 18
             ? [($compact ? 'Modo: ' : 'Modalidade de atendimento: ')
                 . attendance_mode_label($values['attendanceMode'])]
@@ -506,26 +522,39 @@ function build_observations(array $values, int $patientAge): ?string
             . $values['firstSessionDate'] . ' às ' . $values['firstSessionTime'],
         ($compact ? 'Modo 1ª sessão: ' : 'Modalidade da primeira sessão: ')
             . first_session_mode_label($values['firstSessionMode']),
-        ($compact ? 'Mídia: ' : 'Autorização de imagens e vídeos: ')
+        ($compact ? 'Img.: ' : 'Autorização de imagens e vídeos: ')
             . media_consent_label($values['mediaConsent']),
     ];
 
     if ($patientAge >= 18 && !$values['hasResponsible']) {
-        return implode("\n", $attendanceLines);
+        $lines = [
+            'Sexo: ' . patient_sex_label($values['patientSex']),
+            'Nasc.: ' . format_birth_date($values['patientBirthDate']),
+        ];
+        $patientCityState = city_state_label($values['patientCity'], $values['patientState']);
+        if ($patientCityState !== '') {
+            $lines[] = 'Local: ' . $patientCityState;
+        }
+        return implode("\n", array_merge($lines, $attendanceLines));
     }
 
     $lines = [
         ($compact ? 'Paciente: ' : 'Pessoa atendida: ') . clean_text($values['patientName']),
         'CPF: ' . digits($values['patientCpf']),
+        'Sexo: ' . patient_sex_label($values['patientSex']),
         'Nasc.: ' . format_birth_date($values['patientBirthDate']),
     ];
     if ($patientAge >= 18) {
         $lines[] = 'Contato: ' . digits($values['patientPhone'])
             . ' | ' . clean_text($values['patientEmail']);
-        $lines[] = 'Endereço: ' . full_address($values, 'patient');
+        $lines[] = 'End: ' . full_address($values, 'patient');
     }
     if ($values['hasResponsible']) {
-        $lines[] = 'Nasc. resp.: ' . format_birth_date($values['responsibleBirthDate']);
+        $lines[] = 'Nasc. R.: ' . format_birth_date($values['responsibleBirthDate']);
+        $responsibleCityState = city_state_label($values['responsibleCity'], $values['responsibleState']);
+        if ($responsibleCityState !== '') {
+            $lines[] = 'Local R.: ' . $responsibleCityState;
+        }
     }
 
     return implode("\n", array_merge($lines, $attendanceLines));

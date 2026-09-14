@@ -153,13 +153,13 @@ test("validates media consent and switches modal copy by patient age", () => {
 test("adds one concise media-consent observation line and preserves existing observations", () => {
   for (const backend of [observationsContract, phpBackend]) {
     assert.match(backend, /Autorização de imagens e vídeos/);
-    assert.match(backend, /Mídia/);
+    assert.match(backend, /Img\./);
   }
   assert.match(consentContract, /Autorizado/);
   assert.match(consentContract, /Não autorizado/);
   assert.match(typescriptBackend, /mediaConsentLabel\(patient\.mediaConsent\)/);
   assert.match(phpBackend, /media_consent_label\(\$values\['mediaConsent'\]\)/);
-  assert.match(observationsContract, /return attendanceLines\.join/);
+  assert.match(observationsContract, /return \[[\s\S]*\.\.\.attendanceLines,[\s\S]*\]\.join/);
   assert.match(phpBackend, /Pessoa atendida/);
 });
 
@@ -374,13 +374,13 @@ test("clears incompatible attendance choices when the birth date changes age gro
 
 test("adds attendance labels to observations without duplicating an adult patient's own data", () => {
   for (const backend of [observationsContract, phpBackend]) {
-    assert.match(backend, /Tipo de atendimento/);
+    assert.match(backend, /Tipo de atendimento|Atend\./);
     assert.match(backend, /Modalidade de atendimento/);
     assert.match(backend, /Forma de ingresso/);
   }
-  assert.match(observationsContract, /if \(details\.patientAge >= 18 && !details\.hasResponsible\) \{[\s\S]*return attendanceLines\.join/);
+  assert.match(observationsContract, /if \(details\.patientAge >= 18 && !details\.hasResponsible\) \{[\s\S]*return \[[\s\S]*\.\.\.attendanceLines,[\s\S]*\]\.join/);
   assert.match(phpBackend, /\$attendanceLines = \[[\s\S]*'Tipo de atendimento: '\)/);
-  assert.match(phpBackend, /if \(\$patientAge >= 18 && !\$values\['hasResponsible'\]\) \{[\s\S]*return implode\("\\n", \$attendanceLines\)/);
+  assert.match(phpBackend, /if \(\$patientAge >= 18 && !\$values\['hasResponsible'\]\) \{[\s\S]*return implode\("\\n", array_merge\(\$lines, \$attendanceLines\)\)/);
 });
 
 test("keeps the first-session payment independent from attendance fields", () => {
@@ -420,6 +420,30 @@ test("uses the selected holder's complement when creating an Asaas customer", ()
     phpBackend,
     /\$customer\['complement'\] = \$holderComplement;/,
   );
+});
+
+test("maps native customer fields to the selected holder and records non-native fields in observations", () => {
+  for (const backend of [typescriptBackend, phpBackend]) {
+    assert.match(backend, /name[\s\S]*holder[\s\S]*Name/);
+    assert.match(backend, /cpfCnpj[\s\S]*holder[\s\S]*Cpf/);
+    assert.match(backend, /email[\s\S]*holder[\s\S]*Email/);
+    assert.match(backend, /mobilePhone[\s\S]*holder[\s\S]*Phone/);
+    assert.match(backend, /postalCode[\s\S]*holder[\s\S]*PostalCode/);
+    assert.match(backend, /address[\s\S]*holder[\s\S]*Address/);
+    assert.match(backend, /addressNumber[\s\S]*holder[\s\S]*AddressNumber/);
+    assert.match(backend, /province[\s\S]*holder[\s\S]*Province/);
+    assert.match(backend, /observations/);
+    assert.match(backend, /patientSex/);
+    assert.match(backend, /patientCity/);
+    assert.match(backend, /patientState/);
+    assert.match(backend, /responsibleCity/);
+    assert.match(backend, /responsibleState/);
+  }
+  assert.match(observationsContract, /Sexo: \$\{patientSexLabel\(details\.patientSex\)\}/);
+  assert.match(observationsContract, /Nasc\.: \$\{details\.patientBirthDate\}/);
+  assert.match(observationsContract, /Local R\.: \$\{responsibleCityState\}/);
+  assert.match(phpBackend, /'Sexo: ' \. patient_sex_label\(\$values\['patientSex'\]\)/);
+  assert.match(phpBackend, /'Local R\.: ' \. \$responsibleCityState/);
 });
 
 test("returns a friendly conflict when the patient external reference already exists", () => {
@@ -473,7 +497,7 @@ test("formats patient and responsible birth dates in observations", () => {
   );
   assert.match(
     phpBackend,
-    /'Nasc\. resp\.: ' \. format_birth_date\(\$values\['responsibleBirthDate'\]\)/,
+    /'Nasc\. R\.: ' \. format_birth_date\(\$values\['responsibleBirthDate'\]\)/,
   );
 });
 
@@ -485,21 +509,21 @@ test("keeps TypeScript and PHP observations equivalent by patient age and respon
   );
 
   for (const source of [typescriptObservations, phpObservations]) {
-    assert.match(source, /Tipo de atendimento/);
+    assert.match(source, /Tipo de atendimento|Atend\./);
     assert.match(source, /Primeira sessão/);
     assert.match(source, /Modalidade da primeira sessão/);
-    assert.match(source, /Autorização de imagens e vídeos/);
+    assert.match(source, /Autorização de imagens e vídeos|Img\./);
     assert.match(source, /Pessoa atendida/);
     assert.match(source, /CPF/);
     assert.match(source, /Nasc|Nasc\./);
   }
   assert.match(
     typescriptObservations,
-    /const attendanceLines[\s\S]*?if \(details\.patientAge >= 18 && !details\.hasResponsible\) \{\s*return attendanceLines\.join\("\\n"\);/,
+    /const attendanceLines[\s\S]*?if \(details\.patientAge >= 18 && !details\.hasResponsible\) \{[\s\S]*?return \[[\s\S]*?\.\.\.attendanceLines,[\s\S]*?\]\.join\("\\n"\);/,
   );
   assert.match(
     phpObservations,
-    /\$attendanceLines[\s\S]*?if \(\$patientAge >= 18 && !\$values\['hasResponsible'\]\) \{\s*return implode\("\\n", \$attendanceLines\);/,
+    /\$attendanceLines[\s\S]*?if \(\$patientAge >= 18 && !\$values\['hasResponsible'\]\) \{[\s\S]*?return implode\("\\n", array_merge\(\$lines, \$attendanceLines\)\);/,
   );
   assert.match(typescriptObservations, /return \[\.\.\.lines, \.\.\.attendanceLines\]\.join\("\\n"\)/);
   assert.match(phpObservations, /return implode\("\\n", array_merge\(\$lines, \$attendanceLines\)\)/);

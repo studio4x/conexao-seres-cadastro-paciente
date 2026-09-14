@@ -7,11 +7,16 @@
         "hasResponsible": false,
         "patientName": "Paciente Exemplo",
         "patientCpf": "00000000000",
+        "patientSex": "female",
         "patientBirthDate": "08/09/1992",
         "patientPhone": "11900000000",
         "patientEmail": "paciente@example.invalid",
         "patientAddress": "Rua Exemplo, 3 — Centro, São Paulo/SP — CEP 00000000",
+        "patientCity": "São Paulo",
+        "patientState": "SP",
         "responsibleBirthDate": "",
+        "responsibleCity": "",
+        "responsibleState": "",
         "serviceType": "Terapia Ocupacional – Reabilitação Neurológica",
         "serviceTypeRequiresEntryType": false,
         "entryType": "",
@@ -25,6 +30,7 @@
         "hasResponsible": false,
         "patientName": "Paciente Exemplo",
         "patientCpf": "000.000.000-00",
+        "patientSex": "female",
         "patientBirthDate": "1992-09-08",
         "patientPhone": "(11) 90000-0000",
         "patientEmail": "paciente@example.invalid",
@@ -36,6 +42,8 @@
         "patientState": "SP",
         "patientPostalCode": "00000-000",
         "responsibleBirthDate": "",
+        "responsibleCity": "",
+        "responsibleState": "",
         "serviceType": "ADULT_NEURO_REHAB",
         "entryType": "",
         "attendanceMode": "IN_PERSON",
@@ -44,7 +52,7 @@
         "firstSessionMode": "IN_PERSON",
         "mediaConsent": "AUTHORIZED"
       },
-      "expected": "Tipo de atendimento: Terapia Ocupacional – Reabilitação Neurológica\nModalidade de atendimento: Presencial\nPrimeira sessão: 10/09/2026 às 09:30\nModalidade da primeira sessão: Presencial, na clínica Conexão Seres\nAutorização de imagens e vídeos: Autorizado"
+      "expected": "Sexo: Feminino\nNasc.: 08/09/1992\nLocal: São Paulo/SP\nTipo de atendimento: Terapia Ocupacional – Reabilitação Neurológica\nModalidade de atendimento: Presencial\nPrimeira sessão: 10/09/2026 às 09:30\nModalidade da primeira sessão: Presencial, na clínica Conexão Seres\nAutorização de imagens e vídeos: Autorizado"
     },
     {
       "name": "adult_with_financial_responsible",
@@ -53,11 +61,16 @@
         "hasResponsible": true,
         "patientName": "Mariana de Oliveira Santos",
         "patientCpf": "11111111111",
+        "patientSex": "female",
         "patientBirthDate": "08/09/1992",
         "patientPhone": "11911112222",
         "patientEmail": "mariana.oliveira@example.invalid",
-        "patientAddress": "Avenida das Nações Unidas, 1234, Apartamento 56 — Jardim das Flores, São Paulo/SP — CEP 01234567",
+        "patientAddress": "Avenida das Nações Unidas, 1234, Apartamento 56 — Jardim das Flores, São Paulo/SP — 01234567",
+        "patientCity": "São Paulo",
+        "patientState": "SP",
         "responsibleBirthDate": "15/04/1970",
+        "responsibleCity": "São Paulo",
+        "responsibleState": "SP",
         "serviceType": "Terapia Ocupacional com Estimulação Sensorial",
         "serviceTypeRequiresEntryType": false,
         "entryType": "",
@@ -71,6 +84,7 @@
         "hasResponsible": true,
         "patientName": "Mariana de Oliveira Santos",
         "patientCpf": "111.111.111-11",
+        "patientSex": "female",
         "patientBirthDate": "1992-09-08",
         "patientPhone": "(11) 91111-2222",
         "patientEmail": "mariana.oliveira@example.invalid",
@@ -82,6 +96,8 @@
         "patientState": "SP",
         "patientPostalCode": "01234-567",
         "responsibleBirthDate": "1970-04-15",
+        "responsibleCity": "São Paulo",
+        "responsibleState": "SP",
         "serviceType": "ADULT_SENSORY_STIMULATION",
         "entryType": "",
         "attendanceMode": "IN_PERSON",
@@ -90,7 +106,7 @@
         "firstSessionMode": "IN_PERSON",
         "mediaConsent": "AUTHORIZED"
       },
-      "expected": "Paciente: Mariana de Oliveira Santos\nCPF: 11111111111\nNasc.: 08/09/1992\nContato: 11911112222 | mariana.oliveira@example.invalid\nEndereço: Avenida das Nações Unidas, 1234, Apartamento 56 — Jardim das Flores, São Paulo/SP — CEP 01234567\nNasc. resp.: 15/04/1970\nAtendimento: Terapia Ocupacional com Estimulação Sensorial\nModo: Presencial\n1ª sessão: 12/09/2026 às 14:30\nModo 1ª sessão: Presencial, na clínica Conexão Seres\nMídia: Autorizado"
+      "expected": "Paciente: Mariana de Oliveira Santos\nCPF: 11111111111\nSexo: Feminino\nNasc.: 08/09/1992\nContato: 11911112222 | mariana.oliveira@example.invalid\nEnd: Avenida das Nações Unidas, 1234, Apartamento 56 — Jardim das Flores, São Paulo/SP — 01234567\nNasc. R.: 15/04/1970\nLocal R.: São Paulo/SP\nAtend.: Terapia Ocupacional com Estimulação Sensorial\nModo: Presencial\n1ª sessão: 12/09/2026 às 14:30\nModo 1ª sessão: Presencial, na clínica Conexão Seres\nImg.: Autorizado"
     },
     {
       "name": "adult_with_legal_responsible_online",
@@ -99,11 +115,16 @@
         "hasResponsible": true,
         "patientName": "Alex da Silva Exemplo",
         "patientCpf": "22222222222",
+        "patientSex": "male",
         "patientBirthDate": "01/02/2004",
         "patientPhone": "21922223333",
         "patientEmail": "alex.silva@example.invalid",
-        "patientAddress": "Rua da Harmonia, 45 — Centro, Rio de Janeiro/RJ — CEP 20000000",
+        "patientAddress": "Rua da Harmonia, 45 — Centro, Rio de Janeiro/RJ — 20000000",
+        "patientCity": "Rio de Janeiro",
+        "patientState": "RJ",
         "responsibleBirthDate": "20/06/1975",
+        "responsibleCity": "Rio de Janeiro",
+        "responsibleState": "RJ",
         "serviceType": "Terapia Ocupacional com Psicanálise Integrada",
         "serviceTypeRequiresEntryType": false,
         "entryType": "",
@@ -117,6 +138,7 @@
         "hasResponsible": true,
         "patientName": "Alex da Silva Exemplo",
         "patientCpf": "222.222.222-22",
+        "patientSex": "male",
         "patientBirthDate": "2004-02-01",
         "patientPhone": "(21) 92222-3333",
         "patientEmail": "alex.silva@example.invalid",
@@ -128,6 +150,8 @@
         "patientState": "RJ",
         "patientPostalCode": "20000-000",
         "responsibleBirthDate": "1975-06-20",
+        "responsibleCity": "Rio de Janeiro",
+        "responsibleState": "RJ",
         "serviceType": "ADULT_PSYCHOANALYSIS_INTEGRATED",
         "entryType": "",
         "attendanceMode": "ONLINE",
@@ -136,7 +160,7 @@
         "firstSessionMode": "ONLINE",
         "mediaConsent": "NOT_AUTHORIZED"
       },
-      "expected": "Paciente: Alex da Silva Exemplo\nCPF: 22222222222\nNasc.: 01/02/2004\nContato: 21922223333 | alex.silva@example.invalid\nEndereço: Rua da Harmonia, 45 — Centro, Rio de Janeiro/RJ — CEP 20000000\nNasc. resp.: 20/06/1975\nAtendimento: Terapia Ocupacional com Psicanálise Integrada\nModo: Online\n1ª sessão: 15/09/2026 às 18:00\nModo 1ª sessão: Online via Google Meet\nMídia: Não autorizado"
+      "expected": "Paciente: Alex da Silva Exemplo\nCPF: 22222222222\nSexo: Masculino\nNasc.: 01/02/2004\nContato: 21922223333 | alex.silva@example.invalid\nEnd: Rua da Harmonia, 45 — Centro, Rio de Janeiro/RJ — 20000000\nNasc. R.: 20/06/1975\nLocal R.: Rio de Janeiro/RJ\nAtend.: Terapia Ocupacional com Psicanálise Integrada\nModo: Online\n1ª sessão: 15/09/2026 às 18:00\nModo 1ª sessão: Online via Google Meet\nImg.: Não autorizado"
     },
     {
       "name": "minor_with_responsible",
@@ -145,11 +169,16 @@
         "hasResponsible": true,
         "patientName": "Criança Exemplo da Silva",
         "patientCpf": "33333333333",
+        "patientSex": "female",
         "patientBirthDate": "05/03/2017",
         "patientPhone": "",
         "patientEmail": "",
         "patientAddress": ",  — , / — CEP ",
+        "patientCity": "",
+        "patientState": "",
         "responsibleBirthDate": "30/07/1985",
+        "responsibleCity": "São Paulo",
+        "responsibleState": "SP",
         "serviceType": "Terapia Ocupacional com Integração Sensorial",
         "serviceTypeRequiresEntryType": true,
         "entryType": "Processo Avaliativo Completo",
@@ -163,6 +192,7 @@
         "hasResponsible": true,
         "patientName": "Criança Exemplo da Silva",
         "patientCpf": "333.333.333-33",
+        "patientSex": "female",
         "patientBirthDate": "2017-03-05",
         "patientPhone": "",
         "patientEmail": "",
@@ -174,6 +204,8 @@
         "patientState": "",
         "patientPostalCode": "",
         "responsibleBirthDate": "1985-07-30",
+        "responsibleCity": "São Paulo",
+        "responsibleState": "SP",
         "serviceType": "CHILD_SENSORY_INTEGRATION",
         "entryType": "FULL_ASSESSMENT",
         "attendanceMode": "",
@@ -182,7 +214,7 @@
         "firstSessionMode": "IN_PERSON",
         "mediaConsent": "AUTHORIZED"
       },
-      "expected": "Paciente: Criança Exemplo da Silva\nCPF: 33333333333\nNasc.: 05/03/2017\nNasc. resp.: 30/07/1985\nAtendimento: Terapia Ocupacional com Integração Sensorial\nIngresso: Processo Avaliativo Completo\n1ª sessão: 20/09/2026 às 10:00\nModo 1ª sessão: Presencial, na clínica Conexão Seres\nMídia: Autorizado"
+      "expected": "Paciente: Criança Exemplo da Silva\nCPF: 33333333333\nSexo: Feminino\nNasc.: 05/03/2017\nNasc. R.: 30/07/1985\nLocal R.: São Paulo/SP\nAtend.: Terapia Ocupacional com Integração Sensorial\nIngresso: Processo Avaliativo Completo\n1ª sessão: 20/09/2026 às 10:00\nModo 1ª sessão: Presencial, na clínica Conexão Seres\nImg.: Autorizado"
     }
   ]
 }

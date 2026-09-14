@@ -50,7 +50,7 @@ test("keeps an adult without responsible free of duplicated personal data", () =
   for (const personalValue of ["Paciente Exemplo", "00000000000", "11900000000", "Rua Exemplo"]) {
     assert.doesNotMatch(output, new RegExp(personalValue));
   }
-  assert.match(output, /^Tipo de atendimento:/);
+  assert.match(output, /^Sexo: Feminino\nNasc\.: 08\/09\/1992\nLocal: São Paulo\/SP\nTipo de atendimento:/);
   assert.match(output, /Autorização de imagens e vídeos: Autorizado$/);
 });
 
@@ -61,11 +61,20 @@ test("preserves every required adult value for financial and legal responsible s
     for (const value of [
       details.patientName,
       details.patientCpf,
+      details.patientSex === "female"
+        ? "Feminino"
+        : details.patientSex === "male"
+          ? "Masculino"
+          : "Não binário",
       details.patientBirthDate,
       details.patientPhone,
       details.patientEmail,
       details.patientAddress,
+      details.patientCity,
+      details.patientState,
       details.responsibleBirthDate,
+      details.responsibleCity,
+      details.responsibleState,
       details.serviceType,
       details.attendanceMode,
       details.firstSessionDate,
@@ -95,9 +104,9 @@ test("keeps the minor contract without inventing patient contact or address", ()
 
 test("represents in-person, online, authorized and non-authorized session data", () => {
   assert.match(cases.adult_with_financial_responsible.expected, /Modo 1ª sessão: Presencial, na clínica Conexão Seres/);
-  assert.match(cases.adult_with_financial_responsible.expected, /Mídia: Autorizado/);
+  assert.match(cases.adult_with_financial_responsible.expected, /Img\.: Autorizado/);
   assert.match(cases.adult_with_legal_responsible_online.expected, /Modo 1ª sessão: Online via Google Meet/);
-  assert.match(cases.adult_with_legal_responsible_online.expected, /Mídia: Não autorizado/);
+  assert.match(cases.adult_with_legal_responsible_online.expected, /Img\.: Não autorizado/);
 });
 
 test("keeps representative responsible observations inside the UTF-8 safety budget", () => {
@@ -163,13 +172,16 @@ test("keeps TypeScript and PHP compact labels and UTF-8 byte semantics aligned",
     "CPF: ",
     "Nasc.: ",
     "Contato: ",
-    "Endereço: ",
-    "Nasc. resp.: ",
-    "Atendimento: ",
+    "Sexo: ",
+    "Local: ",
+    "End: ",
+    "Nasc. R.: ",
+    "Local R.: ",
+    "Atend.: ",
     "Modo: ",
     "1ª sessão: ",
     "Modo 1ª sessão: ",
-    "Mídia: ",
+    "Img.: ",
   ]) {
     assert.ok(
       fixture.cases.some((item) => item.expected.includes(label)),

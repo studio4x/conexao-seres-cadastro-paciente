@@ -737,7 +737,7 @@ function fullAddress(patient: Patient, prefix: "patient" | "responsible") {
   const city = clean(patient[`${prefix}City`]);
   const state = clean(patient[`${prefix}State`]).toUpperCase();
   const postalCode = onlyDigits(patient[`${prefix}PostalCode`]);
-  return `${address}, ${number}${complement ? `, ${complement}` : ""} — ${province}, ${city}/${state} — CEP ${postalCode}`;
+  return `${address}, ${number}${complement ? `, ${complement}` : ""} — ${province}, ${city}/${state} — ${postalCode}`;
 }
 
 function buildObservations(patient: Patient) {
@@ -746,11 +746,16 @@ function buildObservations(patient: Patient) {
     hasResponsible: patient.hasResponsible,
     patientName: clean(patient.patientName),
     patientCpf: onlyDigits(patient.patientCpf),
+    patientSex: patient.patientSex,
     patientBirthDate: formatBirthDate(patient.patientBirthDate),
     patientPhone: onlyDigits(patient.patientPhone),
     patientEmail: clean(patient.patientEmail),
     patientAddress: fullAddress(patient, "patient"),
+    patientCity: clean(patient.patientCity),
+    patientState: clean(patient.patientState),
     responsibleBirthDate: formatBirthDate(patient.responsibleBirthDate),
+    responsibleCity: clean(patient.responsibleCity),
+    responsibleState: clean(patient.responsibleState),
     serviceType: serviceTypeLabel(patient.serviceType),
     serviceTypeRequiresEntryType: serviceTypeRequiresEntryType(patient.serviceType),
     entryType: entryTypeLabel(patient.entryType),
