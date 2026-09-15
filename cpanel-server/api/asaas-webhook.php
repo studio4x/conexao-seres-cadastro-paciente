@@ -121,9 +121,19 @@ function parse_first_session_from_observations(mixed $observations): array
     $firstSessionDate = '';
     $firstSessionTime = '';
     $firstSessionMode = '';
+    $patientAge = null;
 
     foreach ($lines as $line) {
         if (!is_string($line)) {
+            continue;
+        }
+        if (preg_match('/^Idade:\s*(-?\d+)\s*$/u', $line, $matches) === 1) {
+            $parsedAge = filter_var($matches[1], FILTER_VALIDATE_INT);
+            $patientAge = $parsedAge !== false && $parsedAge >= 0 && $parsedAge <= 120 ? $parsedAge : null;
+            continue;
+        }
+        if (str_starts_with($line, 'Idade:')) {
+            $patientAge = null;
             continue;
         }
         if (preg_match('/^(?:Pessoa atendida|Paciente):(.*)$/u', $line, $matches) === 1) {
@@ -162,6 +172,7 @@ function parse_first_session_from_observations(mixed $observations): array
         'firstSessionDate' => $firstSessionDate,
         'firstSessionTime' => $firstSessionTime,
         'firstSessionMode' => $firstSessionMode,
+        'patientAge' => $patientAge,
     ];
 }
 
@@ -200,6 +211,8 @@ function notify_n8n_first_session_paid_safely(
     $patientName = $firstSession['patientName'] !== ''
         ? $firstSession['patientName']
         : ($firstSession['patientNameLinePresent'] ? '' : $customerName);
+    $patientAge = $firstSession['patientAge'];
+    $contractType = is_int($patientAge) ? ($patientAge >= 18 ? 'ADULT' : 'CHILD_ADOLESCENT') : null;
 
     $invoiceNumber = optional_payment_string($payment, 'invoiceNumber');
     $invoiceUrl = optional_payment_string($payment, 'invoiceUrl');
@@ -241,6 +254,10 @@ function notify_n8n_first_session_paid_safely(
         'paymentDate' => effective_date_from_payment($payment),
         'externalReference' => trim((string) ($payment['externalReference'] ?? '')),
     ];
+    if ($patientAge !== null && $contractType !== null) {
+        $payload['patientAge'] = $patientAge;
+        $payload['contractType'] = $contractType;
+    }
     $encodedPayload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     if (!is_string($encodedPayload)) {
         error_log('n8n first-session-paid webhook payload could not be encoded. Payment ' . $paymentId . ' Event ' . $event);

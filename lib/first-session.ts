@@ -82,8 +82,21 @@ export function parseFirstSessionFromObservations(observations: unknown) {
   let firstSessionDate = "";
   let firstSessionTime = "";
   let firstSessionMode = "";
+  let patientAge: number | null = null;
 
   for (const line of lines) {
+    const ageMatch = /^Idade:\s*(-?\d+)\s*$/.exec(line);
+    if (ageMatch) {
+      const parsedAge = Number(ageMatch[1]);
+      patientAge = Number.isSafeInteger(parsedAge) && parsedAge >= 0 && parsedAge <= 120 ? parsedAge : null;
+      continue;
+    }
+
+    if (/^Idade:/.test(line)) {
+      patientAge = null;
+      continue;
+    }
+
     const patientMatch = /^(?:Pessoa atendida|Paciente):(.*)$/.exec(line);
     if (patientMatch) {
       patientNameLinePresent = true;
@@ -119,5 +132,6 @@ export function parseFirstSessionFromObservations(observations: unknown) {
     firstSessionDate,
     firstSessionTime,
     firstSessionMode,
+    patientAge,
   };
 }
