@@ -95,7 +95,7 @@ No `config.php` privado, configure:
 'n8n_pagamento_webhook_token' => 'COLE_AQUI_O_TOKEN_DO_WEBHOOK_N8N_DE_PAGAMENTO',
 ```
 
-As variáveis equivalentes são `N8N_CONEXAO_SERES_PAGAMENTO_WEBHOOK_URL` e `N8N_CONEXAO_SERES_PAGAMENTO_WEBHOOK_TOKEN`. O POST usa Bearer token, JSON e timeout de 3 segundos. URL/token ausentes, erro HTTP, indisponibilidade ou timeout são best-effort: o log contém somente dados técnicos mínimos e o processamento da NFS-e continua independente. Não configure workflow n8n neste repositório.
+As variáveis equivalentes são `N8N_CONEXAO_SERES_PAGAMENTO_WEBHOOK_URL` e `N8N_CONEXAO_SERES_PAGAMENTO_WEBHOOK_TOKEN`. O POST usa Bearer token, JSON e timeout de 3 segundos. Quando `observations` contém uma linha válida `Idade: <inteiro>` entre 0 e 120, o evento também envia `patientAge` e `contractType` (`ADULT` para idade maior ou igual a 18; `CHILD_ADOLESCENT` para idade menor que 18), sempre com base na pessoa atendida. Idade ausente ou inválida omite os dois campos. URL/token ausentes, erro HTTP, indisponibilidade ou timeout são best-effort: o log contém somente dados técnicos mínimos e o processamento da NFS-e continua independente. Não configure workflow n8n neste repositório.
 
 ## Deploy automático por webhook do GitHub
 

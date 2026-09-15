@@ -14,6 +14,7 @@ const fixture = JSON.parse(
   await readFile(new URL("./fixtures/asaas-customer-observations.json", import.meta.url), "utf8"),
 );
 const typescriptBackend = await readFile(new URL("../app/api/patients/route.ts", import.meta.url), "utf8");
+const typescriptWebhook = await readFile(new URL("../app/api/asaas/webhook/route.ts", import.meta.url), "utf8");
 const phpBackend = await readFile(new URL("../cpanel-server/api/patients.php", import.meta.url), "utf8");
 const phpWebhook = await readFile(new URL("../cpanel-server/api/asaas-webhook.php", import.meta.url), "utf8");
 const observationsModule = await readFile(
@@ -209,6 +210,7 @@ test("parses both compact and legacy first-session observations", () => {
     firstSessionDate: "12/09/2026",
     firstSessionTime: "14:30",
     firstSessionMode: "IN_PERSON",
+    patientAge: 34,
   });
 
   const legacy = parseFirstSessionFromObservations([
@@ -222,10 +224,71 @@ test("parses both compact and legacy first-session observations", () => {
     firstSessionDate: "12/09/2026",
     firstSessionTime: "14:30",
     firstSessionMode: "IN_PERSON",
+    patientAge: null,
   });
 
   for (const token of ["Paciente", "1ª sessão", "Modo 1ª sessão"]) {
     assert.ok(phpWebhook.includes(token));
+  }
+});
+
+test("classifies the attended patient by a valid observation age", () => {
+  const cases = [
+    [36, "ADULT"],
+    [18, "ADULT"],
+    [17, "CHILD_ADOLESCENT"],
+    [8, "CHILD_ADOLESCENT"],
+  ];
+
+  for (const [age, contractType] of cases) {
+    const parsed = parseFirstSessionFromObservations(`Paciente: Pessoa Atendida\nIdade: ${age}`);
+    assert.equal(parsed.patientAge, age);
+    assert.equal(parsed.patientAge >= 18 ? "ADULT" : "CHILD_ADOLESCENT", contractType);
+  }
+
+  const adultWithResponsible = parseFirstSessionFromObservations(
+    ["Paciente: Adulto com Responsável", "Idade: 36", "Responsável: Titular Financeiro"].join("\n"),
+  );
+  assert.equal(adultWithResponsible.patientAge, 36);
+  assert.equal(adultWithResponsible.patientAge >= 18 ? "ADULT" : "CHILD_ADOLESCENT", "ADULT");
+});
+
+test("does not classify an absent or invalid observation age", () => {
+  for (const line of ["", "Idade:", "Idade: abc", "Idade: -1", "Idade: 121", "Idade: 36.5"]) {
+    const parsed = parseFirstSessionFromObservations(line);
+    assert.equal(parsed.patientAge, null, line || "absent age");
+  }
+});
+
+test("conditionally preserves the existing first-session n8n payload contract", () => {
+  assert.match(typescriptWebhook, /const contractType = patientAge === null \? null : patientAge >= 18 \? "ADULT" : "CHILD_ADOLESCENT"/);
+  assert.match(typescriptWebhook, /\.\.\.\(patientAge !== null && contractType !== null \? \{ patientAge, contractType \} : \{\}\)/);
+  assert.match(phpWebhook, /\$payload\['patientAge'\] = \$patientAge;/);
+  assert.match(phpWebhook, /\$payload\['contractType'\] = \$contractType;/);
+  assert.match(phpWebhook, /if \(\$patientAge !== null && \$contractType !== null\)/);
+
+  for (const field of [
+    "eventType",
+    "asaasEventId",
+    "asaasEvent",
+    "paymentId",
+    "asaasCustomerId",
+    "customerName",
+    "customerWhatsapp",
+    "patientName",
+    "firstSessionDate",
+    "firstSessionTime",
+    "firstSessionMode",
+    "invoiceNumber",
+    "invoiceUrl",
+    "value",
+    "billingType",
+    "status",
+    "paymentDate",
+    "externalReference",
+  ]) {
+    assert.match(typescriptWebhook, new RegExp(`\\b${field}\\b`), `TypeScript field ${field}`);
+    assert.match(phpWebhook, new RegExp(`['"]${field}['"]`), `PHP field ${field}`);
   }
 });
 

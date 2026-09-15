@@ -178,6 +178,8 @@ async function notifyN8nFirstSessionPaid(
   const customerWhatsapp = mobilePhone || phone;
   const firstSession = parseFirstSessionFromObservations(customerResult.data.observations);
   const patientName = firstSession.patientName || (!firstSession.patientNameLinePresent ? customerName : "");
+  const patientAge = firstSession.patientAge;
+  const contractType = patientAge === null ? null : patientAge >= 18 ? "ADULT" : "CHILD_ADOLESCENT";
 
   let invoiceNumber = optionalPaymentString(payment, "invoiceNumber");
   let invoiceUrl = optionalPaymentString(payment, "invoiceUrl");
@@ -214,6 +216,7 @@ async function notifyN8nFirstSessionPaid(
     firstSessionDate: firstSession.firstSessionDate,
     firstSessionTime: firstSession.firstSessionTime,
     firstSessionMode: firstSession.firstSessionMode,
+    ...(patientAge !== null && contractType !== null ? { patientAge, contractType } : {}),
     invoiceNumber,
     invoiceUrl,
     value: typeof payment.value === "number" ? payment.value : Number(payment.value),
