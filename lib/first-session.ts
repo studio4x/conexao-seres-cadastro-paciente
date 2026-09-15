@@ -85,7 +85,7 @@ export function parseFirstSessionFromObservations(observations: unknown) {
   let patientAge: number | null = null;
 
   for (const line of lines) {
-    const ageMatch = /^Idade:\s*(-?\d+)\s*$/.exec(line);
+    const ageMatch = /^Idade:\s*(-?\d+)(?:\s+anos)?\s*$/.exec(line);
     if (ageMatch) {
       const parsedAge = Number(ageMatch[1]);
       patientAge = Number.isSafeInteger(parsedAge) && parsedAge >= 0 && parsedAge <= 120 ? parsedAge : null;

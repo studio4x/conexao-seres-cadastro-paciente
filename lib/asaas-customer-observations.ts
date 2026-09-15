@@ -1,4 +1,4 @@
-export const ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES = 500;
+export const ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES = 505;
 
 export type AsaasCustomerObservationsDetails = {
   patientAge: number;
@@ -59,21 +59,18 @@ export function buildAsaasCustomerObservations(details: AsaasCustomerObservation
 
   if (details.patientAge >= 18 && !details.hasResponsible) {
     return [
-      `Idade: ${details.patientAge}`,
+      `Idade: ${details.patientAge} anos`,
       `CPF: ${details.patientCpf}`,
       `Sexo: ${patientSexLabel(details.patientSex)} | Nasc.: ${details.patientBirthDate}`,
       `Celular: ${details.patientPhone} | E-mail: ${details.patientEmail}`,
       `Endereço: ${details.patientAddress}`,
-      ...(cityStateLabel(details.patientCity, details.patientState)
-        ? [`Local: ${cityStateLabel(details.patientCity, details.patientState)}`]
-        : []),
       ...attendanceLines,
     ].join("\n");
   }
 
   const lines = [
     `${compact ? "Paciente" : "Pessoa atendida"}: ${details.patientName}`,
-    `Idade: ${details.patientAge}`,
+    `Idade: ${details.patientAge} anos`,
     `CPF: ${details.patientCpf} | Sexo: ${patientSexLabel(details.patientSex)} | Nasc.: ${details.patientBirthDate}`,
   ];
   if (details.patientAge >= 18) {

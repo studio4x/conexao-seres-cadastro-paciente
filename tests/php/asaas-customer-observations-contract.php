@@ -42,11 +42,12 @@ foreach ($fixture['cases'] as $case) {
     }
 }
 
-$exact = str_repeat('á', intdiv(ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES, 2));
+$exact = str_repeat('á', intdiv(ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES, 2))
+    . (ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES % 2 === 1 ? 'a' : '');
 $assertions++;
 if (asaas_customer_observations_utf8_bytes($exact) !== ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES
     || !asaas_customer_observations_within_safety_budget($exact)) {
-    $failures[] = 'exact limit: expected 500 UTF-8 bytes to be accepted';
+    $failures[] = 'exact limit: expected 505 UTF-8 bytes to be accepted';
 }
 
 $assertions++;
