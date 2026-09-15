@@ -127,7 +127,7 @@ function parse_first_session_from_observations(mixed $observations): array
         if (!is_string($line)) {
             continue;
         }
-        if (preg_match('/^Idade:\s*(-?\d+)\s*$/u', $line, $matches) === 1) {
+        if (preg_match('/^Idade:\s*(-?\d+)(?:\s+anos)?\s*$/u', $line, $matches) === 1) {
             $parsedAge = filter_var($matches[1], FILTER_VALIDATE_INT);
             $patientAge = $parsedAge !== false && $parsedAge >= 0 && $parsedAge <= 120 ? $parsedAge : null;
             continue;

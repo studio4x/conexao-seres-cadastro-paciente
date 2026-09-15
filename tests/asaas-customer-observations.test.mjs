@@ -49,14 +49,14 @@ test("builds every observations fixture exactly without external requests", () =
 test("includes the requested adult patient data in observations", () => {
   const output = buildAsaasCustomerObservations(cases.adult_without_responsible.details);
   for (const expectedLine of [
-    "Idade: 34",
+    "Idade: 34 anos",
     "CPF: 00000000000",
     "Celular: 11900000000 | E-mail: paciente@example.invalid",
     "Endereço: Rua Exemplo, 3 - Centro - São Paulo/SP - 00000000",
   ]) {
     assert.ok(output.includes(expectedLine), expectedLine);
   }
-  assert.match(output, /^Idade: 34\nCPF: 00000000000\nSexo: Feminino \| Nasc\.: 08\/09\/1992/);
+  assert.match(output, /^Idade: 34 anos\nCPF: 00000000000\nSexo: Feminino \| Nasc\.: 08\/09\/1992/);
   assert.match(output, /^Endereço: [^\n]+$/m);
   assert.match(output, /Autorização de imagens e vídeos: Autorizado$/);
 });
@@ -134,7 +134,8 @@ test("keeps representative responsible observations inside the UTF-8 safety budg
 });
 
 test("accepts the exact UTF-8 byte budget and rejects one byte above it", () => {
-  const exact = "á".repeat(ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES / 2);
+  const exact = "á".repeat(Math.floor(ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES / 2))
+    + (ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES % 2 === 1 ? "a" : "");
   assert.equal(asaasCustomerObservationsUtf8Bytes(exact), ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES);
   assert.equal(isAsaasCustomerObservationsWithinSafetyBudget(exact), true);
   assert.equal(isAsaasCustomerObservationsWithinSafetyBudget(`${exact}a`), false);
@@ -183,7 +184,6 @@ test("keeps TypeScript and PHP compact labels and UTF-8 byte semantics aligned",
     "Endereço: ",
     "Nasc.: ",
     "Sexo: ",
-    "Local: ",
     "Nasc. R.: ",
     "Local R.: ",
     "Atend.: ",
@@ -199,7 +199,7 @@ test("keeps TypeScript and PHP compact labels and UTF-8 byte semantics aligned",
     assert.ok(phpBackend.includes(label), `PHP label ${label}`);
   }
   assert.match(phpBackend, /function asaas_customer_observations_utf8_bytes[\s\S]*?return strlen\(\$value\)/);
-  assert.match(phpBackend, /ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES = 500/);
+  assert.match(phpBackend, /ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES = 505/);
 });
 
 test("parses both compact and legacy first-session observations", () => {
@@ -241,13 +241,15 @@ test("classifies the attended patient by a valid observation age", () => {
   ];
 
   for (const [age, contractType] of cases) {
-    const parsed = parseFirstSessionFromObservations(`Paciente: Pessoa Atendida\nIdade: ${age}`);
-    assert.equal(parsed.patientAge, age);
-    assert.equal(parsed.patientAge >= 18 ? "ADULT" : "CHILD_ADOLESCENT", contractType);
+    for (const suffix of ["", " anos"]) {
+      const parsed = parseFirstSessionFromObservations(`Paciente: Pessoa Atendida\nIdade: ${age}${suffix}`);
+      assert.equal(parsed.patientAge, age);
+      assert.equal(parsed.patientAge >= 18 ? "ADULT" : "CHILD_ADOLESCENT", contractType);
+    }
   }
 
   const adultWithResponsible = parseFirstSessionFromObservations(
-    ["Paciente: Adulto com Responsável", "Idade: 36", "Responsável: Titular Financeiro"].join("\n"),
+    ["Paciente: Adulto com Responsável", "Idade: 36 anos", "Responsável: Titular Financeiro"].join("\n"),
   );
   assert.equal(adultWithResponsible.patientAge, 36);
   assert.equal(adultWithResponsible.patientAge >= 18 ? "ADULT" : "CHILD_ADOLESCENT", "ADULT");

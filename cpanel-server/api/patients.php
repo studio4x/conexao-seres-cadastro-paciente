@@ -8,7 +8,7 @@ header('Cache-Control: no-store');
 
 const E2E_TURNSTILE_MODE = 'turnstile-test-v1';
 const E2E_TURNSTILE_TEST_SECRET = '1x0000000000000000000000000000000AA';
-const ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES = 500;
+const ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES = 505;
 
 function respond(array $payload, int $status = 200): never
 {
@@ -528,7 +528,7 @@ function build_observations(array $values, int $patientAge): ?string
 
     if ($patientAge >= 18 && !$values['hasResponsible']) {
         $lines = [
-            'Idade: ' . $patientAge,
+            'Idade: ' . $patientAge . ' anos',
             'CPF: ' . digits($values['patientCpf']),
             'Sexo: ' . patient_sex_label($values['patientSex'])
                 . ' | Nasc.: ' . format_birth_date($values['patientBirthDate']),
@@ -536,16 +536,12 @@ function build_observations(array $values, int $patientAge): ?string
                 . ' | E-mail: ' . clean_text($values['patientEmail']),
             'Endereço: ' . full_address($values, 'patient'),
         ];
-        $patientCityState = city_state_label($values['patientCity'], $values['patientState']);
-        if ($patientCityState !== '') {
-            $lines[] = 'Local: ' . $patientCityState;
-        }
         return implode("\n", array_merge($lines, $attendanceLines));
     }
 
     $lines = [
         ($compact ? 'Paciente: ' : 'Pessoa atendida: ') . clean_text($values['patientName']),
-        'Idade: ' . $patientAge,
+        'Idade: ' . $patientAge . ' anos',
         'CPF: ' . digits($values['patientCpf'])
             . ' | Sexo: ' . patient_sex_label($values['patientSex'])
             . ' | Nasc.: ' . format_birth_date($values['patientBirthDate']),
