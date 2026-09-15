@@ -1,0 +1,5 @@
+Teste de deploy automático GitHub -> cPanel.
+
+Criado em 2026-09-15 para validar se o webhook de produção no cPanel recebe um novo push na branch main.
+
+Este arquivo pode ser removido após o teste.
