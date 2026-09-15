@@ -372,8 +372,13 @@ test("clears incompatible attendance choices when the birth date changes age gro
   assert.match(frontend, /function updateBirthDate\(value: string\)[\s\S]*?attendanceMode: ""/);
 });
 
-test("adds attendance labels to observations without duplicating an adult patient's own data", () => {
+test("adds attendance labels and requested patient data to observations", () => {
   for (const backend of [observationsContract, phpBackend]) {
+    assert.match(backend, /Idade/);
+    assert.match(backend, /CPF/);
+    assert.match(backend, /Celular/);
+    assert.match(backend, /E-mail/);
+    assert.match(backend, /Endereço/);
     assert.match(backend, /Tipo de atendimento|Atend\./);
     assert.match(backend, /Modalidade de atendimento/);
     assert.match(backend, /Forma de ingresso/);
@@ -439,10 +444,13 @@ test("maps native customer fields to the selected holder and records non-native 
     assert.match(backend, /responsibleCity/);
     assert.match(backend, /responsibleState/);
   }
-  assert.match(observationsContract, /Sexo: \$\{patientSexLabel\(details\.patientSex\)\}/);
-  assert.match(observationsContract, /Nasc\.: \$\{details\.patientBirthDate\}/);
+  assert.match(observationsContract, /Sexo: \$\{patientSexLabel\(details\.patientSex\)\} \| Nasc\.: \$\{details\.patientBirthDate\}/);
+  assert.match(observationsContract, /Celular: \$\{details\.patientPhone\} \| E-mail: \$\{details\.patientEmail\}/);
+  assert.match(observationsContract, /Endereço: \$\{details\.patientAddress\}/);
   assert.match(observationsContract, /Local R\.: \$\{responsibleCityState\}/);
   assert.match(phpBackend, /'Sexo: ' \. patient_sex_label\(\$values\['patientSex'\]\)/);
+  assert.match(phpBackend, /'Celular: ' \. digits\(\$values\['patientPhone'\]\)/);
+  assert.match(phpBackend, /'Endereço: ' \. full_address\(\$values, 'patient'\)/);
   assert.match(phpBackend, /'Local R\.: ' \. \$responsibleCityState/);
 });
 
@@ -493,7 +501,7 @@ test("formats patient and responsible birth dates in observations", () => {
   );
   assert.match(
     phpBackend,
-    /'Nasc\.: ' \. format_birth_date\(\$values\['patientBirthDate'\]\)/,
+    /' \| Nasc\.: ' \. format_birth_date\(\$values\['patientBirthDate'\]\)/,
   );
   assert.match(
     phpBackend,

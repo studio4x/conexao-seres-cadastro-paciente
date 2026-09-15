@@ -737,7 +737,7 @@ function fullAddress(patient: Patient, prefix: "patient" | "responsible") {
   const city = clean(patient[`${prefix}City`]);
   const state = clean(patient[`${prefix}State`]).toUpperCase();
   const postalCode = onlyDigits(patient[`${prefix}PostalCode`]);
-  return `${address}, ${number}${complement ? `, ${complement}` : ""} — ${province}, ${city}/${state} — ${postalCode}`;
+  return `${address}, ${number}${complement ? `, ${complement}` : ""} - ${province} - ${city}/${state} - ${postalCode}`;
 }
 
 function buildObservations(patient: Patient) {

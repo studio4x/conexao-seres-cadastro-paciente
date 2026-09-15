@@ -382,8 +382,8 @@ function full_address(array $values, string $prefix): string
 
     return $address . ', ' . $number
         . ($complement !== '' ? ', ' . $complement : '')
-        . ' — ' . $province . ', ' . $city . '/' . $state
-        . ' — ' . $postalCode;
+        . ' - ' . $province . ' - ' . $city . '/' . $state
+        . ' - ' . $postalCode;
 }
 
 function format_birth_date(string $value): string
@@ -528,8 +528,13 @@ function build_observations(array $values, int $patientAge): ?string
 
     if ($patientAge >= 18 && !$values['hasResponsible']) {
         $lines = [
-            'Sexo: ' . patient_sex_label($values['patientSex']),
-            'Nasc.: ' . format_birth_date($values['patientBirthDate']),
+            'Idade: ' . $patientAge,
+            'CPF: ' . digits($values['patientCpf']),
+            'Sexo: ' . patient_sex_label($values['patientSex'])
+                . ' | Nasc.: ' . format_birth_date($values['patientBirthDate']),
+            'Celular: ' . digits($values['patientPhone'])
+                . ' | E-mail: ' . clean_text($values['patientEmail']),
+            'Endereço: ' . full_address($values, 'patient'),
         ];
         $patientCityState = city_state_label($values['patientCity'], $values['patientState']);
         if ($patientCityState !== '') {
@@ -540,14 +545,15 @@ function build_observations(array $values, int $patientAge): ?string
 
     $lines = [
         ($compact ? 'Paciente: ' : 'Pessoa atendida: ') . clean_text($values['patientName']),
-        'CPF: ' . digits($values['patientCpf']),
-        'Sexo: ' . patient_sex_label($values['patientSex']),
-        'Nasc.: ' . format_birth_date($values['patientBirthDate']),
+        'Idade: ' . $patientAge,
+        'CPF: ' . digits($values['patientCpf'])
+            . ' | Sexo: ' . patient_sex_label($values['patientSex'])
+            . ' | Nasc.: ' . format_birth_date($values['patientBirthDate']),
     ];
     if ($patientAge >= 18) {
-        $lines[] = 'Contato: ' . digits($values['patientPhone'])
-            . ' | ' . clean_text($values['patientEmail']);
-        $lines[] = 'End: ' . full_address($values, 'patient');
+        $lines[] = 'Celular: ' . digits($values['patientPhone'])
+            . ' | E-mail: ' . clean_text($values['patientEmail']);
+        $lines[] = 'Endereço: ' . full_address($values, 'patient');
     }
     if ($values['hasResponsible']) {
         $lines[] = 'Nasc. R.: ' . format_birth_date($values['responsibleBirthDate']);

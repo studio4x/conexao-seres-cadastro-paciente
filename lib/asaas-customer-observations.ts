@@ -59,8 +59,11 @@ export function buildAsaasCustomerObservations(details: AsaasCustomerObservation
 
   if (details.patientAge >= 18 && !details.hasResponsible) {
     return [
-      `Sexo: ${patientSexLabel(details.patientSex)}`,
-      `Nasc.: ${details.patientBirthDate}`,
+      `Idade: ${details.patientAge}`,
+      `CPF: ${details.patientCpf}`,
+      `Sexo: ${patientSexLabel(details.patientSex)} | Nasc.: ${details.patientBirthDate}`,
+      `Celular: ${details.patientPhone} | E-mail: ${details.patientEmail}`,
+      `Endereço: ${details.patientAddress}`,
       ...(cityStateLabel(details.patientCity, details.patientState)
         ? [`Local: ${cityStateLabel(details.patientCity, details.patientState)}`]
         : []),
@@ -70,13 +73,12 @@ export function buildAsaasCustomerObservations(details: AsaasCustomerObservation
 
   const lines = [
     `${compact ? "Paciente" : "Pessoa atendida"}: ${details.patientName}`,
-    `CPF: ${details.patientCpf}`,
-    `Sexo: ${patientSexLabel(details.patientSex)}`,
-    `Nasc.: ${details.patientBirthDate}`,
+    `Idade: ${details.patientAge}`,
+    `CPF: ${details.patientCpf} | Sexo: ${patientSexLabel(details.patientSex)} | Nasc.: ${details.patientBirthDate}`,
   ];
   if (details.patientAge >= 18) {
-    lines.push(`Contato: ${details.patientPhone} | ${details.patientEmail}`);
-    lines.push(`End: ${details.patientAddress}`);
+    lines.push(`Celular: ${details.patientPhone} | E-mail: ${details.patientEmail}`);
+    lines.push(`Endereço: ${details.patientAddress}`);
   }
   if (details.hasResponsible) {
     lines.push(`Nasc. R.: ${details.responsibleBirthDate}`);

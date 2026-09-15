@@ -45,12 +45,18 @@ test("builds every observations fixture exactly without external requests", () =
   }
 });
 
-test("keeps an adult without responsible free of duplicated personal data", () => {
+test("includes the requested adult patient data in observations", () => {
   const output = buildAsaasCustomerObservations(cases.adult_without_responsible.details);
-  for (const personalValue of ["Paciente Exemplo", "00000000000", "11900000000", "Rua Exemplo"]) {
-    assert.doesNotMatch(output, new RegExp(personalValue));
+  for (const expectedLine of [
+    "Idade: 34",
+    "CPF: 00000000000",
+    "Celular: 11900000000 | E-mail: paciente@example.invalid",
+    "Endereço: Rua Exemplo, 3 - Centro - São Paulo/SP - CEP 00000000",
+  ]) {
+    assert.ok(output.includes(expectedLine), expectedLine);
   }
-  assert.match(output, /^Sexo: Feminino\nNasc\.: 08\/09\/1992\nLocal: São Paulo\/SP\nTipo de atendimento:/);
+  assert.match(output, /^Idade: 34\nCPF: 00000000000\nSexo: Feminino \| Nasc\.: 08\/09\/1992/);
+  assert.match(output, /^Endereço: [^\n]+$/m);
   assert.match(output, /Autorização de imagens e vídeos: Autorizado$/);
 });
 
@@ -169,12 +175,14 @@ test("keeps holder and company rules unchanged when a responsible exists", () =>
 test("keeps TypeScript and PHP compact labels and UTF-8 byte semantics aligned", () => {
   for (const label of [
     "Paciente: ",
+    "Idade: ",
     "CPF: ",
+    "Celular: ",
+    "E-mail: ",
+    "Endereço: ",
     "Nasc.: ",
-    "Contato: ",
     "Sexo: ",
     "Local: ",
-    "End: ",
     "Nasc. R.: ",
     "Local R.: ",
     "Atend.: ",

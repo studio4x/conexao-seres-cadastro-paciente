@@ -59,7 +59,7 @@ Conferir no Asaas:
 - [OK] O grupo é `Adultos`.
 - [OK] O campo `complement` contém o complemento do paciente.
 - [OK] O campo `company` não é preenchido apenas por ser um adulto sem responsável.
-- [OK] `observations` não repete os dados principais do próprio paciente.
+- [OK] `observations` registra `Idade`, `CPF`, `Celular`, `E-mail` e `Endereço` completo do paciente, além de sexo e nascimento.
 
 ### 1.2 Limite de idade
 
@@ -249,7 +249,7 @@ Para os quatro cenários — adulto autorizado, adulto não autorizado, menor au
 - [ ] As observações preservam cidade/UF do paciente e cidade/UF do responsável; no menor, não inventam contato/endereço que o formulário não solicita.
 - [ ] As observações continuam preservando todos os valores aplicáveis de paciente, CPF, datas, responsável, contato, endereço, tipo/modalidade de atendimento e ingresso; somente as labels ficam compactas quando há responsável.
 - [ ] O tamanho final permanece em até 500 bytes UTF-8; acima disso, o cadastro é bloqueado antes de qualquer chamada ao Asaas e nenhum valor é truncado.
-- [ ] Adulto sem responsável continua sem duplicar seus próprios dados pessoais nas observações.
+- [ ] Adulto sem responsável também registra nas observações `Idade`, `CPF`, `Celular`, `E-mail` e o endereço completo do paciente em uma única linha.
 - [ ] Menor continua com o responsável como titular e o paciente no campo `company`.
 - [ ] A linha de consentimento não contém o texto completo do TCLE.
 - [ ] O valor da primeira sessão continua em R$ 230,00.

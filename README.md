@@ -57,7 +57,7 @@ O fluxo principal é:
 O próprio paciente é o titular do cliente no Asaas.
 
 - usa os dados do paciente como dados principais;
-- não repete esses mesmos dados em `observations`;
+- também registra em `observations` a idade, CPF, celular, e-mail e endereço completo do paciente;
 - grupo `Adultos`.
 
 ### Adulto com responsável
@@ -75,7 +75,7 @@ O responsável passa a ser o titular do cliente no Asaas.
 O responsável é obrigatório e é o titular do cliente no Asaas.
 
 - `company`: nome da pessoa atendida;
-- `observations`: identificação da pessoa atendida e datas de nascimento no formato `DD/MM/AAAA`;
+- `observations`: idade, CPF, sexo, data de nascimento e identificação da pessoa atendida;
 - grupo `Crianças`.
 
 Como o formulário não solicita contato e endereço próprios do menor, esses dados não são exigidos nesse cenário.
@@ -125,7 +125,7 @@ Quando o `externalReference` já existe:
 
 A referência oficial de `POST /v3/customers` documenta `observations` como `string`, mas não publica `maxLength`. Por isso, a integração usa um orçamento interno conservador de **500 bytes UTF-8**; esse número é uma margem de segurança do projeto, não um limite oficial declarado pelo Asaas.
 
-Os campos nativos do titular (nome, CPF/CNPJ, e-mail, celular, endereço, número, complemento, bairro/província e CEP) são enviados diretamente ao Asaas. Como sexo, data de nascimento, cidade e UF não são campos do cadastro de cliente documentados pelo Asaas, esses valores são registrados em `observations`; isso vale para o paciente e, quando houver responsável, também para a cidade/UF do responsável. Adultos sem responsável também recebem sexo, nascimento e local nas observações, sem duplicar os demais dados pessoais nativos. Quando existe responsável, as labels ficam compactas (`Paciente`, `CPF`, `Sexo`, `Nasc.`, `Contato`, `End`, `Local`, `Nasc. R.`, `Local R.`, `Atend.`, `Modo`, `1ª sessão`, `Modo 1ª sessão` e `Img.`), preservando integralmente os valores aplicáveis. Se a composição ultrapassar o orçamento, o backend interrompe o fluxo antes de qualquer consulta ou criação no Asaas, registra apenas tamanho e orçamento e retorna mensagem controlada; não há truncamento silencioso.
+Os campos nativos do titular (nome, CPF/CNPJ, e-mail, celular, endereço, número, complemento, bairro/província e CEP) são enviados diretamente ao Asaas. Além disso, por solicitação do fluxo, as observações do cliente novo registram para o paciente `Idade`, `CPF`, `Sexo`, `Nasc.`, `Celular`, `E-mail` e `Endereço` completo em uma única linha. Como sexo, data de nascimento, cidade e UF não são campos do cadastro de cliente documentados pelo Asaas, esses valores também são registrados em `observations`; isso vale para o paciente e, quando houver responsável, para a cidade/UF do responsável. Para menores, celular, e-mail e endereço próprios permanecem ausentes porque o formulário não solicita esses dados. Quando existe responsável, as labels ficam compactas (`Paciente`, `Idade`, `CPF`, `Sexo`, `Nasc.`, `Celular`, `E-mail`, `Endereço`, `Local`, `Nasc. R.`, `Local R.`, `Atend.`, `Modo`, `1ª sessão`, `Modo 1ª sessão` e `Img.`), preservando integralmente os valores aplicáveis. Se a composição ultrapassar o orçamento, o backend interrompe o fluxo antes de qualquer consulta ou criação no Asaas, registra apenas tamanho e orçamento e retorna mensagem controlada; não há truncamento silencioso.
 
 ## Notificações do Asaas
 
