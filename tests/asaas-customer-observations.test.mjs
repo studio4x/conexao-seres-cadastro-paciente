@@ -52,7 +52,7 @@ test("includes the requested adult patient data in observations", () => {
     "Idade: 34",
     "CPF: 00000000000",
     "Celular: 11900000000 | E-mail: paciente@example.invalid",
-    "Endereço: Rua Exemplo, 3 - Centro - São Paulo/SP - CEP 00000000",
+    "Endereço: Rua Exemplo, 3 - Centro - São Paulo/SP - 00000000",
   ]) {
     assert.ok(output.includes(expectedLine), expectedLine);
   }
