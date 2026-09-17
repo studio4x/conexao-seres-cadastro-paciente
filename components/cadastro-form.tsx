@@ -1453,7 +1453,7 @@ export function CadastroForm({ onSuccessChange }: CadastroFormProps) {
               name="referralSource"
               value={values.referralSource}
               onChange={(event) => update("referralSource", event.target.value)}
-              className={`${inputClass} w-full appearance-none bg-white`}
+              className={`${inputClass} w-full appearance-none border-2 border-primary/70 bg-white shadow-sm`}
               aria-invalid={Boolean(errors.referralSource)}
             >
               <option value="">Selecione uma opção</option>
