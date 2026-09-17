@@ -357,6 +357,18 @@ test("renders the Sobre o atendimento section with accessible conditional radio 
   assert.match(frontend, /allowedFirstSessionModesForServiceType\(values\.serviceType, Boolean\(isMinor\)\)/);
 });
 
+test("requires the closed referral-source list and records its label in observations", () => {
+  assert.match(frontend, /name="referralSource"/);
+  assert.match(frontend, /Como conheceu a Conexão Seres\?/);
+  assert.match(frontend, /REFERRAL_SOURCE_VALUES\.map/);
+  assert.match(typescriptBackend, /isReferralSource\(value\.referralSource\)/);
+  assert.match(typescriptBackend, /referralSource: referralSourceLabel\(patient\.referralSource\)/);
+  assert.match(phpBackend, /\$values\['referralSource'\]/);
+  assert.match(phpBackend, /function referral_source_label/);
+  assert.match(observationsContract, /referralSource/);
+  assert.match(observationsContract, /Como conheceu a Conexão Seres|Origem/);
+});
+
 test("requires explicit empty values for fields that do not apply", () => {
   assert.match(typescriptBackend, /entryType: z\.string\(\)\.trim\(\)\.max\(50\),/);
   assert.match(typescriptBackend, /attendanceMode: z\.string\(\)\.trim\(\)\.max\(50\),/);

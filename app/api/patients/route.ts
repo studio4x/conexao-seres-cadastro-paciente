@@ -16,6 +16,7 @@ import {
   serviceTypeLabel,
 } from "../../../lib/attendance";
 import { isMediaConsent, mediaConsentLabel } from "../../../lib/consent";
+import { isReferralSource, referralSourceLabel } from "../../../lib/referral-source";
 import {
   firstSessionModeLabel,
   isFirstSessionDateTodayOrFuture,
@@ -162,6 +163,7 @@ const patientSchema = z
     firstSessionDate: z.string().trim().max(10),
     firstSessionTime: z.string().trim().max(5),
     firstSessionMode: z.string().trim().max(20),
+    referralSource: z.string().trim().max(30),
     consent: z.literal(true),
     website: z.string().max(0),
     turnstileToken: z.string().min(1).max(2048),
@@ -200,6 +202,7 @@ const patientSchema = z
     if (!isValidFirstSessionTime(value.firstSessionTime)) add("firstSessionTime");
     if (!isFirstSessionMode(value.firstSessionMode)) add("firstSessionMode");
     if (!isMediaConsent(value.mediaConsent)) add("mediaConsent");
+    if (!isReferralSource(value.referralSource)) add("referralSource");
     if (age === null) {
       add("patientBirthDate");
       return;
@@ -764,6 +767,7 @@ function buildObservations(patient: Patient) {
     firstSessionTime: patient.firstSessionTime,
     firstSessionMode: firstSessionModeLabel(patient.firstSessionMode),
     mediaConsent: mediaConsentLabel(patient.mediaConsent),
+    referralSource: referralSourceLabel(patient.referralSource),
   });
 }
 

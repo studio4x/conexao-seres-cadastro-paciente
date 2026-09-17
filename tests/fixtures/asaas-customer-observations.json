@@ -24,7 +24,8 @@
         "firstSessionDate": "10/09/2026",
         "firstSessionTime": "09:30",
         "firstSessionMode": "Presencial, na clínica Conexão Seres",
-        "mediaConsent": "Autorizado"
+        "mediaConsent": "Autorizado",
+        "referralSource": "Instagram"
       },
       "phpValues": {
         "hasResponsible": false,
@@ -50,9 +51,10 @@
         "firstSessionDate": "10/09/2026",
         "firstSessionTime": "09:30",
         "firstSessionMode": "IN_PERSON",
-        "mediaConsent": "AUTHORIZED"
+        "mediaConsent": "AUTHORIZED",
+        "referralSource": "INSTAGRAM"
       },
-      "expected": "Idade: 34 anos\nCPF: 00000000000\nSexo: Feminino | Nasc.: 08/09/1992\nCelular: 11900000000 | E-mail: paciente@example.invalid\nEndereço: Rua Exemplo, 3 - Centro - São Paulo/SP - 00000000\nTipo de atendimento: Terapia Ocupacional – Reabilitação Neurológica\nModalidade de atendimento: Presencial\nPrimeira sessão: 10/09/2026 às 09:30\nModalidade da primeira sessão: Presencial, na clínica Conexão Seres\nAutorização de imagens e vídeos: Autorizado"
+      "expected": "Idade: 34 anos\nCPF: 00000000000\nSexo: Feminino | Nasc.: 08/09/1992\nCelular: 11900000000 | E-mail: paciente@example.invalid\nEndereço: Rua Exemplo, 3 - Centro - São Paulo/SP - 00000000\nTipo de atendimento: Terapia Ocupacional – Reabilitação Neurológica\nModalidade de atendimento: Presencial\nPrimeira sessão: 10/09/2026 às 09:30\nModalidade da primeira sessão: Presencial, na clínica Conexão Seres\nAutorização de imagens e vídeos: Autorizado\nComo conheceu a Conexão Seres: Instagram"
     },
     {
       "name": "adult_with_financial_responsible",
@@ -78,7 +80,8 @@
         "firstSessionDate": "12/09/2026",
         "firstSessionTime": "14:30",
         "firstSessionMode": "Presencial, na clínica Conexão Seres",
-        "mediaConsent": "Autorizado"
+        "mediaConsent": "Autorizado",
+        "referralSource": "Indicação de amigo ou familiar"
       },
       "phpValues": {
         "hasResponsible": true,
@@ -104,9 +107,10 @@
         "firstSessionDate": "12/09/2026",
         "firstSessionTime": "14:30",
         "firstSessionMode": "IN_PERSON",
-        "mediaConsent": "AUTHORIZED"
+        "mediaConsent": "AUTHORIZED",
+        "referralSource": "FRIEND_OR_FAMILY"
       },
-      "expected": "Paciente: Mariana de Oliveira Santos\nIdade: 34 anos\nCPF: 11111111111 | Sexo: Feminino | Nasc.: 08/09/1992\nCelular: 11911112222 | E-mail: mariana.oliveira@example.invalid\nEndereço: Avenida das Nações Unidas, 1234, Apartamento 56 - Jardim das Flores - São Paulo/SP - 01234567\nNasc. R.: 15/04/1970\nLocal R.: São Paulo/SP\nAtend.: Terapia Ocupacional com Estimulação Sensorial\nModo: Presencial\n1ª sessão: 12/09/2026 às 14:30\nModo 1ª sessão: Presencial, na clínica Conexão Seres\nImg.: Autorizado"
+      "expected": "Paciente: Mariana de Oliveira Santos\nIdade: 34 anos\nCPF: 11111111111 | Sexo: Feminino | Nasc.: 08/09/1992\nCelular: 11911112222 | E-mail: mariana.oliveira@example.invalid\nEndereço: Avenida das Nações Unidas, 1234, Apartamento 56 - Jardim das Flores - São Paulo/SP - 01234567\nNasc. R.: 15/04/1970\nLocal R.: São Paulo/SP\nAtend.: Terapia Ocupacional com Estimulação Sensorial\nModo: Presencial\n1ª sessão: 12/09/2026 às 14:30\nModo 1ª sessão: Presencial, na clínica Conexão Seres\nImg.: Autorizado\nOrigem: Indicação de amigo ou familiar"
     },
     {
       "name": "adult_with_legal_responsible_online",
@@ -132,7 +136,8 @@
         "firstSessionDate": "15/09/2026",
         "firstSessionTime": "18:00",
         "firstSessionMode": "Online via Google Meet",
-        "mediaConsent": "Não autorizado"
+        "mediaConsent": "Não autorizado",
+        "referralSource": "Google (pesquisa)"
       },
       "phpValues": {
         "hasResponsible": true,
@@ -158,9 +163,10 @@
         "firstSessionDate": "15/09/2026",
         "firstSessionTime": "18:00",
         "firstSessionMode": "ONLINE",
-        "mediaConsent": "NOT_AUTHORIZED"
+        "mediaConsent": "NOT_AUTHORIZED",
+        "referralSource": "GOOGLE"
       },
-      "expected": "Paciente: Alex da Silva Exemplo\nIdade: 22 anos\nCPF: 22222222222 | Sexo: Masculino | Nasc.: 01/02/2004\nCelular: 21922223333 | E-mail: alex.silva@example.invalid\nEndereço: Rua da Harmonia, 45 - Centro - Rio de Janeiro/RJ - 20000000\nNasc. R.: 20/06/1975\nLocal R.: Rio de Janeiro/RJ\nAtend.: Terapia Ocupacional com Psicanálise Integrada\nModo: Online\n1ª sessão: 15/09/2026 às 18:00\nModo 1ª sessão: Online via Google Meet\nImg.: Não autorizado"
+      "expected": "Paciente: Alex da Silva Exemplo\nIdade: 22 anos\nCPF: 22222222222 | Sexo: Masculino | Nasc.: 01/02/2004\nCelular: 21922223333 | E-mail: alex.silva@example.invalid\nEndereço: Rua da Harmonia, 45 - Centro - Rio de Janeiro/RJ - 20000000\nNasc. R.: 20/06/1975\nLocal R.: Rio de Janeiro/RJ\nAtend.: Terapia Ocupacional com Psicanálise Integrada\nModo: Online\n1ª sessão: 15/09/2026 às 18:00\nModo 1ª sessão: Online via Google Meet\nImg.: Não autorizado\nOrigem: Google (pesquisa)"
     },
     {
       "name": "minor_with_responsible",
@@ -186,7 +192,8 @@
         "firstSessionDate": "20/09/2026",
         "firstSessionTime": "10:00",
         "firstSessionMode": "Presencial, na clínica Conexão Seres",
-        "mediaConsent": "Autorizado"
+        "mediaConsent": "Autorizado",
+        "referralSource": "Indicação de profissional da saúde"
       },
       "phpValues": {
         "hasResponsible": true,
@@ -212,9 +219,10 @@
         "firstSessionDate": "20/09/2026",
         "firstSessionTime": "10:00",
         "firstSessionMode": "IN_PERSON",
-        "mediaConsent": "AUTHORIZED"
+        "mediaConsent": "AUTHORIZED",
+        "referralSource": "HEALTH_PROFESSIONAL"
       },
-      "expected": "Paciente: Criança Exemplo da Silva\nIdade: 9 anos\nCPF: 33333333333 | Sexo: Feminino | Nasc.: 05/03/2017\nNasc. R.: 30/07/1985\nLocal R.: São Paulo/SP\nAtend.: Terapia Ocupacional com Integração Sensorial\nIngresso: Processo Avaliativo Completo\n1ª sessão: 20/09/2026 às 10:00\nModo 1ª sessão: Presencial, na clínica Conexão Seres\nImg.: Autorizado"
+      "expected": "Paciente: Criança Exemplo da Silva\nIdade: 9 anos\nCPF: 33333333333 | Sexo: Feminino | Nasc.: 05/03/2017\nNasc. R.: 30/07/1985\nLocal R.: São Paulo/SP\nAtend.: Terapia Ocupacional com Integração Sensorial\nIngresso: Processo Avaliativo Completo\n1ª sessão: 20/09/2026 às 10:00\nModo 1ª sessão: Presencial, na clínica Conexão Seres\nImg.: Autorizado\nOrigem: Indicação de profissional da saúde"
     }
   ]
 }

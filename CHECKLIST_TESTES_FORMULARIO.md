@@ -248,7 +248,9 @@ Para os quatro cenários — adulto autorizado, adulto não autorizado, menor au
 - [ ] As observações preservam sexo e data de nascimento do paciente em todos os cenários aplicáveis.
 - [ ] As observações preservam cidade/UF do paciente e cidade/UF do responsável; no menor, não inventam contato/endereço que o formulário não solicita.
 - [ ] As observações continuam preservando todos os valores aplicáveis de paciente, CPF, datas, responsável, contato, endereço, tipo/modalidade de atendimento e ingresso; somente as labels ficam compactas quando há responsável.
-- [ ] O tamanho final permanece em até 500 bytes UTF-8; acima disso, o cadastro é bloqueado antes de qualquer chamada ao Asaas e nenhum valor é truncado.
+- [ ] Selecionar cada opção de “Como conheceu a Conexão Seres?” e confirmar que o rótulo correspondente é salvo em `observations`.
+- [ ] Tentar enviar sem selecionar “Como conheceu a Conexão Seres?” e confirmar a validação no frontend e no backend.
+- [ ] O tamanho final permanece em até 550 bytes UTF-8; acima disso, o cadastro é bloqueado antes de qualquer chamada ao Asaas e nenhum valor é truncado.
 - [ ] Adulto sem responsável também registra nas observações `Idade`, `CPF`, `Celular`, `E-mail` e o endereço completo do paciente em uma única linha.
 - [ ] Menor continua com o responsável como titular e o paciente no campo `company`.
 - [ ] A linha de consentimento não contém o texto completo do TCLE.

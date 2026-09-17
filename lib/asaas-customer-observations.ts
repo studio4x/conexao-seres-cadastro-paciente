@@ -1,4 +1,4 @@
-export const ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES = 505;
+export const ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES = 550;
 
 export type AsaasCustomerObservationsDetails = {
   patientAge: number;
@@ -23,6 +23,7 @@ export type AsaasCustomerObservationsDetails = {
   firstSessionTime: string;
   firstSessionMode: string;
   mediaConsent: string;
+  referralSource: string;
 };
 
 export function asaasCustomerObservationsUtf8Bytes(value: string) {
@@ -55,6 +56,7 @@ export function buildAsaasCustomerObservations(details: AsaasCustomerObservation
     `${compact ? "1ª sessão" : "Primeira sessão"}: ${details.firstSessionDate} às ${details.firstSessionTime}`,
     `${compact ? "Modo 1ª sessão" : "Modalidade da primeira sessão"}: ${details.firstSessionMode}`,
     `${compact ? "Img." : "Autorização de imagens e vídeos"}: ${details.mediaConsent}`,
+    `${compact ? "Origem" : "Como conheceu a Conexão Seres"}: ${details.referralSource}`,
   ];
 
   if (details.patientAge >= 18 && !details.hasResponsible) {
