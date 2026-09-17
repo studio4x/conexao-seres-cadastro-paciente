@@ -56,6 +56,11 @@ import {
   isValidFirstSessionDate,
   isValidFirstSessionTime,
 } from "@/lib/first-session";
+import {
+  REFERRAL_SOURCE_LABELS,
+  REFERRAL_SOURCE_VALUES,
+  isReferralSource,
+} from "@/lib/referral-source";
 
 const onlyDigits = (value: string) => value.replace(/\D/g, "");
 
@@ -217,6 +222,7 @@ const formSchema = z
     firstSessionDate: z.string(),
     firstSessionTime: z.string(),
     firstSessionMode: z.string(),
+    referralSource: z.string(),
     consent: z.boolean().refine((value) => value, "Confirme a autorização para continuar."),
     website: z.string().max(0),
   })
@@ -265,6 +271,9 @@ const formSchema = z
     }
     if (!isMediaConsent(value.mediaConsent)) {
       add("mediaConsent", "Selecione uma opção sobre o registro e uso de imagens e vídeos.");
+    }
+    if (!isReferralSource(value.referralSource)) {
+      add("referralSource", "Selecione como conheceu a Conexão Seres.");
     }
     if (patientAge === null) {
       add("patientBirthDate", "Informe uma data de nascimento válida.");
@@ -373,6 +382,7 @@ const initialValues: FormValues = {
   firstSessionDate: "",
   firstSessionTime: "",
   firstSessionMode: "",
+  referralSource: "",
   consent: false,
   website: "",
 };
@@ -1434,6 +1444,26 @@ export function CadastroForm({ onSuccessChange }: CadastroFormProps) {
             <p className="mt-1 text-sm text-muted-foreground">
               Agora, informe os detalhes combinados para o atendimento.
             </p>
+          </div>
+
+          <div className="form-field">
+            <Label htmlFor="referralSource">Como conheceu a Conexão Seres?</Label>
+            <select
+              id="referralSource"
+              name="referralSource"
+              value={values.referralSource}
+              onChange={(event) => update("referralSource", event.target.value)}
+              className={`${inputClass} w-full appearance-none bg-white`}
+              aria-invalid={Boolean(errors.referralSource)}
+            >
+              <option value="">Selecione uma opção</option>
+              {REFERRAL_SOURCE_VALUES.map((option) => (
+                <option key={option} value={option}>
+                  {REFERRAL_SOURCE_LABELS[option]}
+                </option>
+              ))}
+            </select>
+            <FieldError message={errors.referralSource} />
           </div>
 
           {isAdult ? (

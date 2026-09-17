@@ -58,7 +58,8 @@ test("includes the requested adult patient data in observations", () => {
   }
   assert.match(output, /^Idade: 34 anos\nCPF: 00000000000\nSexo: Feminino \| Nasc\.: 08\/09\/1992/);
   assert.match(output, /^Endereço: [^\n]+$/m);
-  assert.match(output, /Autorização de imagens e vídeos: Autorizado$/);
+  assert.match(output, /Autorização de imagens e vídeos: Autorizado\n/);
+  assert.match(output, /Como conheceu a Conexão Seres: Instagram$/);
 });
 
 test("preserves every required adult value for financial and legal responsible scenarios", () => {
@@ -199,7 +200,7 @@ test("keeps TypeScript and PHP compact labels and UTF-8 byte semantics aligned",
     assert.ok(phpBackend.includes(label), `PHP label ${label}`);
   }
   assert.match(phpBackend, /function asaas_customer_observations_utf8_bytes[\s\S]*?return strlen\(\$value\)/);
-  assert.match(phpBackend, /ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES = 505/);
+  assert.match(phpBackend, /ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES = 550/);
 });
 
 test("parses both compact and legacy first-session observations", () => {

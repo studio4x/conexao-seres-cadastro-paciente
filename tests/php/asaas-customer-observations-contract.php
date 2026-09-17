@@ -47,12 +47,12 @@ $exact = str_repeat('á', intdiv(ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES
 $assertions++;
 if (asaas_customer_observations_utf8_bytes($exact) !== ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES
     || !asaas_customer_observations_within_safety_budget($exact)) {
-    $failures[] = 'exact limit: expected 505 UTF-8 bytes to be accepted';
+    $failures[] = 'exact limit: expected 550 UTF-8 bytes to be accepted';
 }
 
 $assertions++;
 if (asaas_customer_observations_within_safety_budget($exact . 'a')) {
-    $failures[] = 'above limit: expected 501 UTF-8 bytes to be rejected';
+    $failures[] = 'above limit: expected 551 UTF-8 bytes to be rejected';
 }
 
 if ($failures !== []) {

@@ -35,6 +35,7 @@ O fluxo principal é:
 - Validação de WhatsApp com DDD brasileiro.
 - Validação de e-mail e endereço.
 - Consulta automática de CEP.
+- Campo obrigatório de origem do cadastro, salvo nas observações do cliente.
 - Regras específicas para adultos, menores e responsáveis.
 - Cloudflare Turnstile.
 - Honeypot contra bots.
@@ -123,9 +124,9 @@ Quando o `externalReference` já existe:
 
 ### Observações do cliente Asaas
 
-A referência oficial de `POST /v3/customers` documenta `observations` como `string`, mas não publica `maxLength`. Por isso, a integração usa um orçamento interno conservador de **505 bytes UTF-8**; esse número é uma margem de segurança do projeto, não um limite oficial declarado pelo Asaas.
+A referência oficial de `POST /v3/customers` documenta `observations` como `string`, mas não publica `maxLength`. Por isso, a integração usa um orçamento interno conservador de **550 bytes UTF-8**; esse número é uma margem de segurança do projeto, não um limite oficial declarado pelo Asaas.
 
-Os campos nativos do titular (nome, CPF/CNPJ, e-mail, celular, endereço, número, complemento, bairro/província e CEP) são enviados diretamente ao Asaas. Além disso, por solicitação do fluxo, as observações do cliente novo registram para o paciente `Idade`, `CPF`, `Sexo`, `Nasc.`, `Celular`, `E-mail` e `Endereço` completo em uma única linha. Como sexo e data de nascimento não são campos do cadastro de cliente documentados pelo Asaas, esses valores também são registrados em `observations`; quando houver responsável, a cidade/UF do responsável também é preservada. Para menores, celular, e-mail e endereço próprios permanecem ausentes porque o formulário não solicita esses dados. Quando existe responsável, as labels ficam compactas (`Paciente`, `Idade`, `CPF`, `Sexo`, `Nasc.`, `Celular`, `E-mail`, `Endereço`, `Nasc. R.`, `Local R.`, `Atend.`, `Modo`, `1ª sessão`, `Modo 1ª sessão` e `Img.`), preservando integralmente os valores aplicáveis. Se a composição ultrapassar o orçamento, o backend interrompe o fluxo antes de qualquer consulta ou criação no Asaas, registra apenas tamanho e orçamento e retorna mensagem controlada; não há truncamento silencioso.
+Os campos nativos do titular (nome, CPF/CNPJ, e-mail, celular, endereço, número, complemento, bairro/província e CEP) são enviados diretamente ao Asaas. Além disso, por solicitação do fluxo, as observações do cliente novo registram para o paciente `Idade`, `CPF`, `Sexo`, `Nasc.`, `Celular`, `E-mail` e `Endereço` completo em uma única linha. O campo `referralSource` é obrigatório, aceita somente as opções da lista suspensa e registra em `observations` o rótulo de como a pessoa conheceu a Conexão Seres. Como sexo e data de nascimento não são campos do cadastro de cliente documentados pelo Asaas, esses valores também são registrados em `observations`; quando houver responsável, a cidade/UF do responsável também é preservada. Para menores, celular, e-mail e endereço próprios permanecem ausentes porque o formulário não solicita esses dados. Quando existe responsável, as labels ficam compactas (`Paciente`, `Idade`, `CPF`, `Sexo`, `Nasc.`, `Celular`, `E-mail`, `Endereço`, `Nasc. R.`, `Local R.`, `Atend.`, `Modo`, `1ª sessão`, `Modo 1ª sessão`, `Img.` e `Origem`), preservando integralmente os valores aplicáveis. Se a composição ultrapassar o orçamento, o backend interrompe o fluxo antes de qualquer consulta ou criação no Asaas, registra apenas tamanho e orçamento e retorna mensagem controlada; não há truncamento silencioso.
 
 ## Notificações do Asaas
 

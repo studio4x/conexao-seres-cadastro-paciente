@@ -8,7 +8,7 @@ header('Cache-Control: no-store');
 
 const E2E_TURNSTILE_MODE = 'turnstile-test-v1';
 const E2E_TURNSTILE_TEST_SECRET = '1x0000000000000000000000000000000AA';
-const ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES = 505;
+const ASAAS_CUSTOMER_OBSERVATIONS_SAFETY_BUDGET_BYTES = 550;
 
 function respond(array $payload, int $status = 200): never
 {
@@ -273,6 +273,20 @@ function media_consent_label(string $value): string
     ][$value] ?? '';
 }
 
+function referral_source_label(string $value): string
+{
+    return [
+        'INSTAGRAM' => 'Instagram',
+        'FACEBOOK' => 'Facebook',
+        'GOOGLE' => 'Google (pesquisa)',
+        'FRIEND_OR_FAMILY' => 'Indicação de amigo ou familiar',
+        'HEALTH_PROFESSIONAL' => 'Indicação de profissional da saúde',
+        'WHATSAPP' => 'WhatsApp',
+        'WEBSITE' => 'Site da Conexão Seres',
+        'OTHER' => 'Outro',
+    ][$value] ?? '';
+}
+
 function patient_sex_label(string $value): string
 {
     return match ($value) {
@@ -524,6 +538,8 @@ function build_observations(array $values, int $patientAge): ?string
             . first_session_mode_label($values['firstSessionMode']),
         ($compact ? 'Img.: ' : 'Autorização de imagens e vídeos: ')
             . media_consent_label($values['mediaConsent']),
+        ($compact ? 'Origem: ' : 'Como conheceu a Conexão Seres: ')
+            . referral_source_label($values['referralSource']),
     ];
 
     if ($patientAge >= 18 && !$values['hasResponsible']) {
@@ -1037,6 +1053,7 @@ $fieldLimits = [
     'firstSessionDate' => 10,
     'firstSessionTime' => 5,
     'firstSessionMode' => 20,
+    'referralSource' => 30,
     'website' => 1,
     'turnstileToken' => 2048,
 ];
@@ -1076,6 +1093,18 @@ if ($patientAge === null) {
 }
 if (!in_array($values['mediaConsent'], ['AUTHORIZED', 'NOT_AUTHORIZED'], true)) {
     respond(['message' => 'Confira os dados de autorização de imagens e vídeos e tente novamente.'], 400);
+}
+if (!in_array($values['referralSource'], [
+    'INSTAGRAM',
+    'FACEBOOK',
+    'GOOGLE',
+    'FRIEND_OR_FAMILY',
+    'HEALTH_PROFESSIONAL',
+    'WHATSAPP',
+    'WEBSITE',
+    'OTHER',
+], true)) {
+    respond(['message' => 'Selecione como conheceu a Conexão Seres e tente novamente.'], 400);
 }
 if (!first_session_date_is_valid($values['firstSessionDate'])) {
     respond(['message' => 'Confira a data da primeira sessão e tente novamente.'], 400);
