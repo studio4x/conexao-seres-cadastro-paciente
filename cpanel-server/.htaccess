@@ -12,6 +12,7 @@ RewriteRule ^api/jornada-yoga/admin/logout/?$ api/jornada-admin-logout.php [L]
 RewriteRule ^api/jornada-yoga/admin/registrations/?$ api/jornada-admin-registrations.php [L]
 
 RewriteRule ^jornada-yoga/?$ index.html [L]
+RewriteRule ^jornada-yoga/confirmacao/?$ index.html [L]
 RewriteRule ^admin/jornada-yoga/?$ index.html [L]
 
 <IfModule mod_headers.c>
