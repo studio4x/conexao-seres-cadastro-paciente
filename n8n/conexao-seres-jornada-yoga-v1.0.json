@@ -1,0 +1,176 @@
+{
+  "name": "Conexão Seres | Jornada Yoga | Cadastro + Pagamento | v1.0",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "conexao-seres-jornada-yoga",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "b694ea4c-5140-4faf-9b42-9be0e94b7394",
+      "name": "Webhook Jornada Yoga"
+    },
+    {
+      "parameters": {
+        "jsCode": "const i = $input.first().json || {};\nconst h = i.headers || {};\nconst b = i.body || i;\nconst token = String($env.N8N_CONEXAO_SERES_JORNADA_WEBHOOK_TOKEN || '').trim();\nif (!token) throw new Error('N8N_CONEXAO_SERES_JORNADA_WEBHOOK_TOKEN não configurado.');\nconst authorization = String(h.authorization || h.Authorization || '').trim();\nif (authorization !== `Bearer ${token}`) throw new Error('Unauthorized');\nconst eventType = String(b.eventType || '').trim();\nif (!['jornada_yoga_registration_created','jornada_yoga_payment_paid'].includes(eventType)) {\n  throw new Error('Evento inválido para a Jornada Yoga.');\n}\nif (String(b.eventId || '') !== 'jornada-yoga-2026') throw new Error('eventId inválido.');\nconst paymentId = String(b.paymentId || '').trim();\nconst customerName = String(b.customerName || '').trim();\nconst customerEmail = String(b.customerEmail || '').trim().toLowerCase();\nconst customerWhatsapp = String(b.customerWhatsapp || '').replace(/\\D/g,'');\nif (!paymentId || !customerName || !customerEmail) throw new Error('Dados obrigatórios ausentes.');\nreturn [{json:{...b,eventType,paymentId,customerName,customerEmail,customerWhatsapp,messageApprovalStatus:'PENDING_APPROVAL'}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "id": "482bc486-3fe9-4a1a-8442-a86119813d23",
+      "name": "Validar Evento da Jornada"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a",
+                    "leftValue": "={{ $json.eventType }}",
+                    "rightValue": "jornada_yoga_registration_created",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Cadastro realizado"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "b",
+                    "leftValue": "={{ $json.eventType }}",
+                    "rightValue": "jornada_yoga_payment_paid",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Pagamento identificado"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        500,
+        0
+      ],
+      "id": "05b00cd8-e38c-4450-a57e-070f88ad6e14",
+      "name": "Separar Tipo de Evento"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mensagens de WhatsApp/e-mail ainda NÃO foram implementadas.\n// Este ramo será completado somente após aprovação dos textos.\nreturn $input.all().map(item => ({json:{...item.json,automationStatus:'WAITING_MESSAGE_APPROVAL',nextStep:'Validar textos de confirmação de inscrição antes de adicionar os nós de envio.'}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        -100
+      ],
+      "id": "2f1329f7-4e7f-42ab-85ce-e42a6b006a6b",
+      "name": "Cadastro - Aguardar Aprovação das Mensagens"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mensagens de WhatsApp/e-mail ainda NÃO foram implementadas.\n// Este ramo será completado somente após aprovação dos textos.\nreturn $input.all().map(item => ({json:{...item.json,automationStatus:'WAITING_MESSAGE_APPROVAL',nextStep:'Validar textos de confirmação de pagamento antes de adicionar os nós de envio.'}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        100
+      ],
+      "id": "1048491f-9f96-4853-b8ff-5f791c508e65",
+      "name": "Pagamento - Aguardar Aprovação das Mensagens"
+    }
+  ],
+  "connections": {
+    "Webhook Jornada Yoga": {
+      "main": [
+        [
+          {
+            "node": "Validar Evento da Jornada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Evento da Jornada": {
+      "main": [
+        [
+          {
+            "node": "Separar Tipo de Evento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Separar Tipo de Evento": {
+      "main": [
+        [
+          {
+            "node": "Cadastro - Aguardar Aprovação das Mensagens",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pagamento - Aguardar Aprovação das Mensagens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "3d1ab092-6dce-4d2d-bc38-a1151511fa57",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

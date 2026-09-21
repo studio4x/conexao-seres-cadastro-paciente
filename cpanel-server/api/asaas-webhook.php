@@ -95,6 +95,90 @@ function is_first_session_payment_event(array $payment, string $event): bool
     return is_first_session_payment($payment) && in_array(($payment['status'] ?? ''), $allowedStatuses, true);
 }
 
+function is_jornada_yoga_payment_event(array $payment, string $event): bool
+{
+    $allowedStatuses = $event === 'PAYMENT_CONFIRMED' ? ['CONFIRMED'] : ['RECEIVED', 'RECEIVED_IN_CASH'];
+    $paymentId = trim((string) ($payment['id'] ?? ''));
+    $customerId = trim((string) ($payment['customer'] ?? ''));
+    $externalReference = trim((string) ($payment['externalReference'] ?? ''));
+    $value = is_numeric($payment['value'] ?? null) ? (float) $payment['value'] : 0.0;
+    return $paymentId !== ''
+        && $customerId !== ''
+        && abs($value - 297.00) < 0.001
+        && preg_match('/^cs-jornada-yoga-2026-[a-f0-9]{24}$/', $externalReference) === 1
+        && in_array(($payment['status'] ?? ''), $allowedStatuses, true);
+}
+
+function notify_n8n_jornada_paid_safely(
+    string $baseUrl,
+    string $apiKey,
+    string $webhookUrl,
+    string $webhookToken,
+    array $payment,
+    string $event,
+    ?string $asaasEventId
+): bool {
+    if ($webhookUrl === '' || $webhookToken === '' || $webhookToken === 'COLE_AQUI_O_TOKEN_DO_WEBHOOK_N8N') {
+        return false;
+    }
+    $parsedUrl = parse_url($webhookUrl);
+    if (!is_array($parsedUrl) || !in_array($parsedUrl['scheme'] ?? '', ['http', 'https'], true)) {
+        return false;
+    }
+
+    $paymentId = trim((string) ($payment['id'] ?? ''));
+    $customerId = trim((string) ($payment['customer'] ?? ''));
+    $customer = asaas_request('GET', $baseUrl . '/customers/' . rawurlencode($customerId), $apiKey);
+    if ($customer['error'] !== '' || $customer['status'] < 200 || $customer['status'] >= 300) {
+        error_log('n8n journey-paid customer lookup failed. Payment ' . $paymentId . ' HTTP ' . (int) ($customer['status'] ?? 0));
+        return false;
+    }
+
+    $mobilePhone = trim((string) ($customer['data']['mobilePhone'] ?? ''));
+    $phone = trim((string) ($customer['data']['phone'] ?? ''));
+    $payload = [
+        'eventType' => 'jornada_yoga_payment_paid',
+        'eventId' => 'jornada-yoga-2026',
+        'asaasEventId' => $asaasEventId,
+        'asaasEvent' => $event,
+        'paymentId' => $paymentId,
+        'asaasCustomerId' => $customerId,
+        'customerName' => trim((string) ($customer['data']['name'] ?? '')),
+        'customerEmail' => strtolower(trim((string) ($customer['data']['email'] ?? ''))),
+        'customerWhatsapp' => $mobilePhone !== '' ? $mobilePhone : $phone,
+        'value' => is_numeric($payment['value'] ?? null) ? (float) $payment['value'] : 0,
+        'billingType' => trim((string) ($payment['billingType'] ?? '')),
+        'status' => trim((string) ($payment['status'] ?? '')),
+        'paymentDate' => effective_date_from_payment($payment),
+        'externalReference' => trim((string) ($payment['externalReference'] ?? '')),
+    ];
+    $encodedPayload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if (!is_string($encodedPayload)) return false;
+
+    $curl = curl_init($webhookUrl);
+    if ($curl === false) return false;
+    curl_setopt_array($curl, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 2,
+        CURLOPT_TIMEOUT => 3,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $encodedPayload,
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $webhookToken,
+        ],
+    ]);
+    curl_exec($curl);
+    $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+    $error = curl_error($curl);
+    curl_close($curl);
+    if ($error !== '' || $status < 200 || $status >= 300) {
+        error_log('n8n journey-paid webhook failed. Payment ' . $paymentId . ' Event ' . $event . ' HTTP ' . $status);
+        return false;
+    }
+    return true;
+}
+
 function optional_payment_string(array $payment, string $field): string
 {
     return is_string($payment[$field] ?? null) ? $payment[$field] : '';
@@ -623,8 +707,13 @@ if ($event !== 'PAYMENT_CONFIRMED' && $event !== 'PAYMENT_RECEIVED') {
 }
 
 $payment = $payload['payment'] ?? null;
-if (!is_array($payment) || !is_first_session_payment_event($payment, $event)) {
-    error_log('Asaas payment webhook ignored: not a valid first-session payment event. Event ' . $event);
+if (!is_array($payment)) {
+    respond(['received' => true, 'processed' => false], 200);
+}
+$isFirstSession = is_first_session_payment_event($payment, $event);
+$isJourney = is_jornada_yoga_payment_event($payment, $event);
+if (!$isFirstSession && !$isJourney) {
+    error_log('Asaas payment webhook ignored: unsupported payment event. Event ' . $event);
     respond(['received' => true, 'processed' => false], 200);
 }
 
@@ -637,9 +726,25 @@ if (!function_exists('curl_init')) {
 }
 
 $baseUrl = rtrim((string) (getenv('ASAAS_API_URL') ?: ($fileConfig['asaas_api_url'] ?? 'https://api.asaas.com/v3')), '/');
+$asaasEventId = is_string($payload['id'] ?? null) ? trim((string) $payload['id']) : null;
+
+if ($isJourney) {
+    $n8nJourneyWebhookUrl = trim((string) (getenv('N8N_CONEXAO_SERES_JORNADA_WEBHOOK_URL') ?: ($fileConfig['n8n_jornada_webhook_url'] ?? '')));
+    $n8nJourneyWebhookToken = trim((string) (getenv('N8N_CONEXAO_SERES_JORNADA_WEBHOOK_TOKEN') ?: ($fileConfig['n8n_jornada_webhook_token'] ?? '')));
+    notify_n8n_jornada_paid_safely(
+        $baseUrl,
+        $apiKey,
+        $n8nJourneyWebhookUrl,
+        $n8nJourneyWebhookToken,
+        $payment,
+        $event,
+        $asaasEventId !== '' ? $asaasEventId : null
+    );
+    respond(['received' => true, 'processed' => true, 'journey' => true], 200);
+}
+
 $n8nPaymentWebhookUrl = trim((string) (getenv('N8N_CONEXAO_SERES_PAGAMENTO_WEBHOOK_URL') ?: ($fileConfig['n8n_pagamento_webhook_url'] ?? '')));
 $n8nPaymentWebhookToken = trim((string) (getenv('N8N_CONEXAO_SERES_PAGAMENTO_WEBHOOK_TOKEN') ?: ($fileConfig['n8n_pagamento_webhook_token'] ?? '')));
-$asaasEventId = is_string($payload['id'] ?? null) ? trim((string) $payload['id']) : null;
 notify_n8n_first_session_paid_safely(
     $baseUrl,
     $apiKey,

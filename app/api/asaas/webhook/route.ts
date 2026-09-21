@@ -10,6 +10,9 @@ const FIRST_SESSION_REFERENCE = /^cs-paciente-[a-f0-9]{24}-sessao-1$/;
 const MUNICIPAL_SERVICE_CODE = "04510";
 const MUNICIPAL_SERVICE_NAME = "04510 | 4.08 - Terapia ocupacional.";
 const N8N_FIRST_SESSION_PAID_TIMEOUT_MS = 3_000;
+const JORNADA_YOGA_VALUE = 297;
+const JORNADA_YOGA_REFERENCE = /^cs-jornada-yoga-2026-[a-f0-9]{24}$/;
+const N8N_JORNADA_TIMEOUT_MS = 3_000;
 
 type JsonRecord = Record<string, unknown>;
 type AsaasResult = { status: number; data: JsonRecord; response: string; error: string };
@@ -121,6 +124,89 @@ function isFirstSessionPayment(payment: JsonRecord, event: "PAYMENT_CONFIRMED" |
       value === FIRST_SESSION_VALUE &&
       FIRST_SESSION_REFERENCE.test(externalReference),
   );
+}
+
+function isJornadaYogaPayment(payment: JsonRecord, event: "PAYMENT_CONFIRMED" | "PAYMENT_RECEIVED") {
+  const id = typeof payment.id === "string" ? payment.id.trim() : "";
+  const customer = typeof payment.customer === "string" ? payment.customer.trim() : "";
+  const externalReference = typeof payment.externalReference === "string" ? payment.externalReference.trim() : "";
+  const status = typeof payment.status === "string" ? payment.status : "";
+  const value = typeof payment.value === "number" ? payment.value : Number(payment.value);
+  const allowedStatuses = event === "PAYMENT_CONFIRMED" ? ["CONFIRMED"] : ["RECEIVED", "RECEIVED_IN_CASH"];
+  return Boolean(
+    id &&
+      customer &&
+      allowedStatuses.includes(status) &&
+      value === JORNADA_YOGA_VALUE &&
+      JORNADA_YOGA_REFERENCE.test(externalReference),
+  );
+}
+
+async function notifyN8nJornadaPaid(
+  baseUrl: string,
+  apiKey: string,
+  payment: JsonRecord,
+  event: "PAYMENT_CONFIRMED" | "PAYMENT_RECEIVED",
+  asaasEventId: string | null,
+) {
+  const webhookUrl = (env.N8N_CONEXAO_SERES_JORNADA_WEBHOOK_URL as string | undefined)?.trim() || "";
+  const webhookToken = (env.N8N_CONEXAO_SERES_JORNADA_WEBHOOK_TOKEN as string | undefined)?.trim() || "";
+  if (!webhookUrl || !webhookToken || webhookToken === "COLE_AQUI_O_TOKEN_DO_WEBHOOK_N8N") return false;
+
+  const paymentId = typeof payment.id === "string" ? payment.id.trim() : "";
+  const customerId = typeof payment.customer === "string" ? payment.customer.trim() : "";
+  const customerResult = await requestAsaas(baseUrl, "/customers/" + encodeURIComponent(customerId), "GET", apiKey);
+  if (customerResult.status < 200 || customerResult.status >= 300) {
+    console.warn("n8n journey-paid customer lookup failed", { paymentId, customerId, status: customerResult.status });
+    return false;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), N8N_JORNADA_TIMEOUT_MS);
+  try {
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${webhookToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        eventType: "jornada_yoga_payment_paid",
+        eventId: "jornada-yoga-2026",
+        asaasEventId,
+        asaasEvent: event,
+        paymentId,
+        asaasCustomerId: customerId,
+        customerName: typeof customerResult.data.name === "string" ? customerResult.data.name.trim() : "",
+        customerEmail: typeof customerResult.data.email === "string" ? customerResult.data.email.trim().toLowerCase() : "",
+        customerWhatsapp:
+          typeof customerResult.data.mobilePhone === "string" && customerResult.data.mobilePhone.trim()
+            ? customerResult.data.mobilePhone.trim()
+            : typeof customerResult.data.phone === "string"
+              ? customerResult.data.phone.trim()
+              : "",
+        value: typeof payment.value === "number" ? payment.value : Number(payment.value),
+        billingType: typeof payment.billingType === "string" ? payment.billingType : "",
+        status: typeof payment.status === "string" ? payment.status : "",
+        paymentDate: effectiveDateFromPayment(payment),
+        externalReference: typeof payment.externalReference === "string" ? payment.externalReference.trim() : "",
+      }),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      console.error("n8n journey-paid webhook failed", { paymentId, status: response.status });
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("n8n journey-paid webhook request failed", {
+      paymentId,
+      timedOut: error instanceof Error && error.name === "AbortError",
+    });
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function optionalPaymentString(payment: JsonRecord, field: "invoiceNumber" | "invoiceUrl") {
@@ -491,8 +577,10 @@ export async function POST(request: Request) {
 
   const payment = (body as JsonRecord).payment;
   if (!payment || typeof payment !== "object" || Array.isArray(payment)) return NextResponse.json({ received: true, processed: false }, { status: 200 });
-  if (!isFirstSessionPayment(payment as JsonRecord, event)) {
-    console.info("Asaas payment webhook ignored: not a valid first-session payment event", { event });
+  const isFirstSession = isFirstSessionPayment(payment as JsonRecord, event);
+  const isJourney = isJornadaYogaPayment(payment as JsonRecord, event);
+  if (!isFirstSession && !isJourney) {
+    console.info("Asaas payment webhook ignored: unsupported payment event", { event });
     return NextResponse.json({ received: true, processed: false }, { status: 200 });
   }
 
@@ -500,6 +588,11 @@ export async function POST(request: Request) {
   if (!apiKey) return NextResponse.json({ received: true, processed: false }, { status: 200 });
   const baseUrl = ((env.ASAAS_API_URL as string | undefined) || "https://api.asaas.com/v3").replace(/\/$/, "");
   const asaasEventId = typeof (body as JsonRecord).id === "string" ? (body as JsonRecord).id.trim() || null : null;
+  if (isJourney) {
+    await notifyN8nJornadaPaid(baseUrl, apiKey, payment as JsonRecord, event, asaasEventId);
+    return NextResponse.json({ received: true, processed: true, journey: true }, { status: 200 });
+  }
+
   await notifyN8nFirstSessionPaid(baseUrl, apiKey, payment as JsonRecord, event, asaasEventId);
   const result = await processPaymentEvent(baseUrl, apiKey, payment as JsonRecord, event);
   if (result.retry) return NextResponse.json({ message: "Processamento fiscal temporariamente indisponível." }, { status: 500 });

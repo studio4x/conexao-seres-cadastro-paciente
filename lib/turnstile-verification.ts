@@ -7,6 +7,7 @@ export type TurnstileVerification = {
 export type TurnstileVerificationOptions = {
   secret: string;
   expectedHostname: string;
+  expectedAction?: string;
   useE2eSecret: boolean;
   fetchImpl?: typeof fetch;
 };
@@ -15,13 +16,12 @@ export function isTurnstileVerificationValid(
   result: TurnstileVerification,
   expectedHostname: string,
   useE2eSecret: boolean,
+  expectedAction = "cadastro_paciente",
 ) {
-  if (useE2eSecret) {
-    return result.success === true;
-  }
+  if (useE2eSecret) return result.success === true;
 
   return result.success === true
-    && result.action === "cadastro_paciente"
+    && result.action === expectedAction
     && (!expectedHostname || result.hostname === expectedHostname);
 }
 
@@ -51,7 +51,12 @@ export async function verifyTurnstileToken(
     const result = (await response.json()) as TurnstileVerification;
     return {
       configured: true,
-      valid: isTurnstileVerificationValid(result, options.expectedHostname, options.useE2eSecret),
+      valid: isTurnstileVerificationValid(
+        result,
+        options.expectedHostname,
+        options.useE2eSecret,
+        options.expectedAction || "cadastro_paciente",
+      ),
     };
   } catch {
     return { configured: true, valid: false };
