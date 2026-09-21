@@ -55,7 +55,16 @@ jobs:
           grep -q 'name="cpf"' components/jornada-yoga/JornadaYogaPage.tsx
           grep -q "JOURNEY_CUSTOMER_UPDATE_FAILED" cpanel-server/api/jornada-yoga.php
           grep -q "'stage' => \$journeyStage" cpanel-server/api/jornada-yoga.php
-          ! grep -q "if (!jornadaObservationsWithinSafetyBudget(observations))" app/api/jornada-yoga/route.ts
+          node - <<'NODE'
+          const fs = require('fs');
+          const source = fs.readFileSync('app/api/jornada-yoga/route.ts', 'utf8');
+          const start = source.indexOf('async function getCustomer(');
+          const end = source.indexOf('async function updateCustomerRegistration(', start);
+          const getCustomer = source.slice(start, end);
+          if (getCustomer.includes('jornadaObservationsWithinSafetyBudget(observations)')) {
+            throw new Error('getCustomer ainda referencia observations fora de escopo');
+          }
+          NODE
 
       - name: Commit generated package
         run: |
