@@ -408,7 +408,7 @@ export async function POST(request: Request) {
 
       if (!customerId) {
         return NextResponse.json(
-          { message: "Localizamos sua inscrição, mas não conseguimos identificar o cadastro no Asaas." },
+          { message: "Localizamos sua inscrição, mas não conseguimos identificar o cadastro necessário para processá-la." },
           { status: 502 },
         );
       }
