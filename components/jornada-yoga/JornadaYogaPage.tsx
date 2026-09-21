@@ -3,7 +3,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import {
   CalendarDays,
-  CheckCircle2,
   Clock3,
   CreditCard,
   Leaf,
@@ -65,7 +64,6 @@ type Result = {
   success?: boolean;
   invoiceUrl?: string;
   value?: number;
-  existingRegistration?: boolean;
   message?: string;
   code?: string;
   stage?: string;
@@ -110,7 +108,6 @@ export function JornadaYogaPage() {
   const [cepLoading, setCepLoading] = useState(false);
   const [cepMessage, setCepMessage] = useState("");
   const [error, setError] = useState("");
-  const [result, setResult] = useState<Result | null>(null);
 
   useEffect(() => {
     document.title = "Inscrição | Jornada de Expansão Mental e Corporal | Conexão Seres";
@@ -235,7 +232,14 @@ export function JornadaYogaPage() {
         );
       }
 
-      setResult(payload);
+      window.sessionStorage.setItem(
+        "conexao-seres:jornada-yoga:confirmation",
+        JSON.stringify({
+          invoiceUrl: payload.invoiceUrl || "",
+          value: payload.value || JORNADA_YOGA_AMOUNT,
+        }),
+      );
+      window.location.assign("/jornada-yoga/confirmacao");
     } catch (submitError) {
       setError(
         submitError instanceof Error
@@ -367,38 +371,6 @@ export function JornadaYogaPage() {
         </aside>
 
         <div className="rounded-2xl border border-[#d5ded1] bg-white p-5 shadow-sm sm:p-9">
-          {result ? (
-            <div className="py-6">
-              <CheckCircle2 className="size-12 text-[#3a8036]" />
-              <p className="mt-5 text-xs font-semibold uppercase tracking-[.12em] text-[#8a5a18]">
-                {result.existingRegistration ? "Inscrição já localizada" : "Cadastro concluído"}
-              </p>
-              <h2 className="mt-2 text-3xl font-semibold text-[#005000]">
-                Agora falta apenas concluir o pagamento.
-              </h2>
-              <p className="mt-4 leading-7 text-[#566451]">
-                Sua cobrança de {formatCurrency(result.value || JORNADA_YOGA_AMOUNT)} foi
-                gerada. Após a identificação do pagamento, sua inscrição será considerada
-                confirmada.
-              </p>
-              {result.invoiceUrl ? (
-                <a
-                  href={result.invoiceUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-7 inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 font-semibold text-white"
-                >
-                  <CreditCard className="size-5" />
-                  Ir para o pagamento
-                </a>
-              ) : (
-                <p className="mt-6 rounded-lg bg-[#fff8ee] p-4 text-sm text-[#754000]">
-                  A cobrança foi criada, mas o link não pôde ser exibido. Fale com a Conexão
-                  Seres.
-                </p>
-              )}
-            </div>
-          ) : (
             <>
               <p className="text-xs font-semibold uppercase tracking-[.12em] text-[#8a5a18]">
                 Inscrição
@@ -717,7 +689,6 @@ export function JornadaYogaPage() {
                 </button>
               </form>
             </>
-          )}
         </div>
       </section>
 
