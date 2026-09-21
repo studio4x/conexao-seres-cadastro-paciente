@@ -60,9 +60,14 @@ function loadTurnstile() {
 type TurnstileWidgetProps = {
   onTokenChange: (token: string) => void;
   resetKey: number;
+  action?: string;
 };
 
-export function TurnstileWidget({ onTokenChange, resetKey }: TurnstileWidgetProps) {
+export function TurnstileWidget({
+  onTokenChange,
+  resetKey,
+  action = "cadastro_paciente",
+}: TurnstileWidgetProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const callbackRef = useRef(onTokenChange);
   const [siteKey, setSiteKey] = useState("");
@@ -105,7 +110,7 @@ export function TurnstileWidget({ onTokenChange, resetKey }: TurnstileWidgetProp
         if (cancelled || !containerRef.current) return;
         widgetId = turnstile.render(containerRef.current, {
           sitekey: siteKey,
-          action: "cadastro_paciente",
+          action,
           theme: "light",
           size: "flexible",
           callback: (token) => {
@@ -134,7 +139,7 @@ export function TurnstileWidget({ onTokenChange, resetKey }: TurnstileWidgetProp
       cancelled = true;
       if (widgetId && window.turnstile) window.turnstile.remove(widgetId);
     };
-  }, [siteKey, resetKey]);
+  }, [siteKey, resetKey, action]);
 
   return (
     <div className="space-y-2" aria-live="polite">
