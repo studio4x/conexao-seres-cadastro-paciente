@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import {
   JORNADA_YOGA_AMOUNT,
+  JORNADA_YOGA_CUSTOMER_GROUP,
   JORNADA_YOGA_DESCRIPTION,
   JORNADA_YOGA_EVENT_ID,
   JORNADA_YOGA_REFERENCE_PREFIX,
@@ -46,6 +47,20 @@ type Payment = {
   invoiceUrl?: string;
   status?: string;
   value?: number;
+};
+type Notification = {
+  id?: string;
+  customer?: string;
+  enabled?: boolean;
+  emailEnabledForProvider?: boolean;
+  smsEnabledForProvider?: boolean;
+  emailEnabledForCustomer?: boolean;
+  smsEnabledForCustomer?: boolean;
+  phoneCallEnabledForCustomer?: boolean;
+  whatsappEnabledForCustomer?: boolean;
+  event?: string;
+  scheduleOffset?: number;
+  deleted?: boolean;
 };
 
 type AddressPayload = {
@@ -90,6 +105,20 @@ const headers = (key: string) => ({
   "user-agent": "ConexaoSeresJornadaYoga/1.0",
   access_token: key,
 });
+
+const CONTROLLED_NOTIFICATION_EVENTS = new Set([
+  "PAYMENT_CREATED",
+  "PAYMENT_UPDATED",
+  "PAYMENT_DUEDATE_WARNING",
+  "PAYMENT_OVERDUE",
+  "PAYMENT_RECEIVED",
+  "SEND_LINHA_DIGITAVEL",
+]);
+
+const DESIRED_SCHEDULE_OFFSETS = {
+  PAYMENT_DUEDATE_WARNING: 5,
+  PAYMENT_OVERDUE: 1,
+} as const;
 
 async function json(response: Response) {
   const raw = await response.text();
@@ -227,6 +256,164 @@ async function getCustomer(
   return response.ok ? ((await json(response)) as Customer) : null;
 }
 
+function notificationScheduleOffset(notification: Notification) {
+  return typeof notification.scheduleOffset === "number" && Number.isFinite(notification.scheduleOffset)
+    ? notification.scheduleOffset
+    : 0;
+}
+
+function selectScheduledNotificationIds(notifications: Array<Notification & { id: string }>) {
+  const selectedIds = new Set<string>();
+  for (const [event, desiredOffset] of Object.entries(DESIRED_SCHEDULE_OFFSETS)) {
+    const candidates = notifications
+      .filter((notification) => notification.event === event)
+      .sort((left, right) => {
+        const leftOffset = notificationScheduleOffset(left);
+        const rightOffset = notificationScheduleOffset(right);
+        const leftRank = leftOffset === desiredOffset ? 0 : leftOffset > 0 ? 1 : 2;
+        const rightRank = rightOffset === desiredOffset ? 0 : rightOffset > 0 ? 1 : 2;
+        return leftRank - rightRank
+          || (leftOffset > 0 ? Math.abs(leftOffset - desiredOffset) : Number.MAX_SAFE_INTEGER)
+            - (rightOffset > 0 ? Math.abs(rightOffset - desiredOffset) : Number.MAX_SAFE_INTEGER)
+          || left.id.localeCompare(right.id);
+      });
+    if (candidates[0]) selectedIds.add(candidates[0].id);
+  }
+  return selectedIds;
+}
+
+function buildNotificationUpdate(
+  notification: Notification & { id: string },
+  scheduledNotificationIds: Set<string>,
+) {
+  const event = notification.event || "";
+  const isDigitalLineNotification = event === "SEND_LINHA_DIGITAVEL";
+
+  return {
+    id: notification.id,
+    enabled: true,
+    emailEnabledForProvider: false,
+    smsEnabledForProvider: false,
+    emailEnabledForCustomer: false,
+    smsEnabledForCustomer: false,
+    phoneCallEnabledForCustomer: false,
+    whatsappEnabledForCustomer: !isDigitalLineNotification,
+    ...(scheduledNotificationIds.has(notification.id) && event in DESIRED_SCHEDULE_OFFSETS
+      ? { scheduleOffset: DESIRED_SCHEDULE_OFFSETS[event as keyof typeof DESIRED_SCHEDULE_OFFSETS] }
+      : {}),
+  };
+}
+
+function notificationMatchesUpdate(
+  notification: Notification,
+  update: ReturnType<typeof buildNotificationUpdate>,
+) {
+  const channelFields = [
+    "enabled",
+    "emailEnabledForProvider",
+    "smsEnabledForProvider",
+    "emailEnabledForCustomer",
+    "smsEnabledForCustomer",
+    "phoneCallEnabledForCustomer",
+    "whatsappEnabledForCustomer",
+  ] as const;
+
+  return notification.deleted !== true
+    && channelFields.every((field) => notification[field] === update[field])
+    && (!("scheduleOffset" in update) || notification.scheduleOffset === update.scheduleOffset);
+}
+
+async function configureCustomerNotifications(
+  base: string,
+  key: string,
+  customerId: string,
+  signal: AbortSignal,
+) {
+  try {
+    const listResponse = await fetch(
+      base + "/customers/" + encodeURIComponent(customerId) + "/notifications",
+      { headers: headers(key), signal },
+    );
+    if (!listResponse.ok) {
+      console.error("Journey Asaas notification lookup failed", {
+        customerId: customerId.slice(0, 20),
+        status: listResponse.status,
+      });
+      return false;
+    }
+
+    const data = await json(listResponse);
+    const notificationsToUpdate = list<Notification>(data).filter(
+      (notification): notification is Notification & { id: string } =>
+        Boolean(notification.id?.trim())
+        && notification.deleted !== true
+        && notification.customer === customerId
+        && CONTROLLED_NOTIFICATION_EVENTS.has(notification.event || ""),
+    );
+    const scheduledNotificationIds = selectScheduledNotificationIds(notificationsToUpdate);
+    const notifications = notificationsToUpdate.map((notification) =>
+      buildNotificationUpdate(notification, scheduledNotificationIds),
+    );
+
+    if (!notifications.length) {
+      console.error("Journey Asaas notification lookup returned no controlled notifications", {
+        customerId: customerId.slice(0, 20),
+      });
+      return false;
+    }
+
+    const updateResponse = await fetch(base + "/notifications/batch", {
+      method: "PUT",
+      headers: headers(key),
+      body: JSON.stringify({ customer: customerId, notifications }),
+      signal,
+    });
+    if (!updateResponse.ok) {
+      console.error("Journey Asaas notification update failed", {
+        customerId: customerId.slice(0, 20),
+        status: updateResponse.status,
+      });
+      return false;
+    }
+
+    const verificationResponse = await fetch(
+      base + "/customers/" + encodeURIComponent(customerId) + "/notifications",
+      { headers: headers(key), signal },
+    );
+    if (!verificationResponse.ok) {
+      console.error("Journey Asaas notification validation failed", {
+        customerId: customerId.slice(0, 20),
+        status: verificationResponse.status,
+      });
+      return false;
+    }
+
+    const verified = list<Notification>(await json(verificationResponse));
+    const verifiedById = new Map(
+      verified
+        .filter((notification): notification is Notification & { id: string } => Boolean(notification.id))
+        .map((notification) => [notification.id, notification]),
+    );
+    const matches = notifications.every((update) =>
+      notificationMatchesUpdate(verifiedById.get(update.id) || {}, update),
+    );
+
+    if (!matches) {
+      console.error("Journey Asaas notification validation did not match patient policy", {
+        customerId: customerId.slice(0, 20),
+      });
+    }
+
+    return matches;
+  } catch (error) {
+    console.error("Journey Asaas notification configuration failed", {
+      customerId: customerId.slice(0, 20),
+      timedOut: error instanceof Error && error.name === "AbortError",
+    });
+    return false;
+  }
+}
+
 async function updateCustomerRegistration(
   base: string,
   key: string,
@@ -297,14 +484,16 @@ async function updateCustomerRegistration(
     }
   }
 
+  const currentObservations = current.observations || "";
   const observations = mergeJornadaObservations(
-    current.observations,
+    currentObservations,
     birthDate,
     discoverySource,
     discoveryOther,
   );
+  const shouldUpdateObservations = observations !== currentObservations;
 
-  if (!jornadaObservationsWithinSafetyBudget(observations)) {
+  if (shouldUpdateObservations && !jornadaObservationsWithinSafetyBudget(observations)) {
     console.error("Journey customer observations exceed safety budget", {
       utf8Bytes: jornadaObservationsUtf8Bytes(observations),
     });
@@ -316,11 +505,13 @@ async function updateCustomerRegistration(
     };
   }
 
-  const addressPayload: Record<string, string> = {
+  const addressPayload: Record<string, string | boolean> = {
     postalCode: address.postalCode,
     address: address.address,
     addressNumber: address.addressNumber,
     province: address.province,
+    groupName: JORNADA_YOGA_CUSTOMER_GROUP,
+    notificationDisabled: false,
   };
   if (address.complement.trim()) addressPayload.complement = address.complement.trim();
 
@@ -347,27 +538,35 @@ async function updateCustomerRegistration(
     };
   }
 
-  const observationsResponse = await fetch(
-    base + "/customers/" + encodeURIComponent(customerId),
-    {
-      method: "PUT",
-      headers: headers(key),
-      body: JSON.stringify({ observations }),
-      signal,
-    },
-  );
+  if (shouldUpdateObservations) {
+    const observationsResponse = await fetch(
+      base + "/customers/" + encodeURIComponent(customerId),
+      {
+        method: "PUT",
+        headers: headers(key),
+        body: JSON.stringify({ observations }),
+        signal,
+      },
+    );
 
-  if (!observationsResponse.ok) {
-    console.error("Journey customer observations update failed", {
+    if (!observationsResponse.ok) {
+      console.error("Journey customer observations update failed", {
+        customerId: customerId.slice(0, 20),
+        status: observationsResponse.status,
+      });
+      return {
+        ok: false as const,
+        code: "observations-update-failed" as const,
+        stage: "customer-observations-update",
+        providerStatus: observationsResponse.status,
+      };
+    }
+  }
+
+  if (!(await configureCustomerNotifications(base, key, customerId, signal))) {
+    console.error("Journey customer notification policy was not fully applied", {
       customerId: customerId.slice(0, 20),
-      status: observationsResponse.status,
     });
-    return {
-      ok: false as const,
-      code: "observations-update-failed" as const,
-      stage: "customer-observations-update",
-      providerStatus: observationsResponse.status,
-    };
   }
 
   return {
@@ -775,6 +974,7 @@ export async function POST(request: Request) {
           ...address,
           observations,
           externalReference: await customerRef(cpf),
+          groupName: JORNADA_YOGA_CUSTOMER_GROUP,
           notificationDisabled: false,
         }),
         signal: controller.signal,
@@ -792,6 +992,12 @@ export async function POST(request: Request) {
           },
           { status: 424 },
         );
+      }
+
+      if (!(await configureCustomerNotifications(base, key, customerId, controller.signal))) {
+        console.error("Journey customer was created, but notification policy was not fully applied", {
+          customerId: customerId.slice(0, 20),
+        });
       }
     }
 
