@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Download,
   ExternalLink,
+  FileText,
   KeyRound,
   Loader2,
   LogOut,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { AppVersion } from "@/components/layout/AppVersion";
+import { exportJourneyRegistrationsPdf } from "@/lib/jornada-yoga-admin-pdf";
 import {
   formatCpf,
   formatCurrency,
@@ -89,6 +91,7 @@ export function JornadaYogaAdminPage() {
   const [auth, setAuth] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [message, setMessage] = useState("");
   const [data, setData] = useState<Data | null>(null);
   const [query, setQuery] = useState("");
@@ -204,6 +207,33 @@ export function JornadaYogaAdminPage() {
             .includes(normalizedQuery)),
     );
   }, [data, query, filter]);
+
+  async function exportPdf() {
+    if (!rows.length || exportingPdf) return;
+
+    setExportingPdf(true);
+    setMessage("");
+
+    try {
+      const filterLabels: Record<string, string> = {
+        ALL: "Todas as inscrições",
+        PAID: "Pagas",
+        UNPAID: "Não pagas",
+        PENDING: "Pendentes",
+        OVERDUE: "Vencidas",
+      };
+
+      await exportJourneyRegistrationsPdf(rows, {
+        filterLabel: filterLabels[filter] || "Todas as inscrições",
+        query,
+      });
+    } catch (error) {
+      console.error("Journey admin PDF export failed", error);
+      setMessage("Não foi possível gerar o PDF agora. Tente novamente.");
+    } finally {
+      setExportingPdf(false);
+    }
+  }
 
   function exportCsv() {
     const header = [
@@ -396,6 +426,21 @@ export function JornadaYogaAdminPage() {
             >
               <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
               {refreshing ? "Atualizando..." : "Atualizar"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void exportPdf()}
+              disabled={!rows.length || exportingPdf}
+              aria-busy={exportingPdf}
+              className="flex items-center gap-2 rounded-lg border border-[#b9cbb4] bg-white px-4 py-2.5 text-sm font-semibold text-[#315f31] disabled:opacity-50"
+            >
+              {exportingPdf ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <FileText className="size-4" />
+              )}
+              {exportingPdf ? "Gerando PDF..." : "PDF"}
             </button>
 
             <button
