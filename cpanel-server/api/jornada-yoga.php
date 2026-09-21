@@ -434,7 +434,7 @@ if (is_array($found['payment'])) {
         reply(
             [
                 'message' =>
-                    'Localizamos sua inscrição, mas não conseguimos identificar o cadastro no Asaas.',
+                    'Localizamos sua inscrição, mas não conseguimos identificar o cadastro necessário para processá-la.',
             ],
             502
         );
