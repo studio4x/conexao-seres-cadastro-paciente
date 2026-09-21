@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { CheckCircle2, CreditCard, LockKeyhole } from "lucide-react";
 
 import { AppVersion } from "@/components/layout/AppVersion";
@@ -11,35 +11,29 @@ const LOGO =
 
 type ConfirmationData = {
   invoiceUrl?: string;
-  value?: number;
 };
 
 const STORAGE_KEY = "conexao-seres:jornada-yoga:confirmation";
 
 export function JornadaYogaConfirmationPage() {
-  const [data, setData] = useState<ConfirmationData>({});
-
   useEffect(() => {
     document.title = "Cadastro concluído | Jornada de Expansão Mental e Corporal | Conexão Seres";
+  }, []);
 
+  function openPayment() {
     try {
       const stored = window.sessionStorage.getItem(STORAGE_KEY);
       if (!stored) return;
 
       const parsed = JSON.parse(stored) as ConfirmationData;
-      setData({
-        invoiceUrl: typeof parsed.invoiceUrl === "string" ? parsed.invoiceUrl : "",
-        value:
-          typeof parsed.value === "number" && Number.isFinite(parsed.value)
-            ? parsed.value
-            : JORNADA_YOGA_AMOUNT,
-      });
-    } catch {
-      setData({});
-    }
-  }, []);
+      const invoiceUrl = typeof parsed.invoiceUrl === "string" ? parsed.invoiceUrl.trim() : "";
+      if (!/^https:\/\//i.test(invoiceUrl)) return;
 
-  const value = data.value || JORNADA_YOGA_AMOUNT;
+      window.open(invoiceUrl, "_blank", "noopener,noreferrer");
+    } catch {
+      // A confirmação permanece válida mesmo se a sessão do navegador não estiver disponível.
+    }
+  }
 
   return (
     <main className="flex min-h-screen flex-col bg-[#f8f5ec] text-foreground">
@@ -69,21 +63,18 @@ export function JornadaYogaConfirmationPage() {
             </h1>
 
             <p className="mt-5 max-w-2xl text-base leading-7 text-[#566451] sm:text-lg">
-              Sua cobrança de {formatCurrency(value)} foi gerada. Após a identificação do
+              Sua cobrança de {formatCurrency(JORNADA_YOGA_AMOUNT)} foi gerada. Após a identificação do
               pagamento, sua inscrição será considerada confirmada.
             </p>
 
-            {data.invoiceUrl ? (
-              <a
-                href={data.invoiceUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-8 inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 font-semibold text-white"
-              >
-                <CreditCard className="size-5" />
-                Ir para o pagamento
-              </a>
-            ) : null}
+            <button
+              type="button"
+              onClick={openPayment}
+              className="mt-8 inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 font-semibold text-white"
+            >
+              <CreditCard className="size-5" />
+              Ir para o pagamento
+            </button>
           </div>
         </div>
       </section>
