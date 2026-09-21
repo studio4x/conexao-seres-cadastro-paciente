@@ -222,7 +222,8 @@ export function JornadaYogaPage() {
                 <CalendarDays className="size-4" />8 encontros
               </span>
               <span className="flex items-center gap-2 rounded-lg bg-white px-4 py-3">
-                <Clock3 className="size-4" />20h
+                <Clock3 className="size-4" />
+                Encontro às 20h00
               </span>
               <span className="flex items-center gap-2 rounded-lg bg-white px-4 py-3">
                 <MonitorPlay className="size-4" />
@@ -235,14 +236,30 @@ export function JornadaYogaPage() {
             <p className="text-xs font-semibold uppercase tracking-[.12em] text-[#8a5a18]">
               Condução
             </p>
-            <div className="mt-5 space-y-4">
-              <div>
-                <p className="font-semibold text-[#005000]">Deyse Simon</p>
-                <p className="text-sm text-[#566451]">Terapeuta Ocupacional e Psicanalista</p>
+            <div className="mt-5 space-y-5">
+              <div className="flex items-center gap-4">
+                <img
+                  src="/jornada-yoga/deyse-simon.jpg"
+                  alt="Deyse Simon"
+                  className="size-16 shrink-0 rounded-full border-2 border-[#d9e4d4] object-cover shadow-sm sm:size-[72px]"
+                />
+                <div className="min-w-0">
+                  <p className="font-semibold text-[#005000]">Deyse Simon</p>
+                  <p className="mt-0.5 text-sm leading-5 text-[#566451]">
+                    Terapeuta Ocupacional e Psicanalista
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="font-semibold text-[#005000]">David Goulart</p>
-                <p className="text-sm text-[#566451]">Professor de Yoga</p>
+              <div className="flex items-center gap-4">
+                <img
+                  src="/jornada-yoga/david-goulart.jpg"
+                  alt="David Goulart"
+                  className="size-16 shrink-0 rounded-full border-2 border-[#d9e4d4] object-cover shadow-sm sm:size-[72px]"
+                />
+                <div className="min-w-0">
+                  <p className="font-semibold text-[#005000]">David Goulart</p>
+                  <p className="mt-0.5 text-sm leading-5 text-[#566451]">Professor de Yoga</p>
+                </div>
               </div>
             </div>
             <div className="mt-6 border-t border-[#dce3d8] pt-5">
