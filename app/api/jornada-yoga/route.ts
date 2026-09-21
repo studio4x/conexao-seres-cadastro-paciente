@@ -7,15 +7,20 @@ import {
   JORNADA_YOGA_DESCRIPTION,
   JORNADA_YOGA_EVENT_ID,
   JORNADA_YOGA_REFERENCE_PREFIX,
+  buildJornadaObservations,
   cleanText,
+  isValidAdultBirthDate,
   isValidBrazilianWhatsapp,
   isValidCep,
   isValidCpf,
   isValidEmail,
   isValidFullName,
+  isValidJornadaDiscoverySource,
+  mergeJornadaObservations,
   normalizeBrazilianWhatsapp,
   onlyDigits,
 } from "../../../lib/jornada-yoga";
+import type { JornadaYogaDiscoverySource } from "../../../lib/jornada-yoga";
 import {
   authorizeE2eTurnstile,
   E2E_TURNSTILE_TEST_SECRET,
@@ -25,7 +30,7 @@ import { verifyTurnstileToken } from "../../../lib/turnstile-verification";
 export const runtime = "edge";
 
 type Obj = Record<string, unknown>;
-type Customer = { id?: string };
+type Customer = { id?: string; observations?: string };
 type Payment = {
   id?: string;
   customer?: string;
@@ -48,6 +53,8 @@ const schema = z.object({
   cpf: z.string().max(30).refine(isValidCpf),
   email: z.string().trim().max(150).refine(isValidEmail),
   whatsapp: z.string().max(40).refine(isValidBrazilianWhatsapp),
+  birthDate: z.string().refine(isValidAdultBirthDate),
+  discoverySource: z.string().max(80).refine(isValidJornadaDiscoverySource),
   postalCode: z.string().max(12).refine(isValidCep),
   address: z.string().trim().min(3).max(180),
   addressNumber: z.string().trim().min(1).max(30),
@@ -188,22 +195,51 @@ async function getPayment(
   return response.ok ? ((await json(response)) as Payment) : null;
 }
 
-async function updateCustomerAddress(
+async function getCustomer(
+  base: string,
+  key: string,
+  customerId: string,
+  signal: AbortSignal,
+) {
+  const response = await fetch(base + "/customers/" + encodeURIComponent(customerId), {
+    headers: headers(key),
+    signal,
+  });
+  return response.ok ? ((await json(response)) as Customer) : null;
+}
+
+async function updateCustomerRegistration(
   base: string,
   key: string,
   customerId: string,
   address: AddressPayload,
+  birthDate: string,
+  discoverySource: JornadaYogaDiscoverySource,
   signal: AbortSignal,
 ) {
+  const current = await getCustomer(base, key, customerId, signal);
+  if (!current) {
+    console.error("Journey customer lookup before update failed", {
+      customerId: customerId.slice(0, 20),
+    });
+    return false;
+  }
+
+  const observations = mergeJornadaObservations(
+    current.observations,
+    birthDate,
+    discoverySource,
+  );
+
   const response = await fetch(base + "/customers/" + encodeURIComponent(customerId), {
     method: "PUT",
     headers: headers(key),
-    body: JSON.stringify(address),
+    body: JSON.stringify({ ...address, observations }),
     signal,
   });
 
   if (!response.ok) {
-    console.error("Journey customer address update failed", {
+    console.error("Journey customer registration update failed", {
       customerId: customerId.slice(0, 20),
       status: response.status,
     });
@@ -385,6 +421,9 @@ export async function POST(request: Request) {
     complement: cleanText(parsed.data.complement),
     province: cleanText(parsed.data.province),
   };
+  const birthDate = parsed.data.birthDate;
+  const discoverySource = parsed.data.discoverySource;
+  const observations = buildJornadaObservations(birthDate, discoverySource);
 
   const reference = await paymentRef(cpf);
   const controller = new AbortController();
@@ -413,18 +452,20 @@ export async function POST(request: Request) {
         );
       }
 
-      const updated = await updateCustomerAddress(
+      const updated = await updateCustomerRegistration(
         base,
         key,
         customerId,
         address,
+        birthDate,
+        discoverySource,
         controller.signal,
       );
       if (!updated) {
         return NextResponse.json(
           {
             message:
-              "Localizamos sua inscrição, mas não conseguimos atualizar o endereço para a emissão fiscal. Tente novamente.",
+              "Localizamos sua inscrição, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal. Tente novamente.",
           },
           { status: 502 },
         );
@@ -475,18 +516,20 @@ export async function POST(request: Request) {
     const existingCustomer = Boolean(customerId);
 
     if (customerId) {
-      const updated = await updateCustomerAddress(
+      const updated = await updateCustomerRegistration(
         base,
         key,
         customerId,
         address,
+        birthDate,
+        discoverySource,
         controller.signal,
       );
       if (!updated) {
         return NextResponse.json(
           {
             message:
-              "Seu cadastro foi localizado, mas não conseguimos atualizar o endereço necessário para a emissão fiscal.",
+              "Seu cadastro foi localizado, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal.",
           },
           { status: 502 },
         );
@@ -501,6 +544,7 @@ export async function POST(request: Request) {
           email,
           mobilePhone: whatsapp,
           ...address,
+          observations,
           externalReference: await customerRef(cpf),
           notificationDisabled: false,
         }),
