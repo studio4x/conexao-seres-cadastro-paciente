@@ -292,7 +292,7 @@ N8N_CONEXAO_SERES_JORNADA_WEBHOOK_TOKEN
 
 No cPanel, os valores equivalentes ficam apenas no `api/config.php` privado, conforme `config.example.php`.
 
-O workflow específico e importável da Jornada está em `n8n/conexao-seres-jornada-yoga-v1.2.json`. Ele recebe os eventos `jornada_yoga_registration_created` e `jornada_yoga_payment_paid`, valida o token Bearer e o `eventId`, deduplica os disparos por `paymentId` e envia ao participante as mensagens aprovadas de WhatsApp e e-mail. O envio reutiliza a instância `ConexaoSeres` da Evolution API e o SMTP `cadastro@conexaoseres.com.br`, conforme o workflow clínico de referência. O JSON é importado desativado; após configurar `N8N_CONEXAO_SERES_JORNADA_WEBHOOK_TOKEN` e conferir as credenciais no n8n, deve ser ativado manualmente.
+O workflow específico e importável da Jornada está em `n8n/conexao-seres-jornada-yoga-v1.3.json`. Ele recebe os eventos `jornada_yoga_registration_created` e `jornada_yoga_payment_paid`, valida o token Bearer e o `eventId`, deduplica os disparos por `paymentId` e envia ao participante as mensagens aprovadas de WhatsApp e e-mail. O envio reutiliza a instância `ConexaoSeres` da Evolution API e o SMTP `cadastro@conexaoseres.com.br`, conforme o workflow clínico de referência. O JSON é importado desativado; após configurar `N8N_CONEXAO_SERES_JORNADA_WEBHOOK_TOKEN` e conferir as credenciais no n8n, deve ser ativado manualmente.
 
 ## Arquitetura
 
