@@ -4,7 +4,7 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   root: resolve(__dirname, "cpanel-src"),
-  base: "./",
+  base: "/",
   publicDir: resolve(__dirname, "public"),
   plugins: [react()],
   resolve: {
