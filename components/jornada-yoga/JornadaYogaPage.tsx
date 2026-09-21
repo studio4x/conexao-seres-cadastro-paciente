@@ -391,10 +391,6 @@ export function JornadaYogaPage() {
                     <MapPin className="mt-0.5 size-5 shrink-0 text-[#315f31]" />
                     <div>
                       <p className="font-semibold text-[#315f31]">Endereço para emissão fiscal</p>
-                      <p className="mt-1 text-xs leading-5 text-[#687264]">
-                        O endereço será enviado ao cadastro do pagador no Asaas antes da criação
-                        da cobrança.
-                      </p>
                     </div>
                   </div>
 
