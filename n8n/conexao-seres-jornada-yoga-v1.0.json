@@ -1,5 +1,5 @@
 {
-  "name": "Conexão Seres | Jornada Yoga | Cadastro + Pagamento | v1.0",
+  "name": "Conexão Seres | Jornada Yoga | Cadastro + Pagamento | v1.1",
   "nodes": [
     {
       "parameters": {
@@ -18,7 +18,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const i = $input.first().json || {};\nconst h = i.headers || {};\nconst b = i.body || i;\nconst token = String($env.N8N_CONEXAO_SERES_JORNADA_WEBHOOK_TOKEN || '').trim();\nif (!token) throw new Error('N8N_CONEXAO_SERES_JORNADA_WEBHOOK_TOKEN não configurado.');\nconst authorization = String(h.authorization || h.Authorization || '').trim();\nif (authorization !== `Bearer ${token}`) throw new Error('Unauthorized');\nconst eventType = String(b.eventType || '').trim();\nif (!['jornada_yoga_registration_created','jornada_yoga_payment_paid'].includes(eventType)) {\n  throw new Error('Evento inválido para a Jornada Yoga.');\n}\nif (String(b.eventId || '') !== 'jornada-yoga-2026') throw new Error('eventId inválido.');\nconst paymentId = String(b.paymentId || '').trim();\nconst customerName = String(b.customerName || '').trim();\nconst customerEmail = String(b.customerEmail || '').trim().toLowerCase();\nconst customerWhatsapp = String(b.customerWhatsapp || '').replace(/\\D/g,'');\nif (!paymentId || !customerName || !customerEmail) throw new Error('Dados obrigatórios ausentes.');\nreturn [{json:{...b,eventType,paymentId,customerName,customerEmail,customerWhatsapp,messageApprovalStatus:'PENDING_APPROVAL'}}];"
+        "jsCode": "const i = $input.first().json || {};\nconst h = i.headers || {};\nconst b = i.body || i;\nconst token = String($env.N8N_CONEXAO_SERES_JORNADA_WEBHOOK_TOKEN || '').trim();\nif (!token) throw new Error('N8N_CONEXAO_SERES_JORNADA_WEBHOOK_TOKEN não configurado.');\nconst authorization = String(h.authorization || h.Authorization || '').trim();\nif (authorization !== `Bearer ${token}`) throw new Error('Unauthorized');\nconst eventType = String(b.eventType || '').trim();\nif (!['jornada_yoga_registration_created','jornada_yoga_payment_paid'].includes(eventType)) {\n  throw new Error('Evento inválido para a Jornada Yoga.');\n}\nif (String(b.eventId || '') !== 'jornada-yoga-2026') throw new Error('eventId inválido.');\nconst paymentId = String(b.paymentId || '').trim();\nconst customerName = String(b.customerName || '').trim();\nconst customerEmail = String(b.customerEmail || '').trim().toLowerCase();\nconst customerWhatsapp = String(b.customerWhatsapp || '').replace(/\\D/g,'');\nif (!paymentId || !customerName || !customerEmail) throw new Error('Dados obrigatórios ausentes.');\nif (eventType === 'jornada_yoga_registration_created' && !String(b.invoiceUrl || '').trim()) {\n  throw new Error('Link de pagamento ausente no cadastro da Jornada.');\n}\nreturn [{\n  json:{\n    ...b,\n    eventType,\n    paymentId,\n    customerName,\n    customerEmail,\n    customerWhatsapp,\n    messageApprovalStatus:eventType === 'jornada_yoga_registration_created' ? 'APPROVED' : 'PENDING_APPROVAL'\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -96,7 +96,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Mensagens de WhatsApp/e-mail ainda NÃO foram implementadas.\n// Este ramo será completado somente após aprovação dos textos.\nreturn $input.all().map(item => ({json:{...item.json,automationStatus:'WAITING_MESSAGE_APPROVAL',nextStep:'Validar textos de confirmação de inscrição antes de adicionar os nós de envio.'}}));"
+        "jsCode": "const items = $input.all();\nreturn items.map(item => {\n  const j = item.json || {};\n  const nome = String(j.customerName || '').trim();\n  const link = String(j.invoiceUrl || '').trim();\n\n  const whatsappMessage = `Olá, ${nome}! 💚\n\nRecebemos sua inscrição para a *Jornada de Expansão Mental e Corporal*, da Conexão Seres.\n\nPara concluir sua inscrição, falta apenas realizar o pagamento de *R$ 297,00*.\n\nVocê pode acessar a cobrança e escolher a forma de pagamento disponível pelo link abaixo:\n\n🔗 ${link}\n\nApós a identificação do pagamento, sua participação na Jornada será confirmada. ✨\n\nSerão *8 encontros online*, de *07/10 a 25/11*, às *20h*, pelo Google Meet.\n\nSe tiver qualquer dúvida, é só falar com a gente.\n\n*Conexão Seres*`;\n\n  const emailSubject = 'Inscrição recebida — Jornada de Expansão Mental e Corporal';\n  const emailPreheader = 'Falta apenas concluir o pagamento para confirmar sua participação.';\n  const emailText = `Olá, ${nome}!\n\nRecebemos sua inscrição para a Jornada de Expansão Mental e Corporal, promovida pela Conexão Seres.\n\nAgora falta apenas uma etapa para confirmar sua participação: o pagamento do investimento de R$ 297,00 referente aos 8 encontros.\n\nAcesse sua cobrança:\n${link}\n\nNo ambiente de pagamento você poderá escolher entre as formas de pagamento disponibilizadas pelo Asaas.\n\nAssim que o pagamento for identificado, sua participação na Jornada será confirmada e seguiremos com as próximas orientações.\n\nSobre a Jornada\n\n📅 8 encontros — de 07/10/2026 a 25/11/2026\n🕗 Horário: 20h\n💻 Encontros online pelo Google Meet\n📄 Material de apoio em PDF\n💬 Grupo de WhatsApp para integração e envio dos links dos encontros\n\nSe precisar de ajuda ou tiver alguma dúvida, nossa equipe está à disposição.\n\nUm abraço,\nEquipe Conexão Seres`;\n\n  const emailHtml = `<!doctype html>\n<html lang=\"pt-BR\">\n  <body style=\"margin:0;padding:0;background:#f7f7f4;font-family:Arial,Helvetica,sans-serif;color:#344134;\">\n    <div style=\"display:none;max-height:0;overflow:hidden;opacity:0;\">${emailPreheader}</div>\n    <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#f7f7f4;padding:24px 12px;\">\n      <tr><td align=\"center\">\n        <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"max-width:620px;background:#ffffff;border:1px solid #dce5d8;border-radius:14px;\">\n          <tr><td style=\"padding:32px;\">\n            <p style=\"margin:0 0 18px;font-size:16px;\">Olá, <strong>${nome}</strong>!</p>\n            <p style=\"margin:0 0 18px;line-height:1.6;\">Recebemos sua inscrição para a <strong>Jornada de Expansão Mental e Corporal</strong>, promovida pela Conexão Seres.</p>\n            <p style=\"margin:0 0 22px;line-height:1.6;\">Agora falta apenas uma etapa para confirmar sua participação: o pagamento do investimento de <strong>R$ 297,00</strong> referente aos 8 encontros.</p>\n            <p style=\"margin:0 0 24px;\"><a href=\"${link}\" style=\"display:inline-block;background:#005000;color:#ffffff;text-decoration:none;font-weight:700;padding:13px 20px;border-radius:8px;\">Acessar minha cobrança</a></p>\n            <p style=\"margin:0 0 18px;line-height:1.6;\">No ambiente de pagamento você poderá escolher entre as formas de pagamento disponibilizadas pelo Asaas.</p>\n            <p style=\"margin:0 0 24px;line-height:1.6;\">Assim que o pagamento for identificado, sua participação na Jornada será confirmada e seguiremos com as próximas orientações.</p>\n            <p style=\"margin:0 0 10px;font-weight:700;color:#005000;\">Sobre a Jornada</p>\n            <p style=\"margin:0;line-height:1.8;\">\n              📅 8 encontros — de 07/10/2026 a 25/11/2026<br>\n              🕗 Horário: 20h<br>\n              💻 Encontros online pelo Google Meet<br>\n              📄 Material de apoio em PDF<br>\n              💬 Grupo de WhatsApp para integração e envio dos links dos encontros\n            </p>\n            <p style=\"margin:24px 0 0;line-height:1.6;\">Se precisar de ajuda ou tiver alguma dúvida, nossa equipe está à disposição.</p>\n            <p style=\"margin:20px 0 0;\">Um abraço,<br><strong>Equipe Conexão Seres</strong></p>\n          </td></tr>\n        </table>\n      </td></tr>\n    </table>\n  </body>\n</html>`;\n\n  return {\n    json:{\n      ...j,\n      messageApprovalStatus:'APPROVED',\n      automationStatus:'MESSAGES_APPROVED_READY_TO_SEND',\n      whatsappMessage,\n      emailSubject,\n      emailPreheader,\n      emailText,\n      emailHtml\n    }\n  };\n});"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -105,11 +105,11 @@
         -100
       ],
       "id": "2f1329f7-4e7f-42ab-85ce-e42a6b006a6b",
-      "name": "Cadastro - Aguardar Aprovação das Mensagens"
+      "name": "Cadastro - Preparar Mensagens Aprovadas"
     },
     {
       "parameters": {
-        "jsCode": "// Mensagens de WhatsApp/e-mail ainda NÃO foram implementadas.\n// Este ramo será completado somente após aprovação dos textos.\nreturn $input.all().map(item => ({json:{...item.json,automationStatus:'WAITING_MESSAGE_APPROVAL',nextStep:'Validar textos de confirmação de pagamento antes de adicionar os nós de envio.'}}));"
+        "jsCode": "// As mensagens de confirmação de pagamento ainda aguardam aprovação.\nreturn $input.all().map(item => ({\n  json:{\n    ...item.json,\n    messageApprovalStatus:'PENDING_APPROVAL',\n    automationStatus:'WAITING_PAYMENT_MESSAGE_APPROVAL',\n    nextStep:'Validar textos de confirmação de pagamento antes de adicionar os nós de envio.'\n  }\n}));"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -148,7 +148,7 @@
       "main": [
         [
           {
-            "node": "Cadastro - Aguardar Aprovação das Mensagens",
+            "node": "Cadastro - Preparar Mensagens Aprovadas",
             "type": "main",
             "index": 0
           }
@@ -170,7 +170,8 @@
   },
   "versionId": "3d1ab092-6dce-4d2d-bc38-a1151511fa57",
   "meta": {
-    "templateCredsSetupCompleted": true
+    "templateCredsSetupCompleted": true,
+    "messageTemplatesVersion": "registration-approved-2026-09-21"
   },
   "tags": []
 }
