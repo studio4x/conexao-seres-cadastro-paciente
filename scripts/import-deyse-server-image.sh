@@ -42,3 +42,7 @@ if [[ "$success" -ne 1 ]]; then
 fi
 
 file "$target"
+echo "DEYSE_WEBP_BASE64_BEGIN"
+base64 -w0 "$target"
+echo
+echo "DEYSE_WEBP_BASE64_END"
