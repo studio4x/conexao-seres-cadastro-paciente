@@ -69,6 +69,7 @@ type Result = {
   message?: string;
   code?: string;
   stage?: string;
+  providerStatus?: number;
 };
 
 type CepResult = {
@@ -221,7 +222,13 @@ export function JornadaYogaPage() {
       }
 
       if (!response.ok || !payload.success) {
-        const technical = [payload.code, payload.stage].filter(Boolean).join(" · ");
+        const technical = [
+          payload.code,
+          payload.stage,
+          payload.providerStatus ? `provider-${payload.providerStatus}` : "",
+        ]
+          .filter(Boolean)
+          .join(" · ");
         const suffix = technical ? ` [${technical}]` : "";
         throw new Error(
           `${payload.message || "Não foi possível concluir sua inscrição."}${suffix}`,
