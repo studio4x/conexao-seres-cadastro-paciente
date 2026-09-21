@@ -269,7 +269,7 @@ O fluxo da Jornada é independente do cadastro clínico:
 4. valida o Turnstile com a action `jornada_yoga`;
 5. procura o cliente no Asaas por CPF e por e-mail antes de criar um novo registro;
 6. para cliente novo, envia endereço e o campo `observations` com uma linha compacta da Jornada contendo data de nascimento e “Como ficou sabendo da Jornada”; quando a origem for `Outro`, grava também o texto informado pelo participante;
-7. para cliente existente, lê as observações atuais, preserva o conteúdo já registrado e adiciona/atualiza uma única linha `Jornada 2026: ...` junto com os dados de endereço por `PUT /v3/customers/{id}`; o formato compacto evita ultrapassar desnecessariamente o orçamento interno de 550 bytes UTF-8 usado pelo projeto;
+7. para cliente existente, lê as observações atuais, preserva o conteúdo já registrado e faz a atualização em duas etapas independentes: primeiro endereço fiscal e depois `observations`; campos opcionais vazios, como complemento, não são enviados no update. Isso evita rejeição do cadastro inteiro por um único campo e permite identificar separadamente falha de endereço ou de observações;
 8. usa uma referência determinística da Jornada para impedir duas cobranças do mesmo evento para o mesmo CPF;
 9. cria cobrança avulsa de **R$ 297,00**, com `billingType=UNDEFINED`;
 10. encaminha cadastro e pagamento ao webhook específico do n8n;
