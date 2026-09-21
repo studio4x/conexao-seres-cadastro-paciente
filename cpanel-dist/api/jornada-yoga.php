@@ -458,51 +458,91 @@ function update_customer_registration(
     string $birthDate,
     string $discoverySource,
     string $discoveryOther
-): string {
+): array {
     $current = get_customer($base, $key, $customerId);
     if (!is_array($current)) {
         error_log(
             'Journey customer lookup before update failed. Customer prefix '
             . substr($customerId, 0, 20)
         );
-        return 'customer-get-failed';
+        return [
+            'ok' => false,
+            'code' => 'customer-get-failed',
+            'stage' => 'customer-get',
+        ];
     }
 
-    $payload = $address;
-    $payload['observations'] = merge_journey_observations(
+    $observations = merge_journey_observations(
         (string) ($current['observations'] ?? ''),
         $birthDate,
         $discoverySource,
         $discoveryOther
     );
 
-    if (!journey_observations_within_safety_budget($payload['observations'])) {
+    if (!journey_observations_within_safety_budget($observations)) {
         error_log(
             'Journey customer observations exceed safety budget. UTF-8 bytes: '
-            . journey_observations_utf8_bytes($payload['observations'])
+            . journey_observations_utf8_bytes($observations)
             . '. Safety budget bytes: ' . JORNADA_OBSERVATIONS_SAFETY_BUDGET_BYTES
         );
-        return 'observations-too-long';
+        return [
+            'ok' => false,
+            'code' => 'observations-too-long',
+            'stage' => 'observations-budget',
+        ];
     }
 
-    $result = api(
+    $addressPayload = [
+        'postalCode' => (string) ($address['postalCode'] ?? ''),
+        'address' => (string) ($address['address'] ?? ''),
+        'addressNumber' => (string) ($address['addressNumber'] ?? ''),
+        'province' => (string) ($address['province'] ?? ''),
+    ];
+
+    $complement = trim((string) ($address['complement'] ?? ''));
+    if ($complement !== '') {
+        $addressPayload['complement'] = $complement;
+    }
+
+    $addressResult = api(
         'PUT',
         $base . '/customers/' . rawurlencode($customerId),
         $key,
-        $payload
+        $addressPayload
     );
 
-    if (!$result['ok']) {
-        log_api_failure('customer-update', $result);
-        error_log(
-            'Journey customer registration update failed. Customer prefix '
-            . substr($customerId, 0, 20)
-            . ' HTTP '
-            . (int) ($result['status'] ?? 0)
-        );
+    if (!$addressResult['ok']) {
+        log_api_failure('customer-address-update', $addressResult);
+        return [
+            'ok' => false,
+            'code' => 'address-update-failed',
+            'stage' => 'customer-address-update',
+            'providerStatus' => (int) ($addressResult['status'] ?? 0),
+        ];
     }
 
-    return $result['ok'] ? 'ok' : 'customer-update-failed';
+    $observationsResult = api(
+        'PUT',
+        $base . '/customers/' . rawurlencode($customerId),
+        $key,
+        ['observations' => $observations]
+    );
+
+    if (!$observationsResult['ok']) {
+        log_api_failure('customer-observations-update', $observationsResult);
+        return [
+            'ok' => false,
+            'code' => 'observations-update-failed',
+            'stage' => 'customer-observations-update',
+            'providerStatus' => (int) ($observationsResult['status'] ?? 0),
+        ];
+    }
+
+    return [
+        'ok' => true,
+        'code' => 'ok',
+        'stage' => 'customer-update-complete',
+    ];
 }
 
 function verify_turnstile(
@@ -747,18 +787,31 @@ if (is_array($found['payment'])) {
         $discoverySource,
         $discoverySource === 'Outro' ? $discoveryOther : ''
     );
-    if ($updateResult !== 'ok') {
-        $tooLong = $updateResult === 'observations-too-long';
+    if (!($updateResult['ok'] ?? false)) {
+        $updateCode = (string) ($updateResult['code'] ?? 'customer-update-failed');
+        $tooLong = $updateCode === 'observations-too-long';
+        $addressFailed = $updateCode === 'address-update-failed';
+        $observationsFailed = $updateCode === 'observations-update-failed';
+
         reply(
             [
                 'success' => false,
                 'message' => $tooLong
                     ? 'Seu cadastro já possui muitas informações nas observações. Entre em contato com a Conexão Seres para concluirmos sua inscrição sem perder dados anteriores.'
-                    : 'Localizamos sua inscrição, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal. Tente novamente.',
+                    : ($addressFailed
+                        ? 'Localizamos sua inscrição, mas o endereço para emissão fiscal não pôde ser atualizado. Confira os dados e tente novamente.'
+                        : ($observationsFailed
+                            ? 'Localizamos sua inscrição, mas os dados complementares da Jornada não puderam ser registrados. Tente novamente.'
+                            : 'Localizamos sua inscrição, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal. Tente novamente.')),
                 'code' => $tooLong
                     ? 'JOURNEY_OBSERVATIONS_TOO_LONG'
-                    : 'JOURNEY_EXISTING_REGISTRATION_UPDATE_FAILED',
-                'stage' => $journeyStage,
+                    : ($addressFailed
+                        ? 'JOURNEY_ADDRESS_UPDATE_FAILED'
+                        : ($observationsFailed
+                            ? 'JOURNEY_OBSERVATIONS_UPDATE_FAILED'
+                            : 'JOURNEY_EXISTING_REGISTRATION_UPDATE_FAILED')),
+                'stage' => (string) ($updateResult['stage'] ?? $journeyStage),
+                'providerStatus' => (int) ($updateResult['providerStatus'] ?? 0),
             ],
             $tooLong ? 409 : 424
         );
@@ -827,18 +880,31 @@ if ($customer !== '') {
         $discoverySource,
         $discoverySource === 'Outro' ? $discoveryOther : ''
     );
-    if ($updateResult !== 'ok') {
-        $tooLong = $updateResult === 'observations-too-long';
+    if (!($updateResult['ok'] ?? false)) {
+        $updateCode = (string) ($updateResult['code'] ?? 'customer-update-failed');
+        $tooLong = $updateCode === 'observations-too-long';
+        $addressFailed = $updateCode === 'address-update-failed';
+        $observationsFailed = $updateCode === 'observations-update-failed';
+
         reply(
             [
                 'success' => false,
                 'message' => $tooLong
                     ? 'Seu cadastro já possui muitas informações nas observações. Entre em contato com a Conexão Seres para concluirmos sua inscrição sem perder dados anteriores.'
-                    : 'Seu cadastro foi localizado, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal.',
+                    : ($addressFailed
+                        ? 'Seu cadastro foi localizado, mas o endereço para emissão fiscal não pôde ser atualizado. Confira os dados e tente novamente.'
+                        : ($observationsFailed
+                            ? 'Seu cadastro foi localizado, mas os dados complementares da Jornada não puderam ser registrados. Tente novamente.'
+                            : 'Seu cadastro foi localizado, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal.')),
                 'code' => $tooLong
                     ? 'JOURNEY_OBSERVATIONS_TOO_LONG'
-                    : 'JOURNEY_CUSTOMER_UPDATE_FAILED',
-                'stage' => $journeyStage,
+                    : ($addressFailed
+                        ? 'JOURNEY_ADDRESS_UPDATE_FAILED'
+                        : ($observationsFailed
+                            ? 'JOURNEY_OBSERVATIONS_UPDATE_FAILED'
+                            : 'JOURNEY_CUSTOMER_UPDATE_FAILED')),
+                'stage' => (string) ($updateResult['stage'] ?? $journeyStage),
+                'providerStatus' => (int) ($updateResult['providerStatus'] ?? 0),
             ],
             $tooLong ? 409 : 424
         );
