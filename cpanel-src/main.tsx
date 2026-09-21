@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 
 import Home from "@/app/page";
 import { JornadaYogaPage } from "@/components/jornada-yoga/JornadaYogaPage";
+import { JornadaYogaConfirmationPage } from "@/components/jornada-yoga/JornadaYogaConfirmationPage";
 import { JornadaYogaAdminPage } from "@/components/jornada-yoga/JornadaYogaAdminPage";
 import "@/app/globals.css";
 
@@ -16,7 +17,9 @@ const path = window.location.pathname.replace(/\/+$/, "") || "/";
 const Page =
   path === "/jornada-yoga"
     ? JornadaYogaPage
-    : path === "/admin/jornada-yoga"
+    : path === "/jornada-yoga/confirmacao"
+      ? JornadaYogaConfirmationPage
+      : path === "/admin/jornada-yoga"
       ? JornadaYogaAdminPage
       : Home;
 
