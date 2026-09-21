@@ -440,14 +440,14 @@ function update_customer_registration(
     string $birthDate,
     string $discoverySource,
     string $discoveryOther
-): bool {
+): string {
     $current = get_customer($base, $key, $customerId);
     if (!is_array($current)) {
         error_log(
             'Journey customer lookup before update failed. Customer prefix '
             . substr($customerId, 0, 20)
         );
-        return false;
+        return 'customer-get-failed';
     }
 
     $payload = $address;
@@ -464,7 +464,7 @@ function update_customer_registration(
             . journey_observations_utf8_bytes($payload['observations'])
             . '. Safety budget bytes: ' . JORNADA_OBSERVATIONS_SAFETY_BUDGET_BYTES
         );
-        return false;
+        return 'observations-too-long';
     }
 
     $result = api(
@@ -484,7 +484,7 @@ function update_customer_registration(
         );
     }
 
-    return (bool) $result['ok'];
+    return $result['ok'] ? 'ok' : 'customer-update-failed';
 }
 
 function verify_turnstile(
@@ -716,7 +716,7 @@ if (is_array($found['payment'])) {
     }
 
     $journeyStage = 'existing-registration-customer-update';
-    if (!update_customer_registration(
+    $updateResult = update_customer_registration(
         $base,
         $key,
         $customerId,
@@ -724,14 +724,20 @@ if (is_array($found['payment'])) {
         $birthDate,
         $discoverySource,
         $discoverySource === 'Outro' ? $discoveryOther : ''
-    )) {
+    );
+    if ($updateResult !== 'ok') {
+        $tooLong = $updateResult === 'observations-too-long';
         reply(
             [
-                'message' =>
-                    'Localizamos sua inscrição, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal. Tente novamente.',
-                'code' => 'JOURNEY_EXISTING_REGISTRATION_UPDATE_FAILED',
+                'success' => false,
+                'message' => $tooLong
+                    ? 'Seu cadastro já possui muitas informações nas observações. Entre em contato com a Conexão Seres para concluirmos sua inscrição sem perder dados anteriores.'
+                    : 'Localizamos sua inscrição, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal. Tente novamente.',
+                'code' => $tooLong
+                    ? 'JOURNEY_OBSERVATIONS_TOO_LONG'
+                    : 'JOURNEY_EXISTING_REGISTRATION_UPDATE_FAILED',
             ],
-            502
+            $tooLong ? 409 : 502
         );
     }
 
@@ -788,7 +794,7 @@ $existingCustomer = $customer !== '';
 
 if ($customer !== '') {
     $journeyStage = 'customer-update';
-    if (!update_customer_registration(
+    $updateResult = update_customer_registration(
         $base,
         $key,
         $customer,
@@ -796,14 +802,20 @@ if ($customer !== '') {
         $birthDate,
         $discoverySource,
         $discoverySource === 'Outro' ? $discoveryOther : ''
-    )) {
+    );
+    if ($updateResult !== 'ok') {
+        $tooLong = $updateResult === 'observations-too-long';
         reply(
             [
-                'message' =>
-                    'Seu cadastro foi localizado, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal.',
-                'code' => 'JOURNEY_CUSTOMER_UPDATE_FAILED',
+                'success' => false,
+                'message' => $tooLong
+                    ? 'Seu cadastro já possui muitas informações nas observações. Entre em contato com a Conexão Seres para concluirmos sua inscrição sem perder dados anteriores.'
+                    : 'Seu cadastro foi localizado, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal.',
+                'code' => $tooLong
+                    ? 'JOURNEY_OBSERVATIONS_TOO_LONG'
+                    : 'JOURNEY_CUSTOMER_UPDATE_FAILED',
             ],
-            502
+            $tooLong ? 409 : 502
         );
     }
 } else {
