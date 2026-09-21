@@ -1,0 +1,77 @@
+name: Jornada Yoga capture cPanel build
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          coverage: none
+      - name: Build cPanel
+        run: CONEXAO_SERES_BUMP_IN_CI=1 npm run build:cpanel
+      - name: Lint
+        run: npm run lint
+      - name: Validate PHP
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l cpanel-server/api/jornada-yoga.php
+          php -l cpanel-server/api/jornada-admin-login.php
+          php -l cpanel-server/api/jornada-admin-logout.php
+          php -l cpanel-server/api/jornada-admin-registrations.php
+          php -l cpanel-server/api/asaas-webhook.php
+          php -l cpanel-dist/api/jornada-yoga.php
+          php -l cpanel-dist/api/jornada-admin-login.php
+          php -l cpanel-dist/api/jornada-admin-logout.php
+          php -l cpanel-dist/api/jornada-admin-registrations.php
+          php -l cpanel-dist/api/asaas-webhook.php
+      - name: Capture generated files
+        shell: bash
+        run: |
+          python - <<'PY'
+          import base64
+          import pathlib
+          import subprocess
+
+          status = subprocess.check_output([
+              "git", "-c", "status.renames=false", "status",
+              "--porcelain=v1", "-z", "--",
+              "components/layout/AppVersion.tsx", "cpanel-dist"
+          ])
+
+          print("CAPTURE_STATUS_BEGIN")
+          print(base64.b64encode(status).decode())
+          print("CAPTURE_STATUS_END")
+
+          entries = [entry for entry in status.decode("utf-8", "surrogateescape").split("\0") if entry]
+          for entry in entries:
+              code = entry[:2]
+              path = entry[3:]
+              if "D" in code:
+                  continue
+              p = pathlib.Path(path)
+              if not p.is_file():
+                  continue
+              print("CAPTURE_FILE_BEGIN")
+              print(base64.b64encode(path.encode()).decode())
+              print(base64.b64encode(p.read_bytes()).decode())
+              print("CAPTURE_FILE_END")
+          PY
