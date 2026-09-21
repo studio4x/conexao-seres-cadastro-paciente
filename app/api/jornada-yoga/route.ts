@@ -237,7 +237,12 @@ async function updateCustomerRegistration(
     console.error("Journey customer lookup before update failed", {
       customerId: customerId.slice(0, 20),
     });
-    return { ok: false as const, code: "customer-get-failed" as const };
+    return {
+      ok: false as const,
+      code: "customer-get-failed" as const,
+      stage: "customer-get",
+      providerStatus: 0,
+    };
   }
 
   const observations = mergeJornadaObservations(
@@ -251,26 +256,74 @@ async function updateCustomerRegistration(
     console.error("Journey customer observations exceed safety budget", {
       utf8Bytes: jornadaObservationsUtf8Bytes(observations),
     });
-    return { ok: false as const, code: "observations-too-long" as const };
+    return {
+      ok: false as const,
+      code: "observations-too-long" as const,
+      stage: "observations-budget",
+      providerStatus: 0,
+    };
   }
 
-  const response = await fetch(base + "/customers/" + encodeURIComponent(customerId), {
-    method: "PUT",
-    headers: headers(key),
-    body: JSON.stringify({ ...address, observations }),
-    signal,
-  });
+  const addressPayload: Record<string, string> = {
+    postalCode: address.postalCode,
+    address: address.address,
+    addressNumber: address.addressNumber,
+    province: address.province,
+  };
+  if (address.complement.trim()) addressPayload.complement = address.complement.trim();
 
-  if (!response.ok) {
-    console.error("Journey customer registration update failed", {
+  const addressResponse = await fetch(
+    base + "/customers/" + encodeURIComponent(customerId),
+    {
+      method: "PUT",
+      headers: headers(key),
+      body: JSON.stringify(addressPayload),
+      signal,
+    },
+  );
+
+  if (!addressResponse.ok) {
+    console.error("Journey customer address update failed", {
       customerId: customerId.slice(0, 20),
-      status: response.status,
+      status: addressResponse.status,
     });
+    return {
+      ok: false as const,
+      code: "address-update-failed" as const,
+      stage: "customer-address-update",
+      providerStatus: addressResponse.status,
+    };
   }
 
-  return response.ok
-    ? { ok: true as const, code: null }
-    : { ok: false as const, code: "customer-update-failed" as const };
+  const observationsResponse = await fetch(
+    base + "/customers/" + encodeURIComponent(customerId),
+    {
+      method: "PUT",
+      headers: headers(key),
+      body: JSON.stringify({ observations }),
+      signal,
+    },
+  );
+
+  if (!observationsResponse.ok) {
+    console.error("Journey customer observations update failed", {
+      customerId: customerId.slice(0, 20),
+      status: observationsResponse.status,
+    });
+    return {
+      ok: false as const,
+      code: "observations-update-failed" as const,
+      stage: "customer-observations-update",
+      providerStatus: observationsResponse.status,
+    };
+  }
+
+  return {
+    ok: true as const,
+    code: null,
+    stage: "customer-update-complete",
+    providerStatus: 200,
+  };
 }
 
 async function ensurePayment(
@@ -504,20 +557,31 @@ export async function POST(request: Request) {
         controller.signal,
       );
       if (!updated.ok) {
+        const tooLong = updated.code === "observations-too-long";
+        const addressFailed = updated.code === "address-update-failed";
+        const observationsFailed = updated.code === "observations-update-failed";
+
         return NextResponse.json(
           {
             success: false,
-            message:
-              updated.code === "observations-too-long"
-                ? "Seu cadastro já possui muitas informações nas observações. Entre em contato com a Conexão Seres para concluirmos sua inscrição sem perder dados anteriores."
-                : "Localizamos sua inscrição, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal. Tente novamente.",
-            code:
-              updated.code === "observations-too-long"
-                ? "JOURNEY_OBSERVATIONS_TOO_LONG"
-                : "JOURNEY_EXISTING_REGISTRATION_UPDATE_FAILED",
-            stage: "existing-registration-customer-update",
+            message: tooLong
+              ? "Seu cadastro já possui muitas informações nas observações. Entre em contato com a Conexão Seres para concluirmos sua inscrição sem perder dados anteriores."
+              : addressFailed
+                ? "Localizamos sua inscrição, mas o endereço para emissão fiscal não pôde ser atualizado. Confira os dados e tente novamente."
+                : observationsFailed
+                  ? "Localizamos sua inscrição, mas os dados complementares da Jornada não puderam ser registrados. Tente novamente."
+                  : "Localizamos sua inscrição, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal. Tente novamente.",
+            code: tooLong
+              ? "JOURNEY_OBSERVATIONS_TOO_LONG"
+              : addressFailed
+                ? "JOURNEY_ADDRESS_UPDATE_FAILED"
+                : observationsFailed
+                  ? "JOURNEY_OBSERVATIONS_UPDATE_FAILED"
+                  : "JOURNEY_EXISTING_REGISTRATION_UPDATE_FAILED",
+            stage: updated.stage,
+            providerStatus: updated.providerStatus,
           },
-          { status: updated.code === "observations-too-long" ? 409 : 424 },
+          { status: tooLong ? 409 : 424 },
         );
       }
 
@@ -582,20 +646,31 @@ export async function POST(request: Request) {
         controller.signal,
       );
       if (!updated.ok) {
+        const tooLong = updated.code === "observations-too-long";
+        const addressFailed = updated.code === "address-update-failed";
+        const observationsFailed = updated.code === "observations-update-failed";
+
         return NextResponse.json(
           {
             success: false,
-            message:
-              updated.code === "observations-too-long"
-                ? "Seu cadastro já possui muitas informações nas observações. Entre em contato com a Conexão Seres para concluirmos sua inscrição sem perder dados anteriores."
-                : "Seu cadastro foi localizado, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal.",
-            code:
-              updated.code === "observations-too-long"
-                ? "JOURNEY_OBSERVATIONS_TOO_LONG"
-                : "JOURNEY_CUSTOMER_UPDATE_FAILED",
-            stage: "customer-update",
+            message: tooLong
+              ? "Seu cadastro já possui muitas informações nas observações. Entre em contato com a Conexão Seres para concluirmos sua inscrição sem perder dados anteriores."
+              : addressFailed
+                ? "Seu cadastro foi localizado, mas o endereço para emissão fiscal não pôde ser atualizado. Confira os dados e tente novamente."
+                : observationsFailed
+                  ? "Seu cadastro foi localizado, mas os dados complementares da Jornada não puderam ser registrados. Tente novamente."
+                  : "Seu cadastro foi localizado, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal.",
+            code: tooLong
+              ? "JOURNEY_OBSERVATIONS_TOO_LONG"
+              : addressFailed
+                ? "JOURNEY_ADDRESS_UPDATE_FAILED"
+                : observationsFailed
+                  ? "JOURNEY_OBSERVATIONS_UPDATE_FAILED"
+                  : "JOURNEY_CUSTOMER_UPDATE_FAILED",
+            stage: updated.stage,
+            providerStatus: updated.providerStatus,
           },
-          { status: updated.code === "observations-too-long" ? 409 : 424 },
+          { status: tooLong ? 409 : 424 },
         );
       }
     } else {
