@@ -6,6 +6,7 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 
 const JORNADA_OBSERVATIONS_SAFETY_BUDGET_BYTES = 550;
+const JORNADA_CUSTOMER_GROUP = 'Jornadas';
 
 $journeyStage = 'bootstrap';
 
@@ -183,41 +184,35 @@ function merge_journey_observations(
     string $discoveryOther = ''
 ): string {
     $legacyStartMarker = '[JORNADA DE EXPANSÃO MENTAL E CORPORAL 2026]';
-    $legacyEndMarker = '[/JORNADA DE EXPANSÃO MENTAL E CORPORAL 2026]';
     $compactPrefix = 'Jornada 2026:';
     $block = journey_observations_block(
         $birthDate,
         $discoverySource,
         $discoveryOther
     );
-    $existing = trim($current);
+    $normalized = trim($current);
 
-    if ($existing === '') {
+    if ($normalized === '') {
         return $block;
     }
 
-    $legacyStart = strpos($existing, $legacyStartMarker);
-    $legacyEnd = strpos($existing, $legacyEndMarker);
-    if ($legacyStart !== false && $legacyEnd !== false && $legacyEnd >= $legacyStart) {
-        $after = $legacyEnd + strlen($legacyEndMarker);
-        $existing = trim(
-            substr($existing, 0, $legacyStart)
-            . "\n"
-            . substr($existing, $after)
-        );
-    }
-
-    $lines = preg_split('/\r?\n/', $existing) ?: [];
-    $preserved = [];
-    foreach ($lines as $line) {
-        if (str_starts_with(trim($line), $compactPrefix)) {
-            continue;
+    $alreadyHasJourneyInformation = str_contains($normalized, $legacyStartMarker);
+    if (!$alreadyHasJourneyInformation) {
+        $lines = preg_split('/\r?\n/', $normalized) ?: [];
+        foreach ($lines as $line) {
+            if (str_starts_with(trim($line), $compactPrefix)) {
+                $alreadyHasJourneyInformation = true;
+                break;
+            }
         }
-        $preserved[] = $line;
     }
 
-    $base = trim(implode("\n", $preserved));
-    return $base === '' ? $block : $base . "\n" . $block;
+    if ($alreadyHasJourneyInformation) {
+        return $current;
+    }
+
+    $separator = preg_match('/\r?\n$/', $current) === 1 ? '' : "\n";
+    return $current . $separator . $block;
 }
 
 function journey_observations_utf8_bytes(string $value): int
@@ -321,6 +316,209 @@ function log_api_failure(string $stage, array $result): void
         . ' HTTP ' . (int) ($result['status'] ?? 0)
         . ' ' . api_error_summary($result)
     );
+}
+
+function controlled_notification_event(string $event): bool
+{
+    return in_array($event, [
+        'PAYMENT_CREATED',
+        'PAYMENT_UPDATED',
+        'PAYMENT_DUEDATE_WARNING',
+        'PAYMENT_OVERDUE',
+        'PAYMENT_RECEIVED',
+        'SEND_LINHA_DIGITAVEL',
+    ], true);
+}
+
+function desired_schedule_offset(string $event): ?int
+{
+    return match ($event) {
+        'PAYMENT_DUEDATE_WARNING' => 5,
+        'PAYMENT_OVERDUE' => 1,
+        default => null,
+    };
+}
+
+function notification_schedule_offset(array $notification): int
+{
+    return is_numeric($notification['scheduleOffset'] ?? null)
+        ? (int) $notification['scheduleOffset']
+        : 0;
+}
+
+function select_scheduled_notification_ids(array $notifications): array
+{
+    $selectedIds = [];
+    foreach (['PAYMENT_DUEDATE_WARNING' => 5, 'PAYMENT_OVERDUE' => 1] as $event => $desiredOffset) {
+        $candidates = array_values(array_filter(
+            $notifications,
+            static fn (array $notification): bool => ($notification['event'] ?? '') === $event
+        ));
+        usort($candidates, static function (array $left, array $right) use ($desiredOffset): int {
+            $leftOffset = notification_schedule_offset($left);
+            $rightOffset = notification_schedule_offset($right);
+            $leftRank = $leftOffset === $desiredOffset ? 0 : ($leftOffset > 0 ? 1 : 2);
+            $rightRank = $rightOffset === $desiredOffset ? 0 : ($rightOffset > 0 ? 1 : 2);
+            return [$leftRank, $leftOffset > 0 ? abs($leftOffset - $desiredOffset) : PHP_INT_MAX, $left['id']]
+                <=> [$rightRank, $rightOffset > 0 ? abs($rightOffset - $desiredOffset) : PHP_INT_MAX, $right['id']];
+        });
+        if (isset($candidates[0]['id'])) {
+            $selectedIds[] = $candidates[0]['id'];
+        }
+    }
+    return $selectedIds;
+}
+
+function build_notification_update(array $notification, array $scheduledNotificationIds = []): array
+{
+    $event = trim((string) ($notification['event'] ?? ''));
+    $isDigitalLineNotification = $event === 'SEND_LINHA_DIGITAVEL';
+
+    $update = [
+        'id' => (string) $notification['id'],
+        'enabled' => true,
+        'emailEnabledForProvider' => false,
+        'smsEnabledForProvider' => false,
+        'emailEnabledForCustomer' => false,
+        'smsEnabledForCustomer' => false,
+        'phoneCallEnabledForCustomer' => false,
+        'whatsappEnabledForCustomer' => !$isDigitalLineNotification,
+    ];
+
+    $desiredOffset = desired_schedule_offset($event);
+    if ($desiredOffset !== null && in_array($update['id'], $scheduledNotificationIds, true)) {
+        $update['scheduleOffset'] = $desiredOffset;
+    }
+
+    return $update;
+}
+
+function notification_matches_update(array $notification, array $update): bool
+{
+    foreach ([
+        'enabled',
+        'emailEnabledForProvider',
+        'smsEnabledForProvider',
+        'emailEnabledForCustomer',
+        'smsEnabledForCustomer',
+        'phoneCallEnabledForCustomer',
+        'whatsappEnabledForCustomer',
+    ] as $field) {
+        if (($notification[$field] ?? null) !== $update[$field]) {
+            return false;
+        }
+    }
+
+    return (($notification['deleted'] ?? false) !== true)
+        && (!array_key_exists('scheduleOffset', $update)
+            || notification_schedule_offset($notification) === (int) $update['scheduleOffset']);
+}
+
+function configure_customer_notifications(string $base, string $key, string $customerId): bool
+{
+    $listResult = api(
+        'GET',
+        $base . '/customers/' . rawurlencode($customerId) . '/notifications',
+        $key
+    );
+    if (!$listResult['ok']) {
+        log_api_failure('customer-notification-lookup', $listResult);
+        return false;
+    }
+
+    $notifications = [];
+    foreach (($listResult['data']['data'] ?? []) as $notification) {
+        if (!is_array($notification)) {
+            continue;
+        }
+
+        $notificationId = trim((string) ($notification['id'] ?? ''));
+        $notificationCustomer = trim((string) ($notification['customer'] ?? ''));
+        $event = trim((string) ($notification['event'] ?? ''));
+        if (
+            $notificationId === ''
+            || (($notification['deleted'] ?? false) === true)
+            || $notificationCustomer !== $customerId
+            || !controlled_notification_event($event)
+        ) {
+            continue;
+        }
+
+        $notifications[] = $notification;
+    }
+
+    if ($notifications === []) {
+        error_log(
+            'Journey Asaas notification lookup returned no controlled notifications. Customer prefix '
+            . substr($customerId, 0, 20)
+        );
+        return false;
+    }
+
+    $scheduledNotificationIds = select_scheduled_notification_ids($notifications);
+    $updates = array_map(
+        static fn (array $notification): array =>
+            build_notification_update($notification, $scheduledNotificationIds),
+        $notifications
+    );
+
+    $updateResult = api(
+        'PUT',
+        $base . '/notifications/batch',
+        $key,
+        [
+            'customer' => $customerId,
+            'notifications' => $updates,
+        ]
+    );
+    if (!$updateResult['ok']) {
+        log_api_failure('customer-notification-update', $updateResult);
+        return false;
+    }
+
+    $verificationResult = api(
+        'GET',
+        $base . '/customers/' . rawurlencode($customerId) . '/notifications',
+        $key
+    );
+    if (!$verificationResult['ok']) {
+        log_api_failure('customer-notification-validation', $verificationResult);
+        return false;
+    }
+
+    $verifiedById = [];
+    foreach (($verificationResult['data']['data'] ?? []) as $notification) {
+        if (is_array($notification) && trim((string) ($notification['id'] ?? '')) !== '') {
+            $verifiedById[(string) $notification['id']] = $notification;
+        }
+    }
+
+    foreach ($updates as $update) {
+        $verified = $verifiedById[$update['id']] ?? null;
+        if (!is_array($verified) || !notification_matches_update($verified, $update)) {
+            error_log(
+                'Journey Asaas notification validation did not match patient policy. Customer prefix '
+                . substr($customerId, 0, 20)
+            );
+            return false;
+        }
+    }
+
+    return true;
+}
+
+function configure_customer_notifications_safely(string $base, string $key, string $customerId): bool
+{
+    try {
+        return configure_customer_notifications($base, $key, $customerId);
+    } catch (Throwable $error) {
+        error_log(
+            'Journey Asaas notification configuration failed. Customer prefix '
+            . substr($customerId, 0, 20)
+            . ': ' . $error->getMessage()
+        );
+        return false;
+    }
 }
 
 function customer_list(
@@ -516,14 +714,16 @@ function update_customer_registration(
         }
     }
 
+    $currentObservations = (string) ($current['observations'] ?? '');
     $observations = merge_journey_observations(
-        (string) ($current['observations'] ?? ''),
+        $currentObservations,
         $birthDate,
         $discoverySource,
         $discoveryOther
     );
+    $shouldUpdateObservations = $observations !== $currentObservations;
 
-    if (!journey_observations_within_safety_budget($observations)) {
+    if ($shouldUpdateObservations && !journey_observations_within_safety_budget($observations)) {
         error_log(
             'Journey customer observations exceed safety budget. UTF-8 bytes: '
             . journey_observations_utf8_bytes($observations)
@@ -541,6 +741,8 @@ function update_customer_registration(
         'address' => (string) ($address['address'] ?? ''),
         'addressNumber' => (string) ($address['addressNumber'] ?? ''),
         'province' => (string) ($address['province'] ?? ''),
+        'groupName' => JORNADA_CUSTOMER_GROUP,
+        'notificationDisabled' => false,
     ];
 
     $complement = trim((string) ($address['complement'] ?? ''));
@@ -565,21 +767,30 @@ function update_customer_registration(
         ];
     }
 
-    $observationsResult = api(
-        'PUT',
-        $base . '/customers/' . rawurlencode($customerId),
-        $key,
-        ['observations' => $observations]
-    );
+    if ($shouldUpdateObservations) {
+        $observationsResult = api(
+            'PUT',
+            $base . '/customers/' . rawurlencode($customerId),
+            $key,
+            ['observations' => $observations]
+        );
 
-    if (!$observationsResult['ok']) {
-        log_api_failure('customer-observations-update', $observationsResult);
-        return [
-            'ok' => false,
-            'code' => 'observations-update-failed',
-            'stage' => 'customer-observations-update',
-            'providerStatus' => (int) ($observationsResult['status'] ?? 0),
-        ];
+        if (!$observationsResult['ok']) {
+            log_api_failure('customer-observations-update', $observationsResult);
+            return [
+                'ok' => false,
+                'code' => 'observations-update-failed',
+                'stage' => 'customer-observations-update',
+                'providerStatus' => (int) ($observationsResult['status'] ?? 0),
+            ];
+        }
+    }
+
+    if (!configure_customer_notifications_safely($base, $key, $customerId)) {
+        error_log(
+            'Journey customer notification policy was not fully applied. Customer prefix '
+            . substr($customerId, 0, 20)
+        );
     }
 
     return [
@@ -997,6 +1208,7 @@ if ($customer !== '') {
             ...$address,
             'observations' => $observations,
             'externalReference' => customer_ref($cpf),
+            'groupName' => JORNADA_CUSTOMER_GROUP,
             'notificationDisabled' => false,
         ]
     );
@@ -1012,6 +1224,13 @@ if ($customer !== '') {
                 'stage' => $journeyStage,
             ],
             424
+        );
+    }
+
+    if (!configure_customer_notifications_safely($base, $key, $customer)) {
+        error_log(
+            'Journey customer was created, but notification policy was not fully applied. Customer prefix '
+            . substr($customer, 0, 20)
         );
     }
 }
