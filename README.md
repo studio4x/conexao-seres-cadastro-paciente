@@ -275,7 +275,9 @@ O fluxo da Jornada é independente do cadastro clínico:
 10. encaminha cadastro e pagamento ao webhook específico do n8n;
 11. após a confirmação do pagamento, o webhook do Asaas mantém a emissão explícita da NFS-e e encaminha o evento `jornada_yoga_payment_paid` ao n8n.
 
-Erros do backend da Jornada retornam JSON estruturado com código técnico curto e a interface não tenta interpretar páginas HTML de erro como JSON. Falhas fatais no PHP são registradas com a etapa do fluxo, sem expor CPF, tokens ou chaves.
+Erros do backend da Jornada retornam JSON estruturado com código técnico curto e etapa do fluxo. Falhas controladas de dependência externa usam HTTP 424, evitando que o proxy do cPanel substitua a resposta por uma página HTML 502. Chamadas GET/PUT ao provedor de pagamentos fazem uma única retentativa curta em timeout, HTTP 429 ou 5xx. A interface não tenta interpretar páginas HTML de erro como JSON. Falhas fatais no PHP são registradas sem expor CPF, tokens ou chaves.
+
+O formulário usa atributos `autocomplete` semânticos para nome, data de nascimento, telefone, e-mail, CEP, logradouro, complemento e bairro. CPF e número do endereço mantêm nomes de campo semânticos, mas não recebem tokens de autocomplete inexistentes/incorretos.
 
 A lista administrativa fica em:
 
