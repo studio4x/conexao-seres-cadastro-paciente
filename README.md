@@ -285,7 +285,7 @@ A lista administrativa fica em:
 https://cadastro.conexaoseres.com.br/admin/jornada-yoga
 ```
 
-Ela exige autenticação, consulta no Asaas somente as cobranças com referência da Jornada, permite busca/filtro por pagamento e exportação CSV. A senha não é versionada. O servidor deve configurar:
+Ela exige autenticação, consulta no Asaas somente as cobranças com referência da Jornada, lista todas as inscrições realizadas com classificação visual entre **Pagas** e **Não pagas**, permite filtrar por todas/pagas/não pagas/pendentes/vencidas, buscar por dados do participante e exportar CSV. A senha não é versionada. O servidor deve configurar:
 
 ```text
 JORNADA_ADMIN_EMAIL

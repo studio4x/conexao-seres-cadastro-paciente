@@ -253,3 +253,8 @@ cadastro.conexaoseres.com.br
 ```
 
 O arquivo `api/config.php` deve conter as chaves corretas e permanecer somente no servidor.
+
+
+### Admin da Jornada
+
+A rota `/admin/jornada-yoga` lista as inscrições realizadas a partir das cobranças identificadas pela referência da Jornada. A interface separa `Pagas` e `Não pagas`, mantém o status detalhado da cobrança e permite filtros por situação, busca e exportação CSV.
