@@ -1,0 +1,74 @@
+name: Validate Jornada registration email layout
+
+on:
+  push:
+    branches: [fix/jornada-email-inscricao-layout]
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    if: ${{ !contains(github.event.head_commit.message, '[generated]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+        with:
+          ref: fix/jornada-email-inscricao-layout
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Validate workflow and registration email layout
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const wf = JSON.parse(fs.readFileSync('n8n/conexao-seres-jornada-yoga-v1.5.json','utf8'));
+          for (const node of wf.nodes.filter(n => n.type === 'n8n-nodes-base.code')) {
+            new Function('$input','$env','$getWorkflowStaticData', node.parameters.jsCode);
+          }
+          const code = wf.nodes.find(n => n.name === 'Preparar Mensagens de Inscrição').parameters.jsCode;
+          const result = new Function('$input', code)({
+            all: () => [{json:{
+              customerName:'Pessoa Teste',
+              customerEmail:'teste@example.com',
+              invoiceUrl:'https://www.asaas.com/i/teste'
+            }}]
+          })[0].json;
+          for (const expected of [
+            'LOGOTIPO-CONEXAO-SERES-HORIZONTAL-TRANSPARENTE.png',
+            'Inscrição recebida',
+            'Acessar minha cobrança',
+            'bgcolor="#ff8a00"',
+            'bgcolor="#005000"'
+          ]) {
+            if (!result.emailHtml.includes(expected)) throw new Error('Layout ausente: ' + expected);
+          }
+          console.log('Workflow e layout do e-mail de inscrição válidos');
+          NODE
+
+      - name: Build cPanel and bump version
+        run: CONEXAO_SERES_BUMP_IN_CI=1 npm run build:cpanel
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Commit generated package
+        run: |
+          git config user.name "OpenAI Codex"
+          git config user.email "codex@openai.com"
+          git add components/layout/AppVersion.tsx cpanel-dist
+          if git diff --cached --quiet; then
+            echo "No generated changes."
+            exit 0
+          fi
+          git commit -m "build: atualiza pacote cPanel após layout do e-mail [generated]"
+          git push origin HEAD:fix/jornada-email-inscricao-layout
