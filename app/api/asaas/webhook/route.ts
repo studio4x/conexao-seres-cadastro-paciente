@@ -430,12 +430,13 @@ function effectiveDateFromPayment(payment: JsonRecord, now = new Date()) {
 }
 
 function buildInvoicePayload(payment: JsonRecord, service: SelectedService, effectiveDate: string) {
+  const paymentValue = typeof payment.value === "number" ? payment.value : Number(payment.value);
   return {
     payment: payment.id,
     externalReference: String(payment.externalReference) + "-nfse",
     serviceDescription: MUNICIPAL_SERVICE_NAME,
     observations: "",
-    value: FIRST_SESSION_VALUE,
+    value: paymentValue,
     deductions: 0,
     effectiveDate,
     ...(service.id ? { municipalServiceId: service.id } : { municipalServiceCode: service.code || MUNICIPAL_SERVICE_CODE }),
@@ -590,7 +591,14 @@ export async function POST(request: Request) {
   const asaasEventId = typeof (body as JsonRecord).id === "string" ? (body as JsonRecord).id.trim() || null : null;
   if (isJourney) {
     await notifyN8nJornadaPaid(baseUrl, apiKey, payment as JsonRecord, event, asaasEventId);
-    return NextResponse.json({ received: true, processed: true, journey: true }, { status: 200 });
+    const result = await processPaymentEvent(baseUrl, apiKey, payment as JsonRecord, event);
+    if (result.retry) {
+      return NextResponse.json(
+        { message: "Processamento fiscal temporariamente indisponível." },
+        { status: 500 },
+      );
+    }
+    return NextResponse.json({ received: true, processed: true, journey: true, invoiceProcessed: true }, { status: 200 });
   }
 
   await notifyN8nFirstSessionPaid(baseUrl, apiKey, payment as JsonRecord, event, asaasEventId);
