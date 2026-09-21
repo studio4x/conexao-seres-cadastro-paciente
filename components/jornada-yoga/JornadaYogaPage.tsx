@@ -67,6 +67,8 @@ type Result = {
   value?: number;
   existingRegistration?: boolean;
   message?: string;
+  code?: string;
+  stage?: string;
 };
 
 type CepResult = {
@@ -203,10 +205,26 @@ export function JornadaYogaPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...form, turnstileToken: token }),
       });
-      const payload = (await response.json()) as Result;
+      const raw = await response.text();
+      let payload: Result = {};
+
+      try {
+        payload = raw ? (JSON.parse(raw) as Result) : {};
+      } catch {
+        const statusMessage =
+          response.status >= 500
+            ? "O servidor encontrou uma falha temporária ao processar a inscrição."
+            : "A resposta do servidor não pôde ser interpretada.";
+        throw new Error(
+          `${statusMessage} Tente novamente em instantes. (HTTP ${response.status})`,
+        );
+      }
 
       if (!response.ok || !payload.success) {
-        throw new Error(payload.message || "Não foi possível concluir sua inscrição.");
+        const suffix = payload.code ? ` [${payload.code}]` : "";
+        throw new Error(
+          `${payload.message || "Não foi possível concluir sua inscrição."}${suffix}`,
+        );
       }
 
       setResult(payload);

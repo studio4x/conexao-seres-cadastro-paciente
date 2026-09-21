@@ -24,8 +24,11 @@ export const JORNADA_YOGA_DISCOVERY_OPTIONS = [
 
 export type JornadaYogaDiscoverySource = (typeof JORNADA_YOGA_DISCOVERY_OPTIONS)[number];
 
-const JORNADA_OBSERVATIONS_START = "[JORNADA DE EXPANSÃO MENTAL E CORPORAL 2026]";
-const JORNADA_OBSERVATIONS_END = "[/JORNADA DE EXPANSÃO MENTAL E CORPORAL 2026]";
+export const JORNADA_YOGA_OBSERVATIONS_SAFETY_BUDGET_BYTES = 550;
+
+const JORNADA_OBSERVATIONS_PREFIX = "Jornada 2026:";
+const LEGACY_JORNADA_OBSERVATIONS_START = "[JORNADA DE EXPANSÃO MENTAL E CORPORAL 2026]";
+const LEGACY_JORNADA_OBSERVATIONS_END = "[/JORNADA DE EXPANSÃO MENTAL E CORPORAL 2026]";
 
 const AREA_CODES = new Set([
   "11","12","13","14","15","16","17","18","19","21","22","24","27","28",
@@ -137,12 +140,9 @@ export function buildJornadaObservations(
       ? `Outro — ${cleanText(discoveryOther)}`
       : discoverySource;
 
-  return [
-    JORNADA_OBSERVATIONS_START,
-    `Data de nascimento: ${formatBirthDateBr(birthDate)}`,
-    `Como ficou sabendo da Jornada: ${discoveryLabel}`,
-    JORNADA_OBSERVATIONS_END,
-  ].join("\n");
+  return `${JORNADA_OBSERVATIONS_PREFIX} Nasc. ${formatBirthDateBr(
+    birthDate,
+  )} | Origem: ${discoveryLabel}`;
 }
 
 export function mergeJornadaObservations(
@@ -156,20 +156,24 @@ export function mergeJornadaObservations(
     discoverySource,
     discoveryOther,
   );
-  const existing = (current || "").trim();
+  let existing = (current || "").trim();
   if (!existing) return block;
 
-  const start = existing.indexOf(JORNADA_OBSERVATIONS_START);
-  const end = existing.indexOf(JORNADA_OBSERVATIONS_END);
-
-  if (start >= 0 && end >= start) {
-    const after = end + JORNADA_OBSERVATIONS_END.length;
-    return `${existing.slice(0, start).trim()}\n\n${block}\n\n${existing.slice(after).trim()}`
-      .trim()
-      .replace(/\n{3,}/g, "\n\n");
+  const legacyStart = existing.indexOf(LEGACY_JORNADA_OBSERVATIONS_START);
+  const legacyEnd = existing.indexOf(LEGACY_JORNADA_OBSERVATIONS_END);
+  if (legacyStart >= 0 && legacyEnd >= legacyStart) {
+    const after = legacyEnd + LEGACY_JORNADA_OBSERVATIONS_END.length;
+    existing = `${existing.slice(0, legacyStart).trim()}\n${existing.slice(after).trim()}`;
   }
 
-  return `${existing}\n\n${block}`;
+  const preserved = existing
+    .split(/\r?\n/)
+    .filter((line) => !line.trim().startsWith(JORNADA_OBSERVATIONS_PREFIX))
+    .join("\n")
+    .trim()
+    .replace(/\n{3,}/g, "\n\n");
+
+  return preserved ? `${preserved}\n${block}` : block;
 }
 
 export function formatCep(value: string) {
@@ -208,3 +212,12 @@ export function jornadaBillingTypeLabel(value: string) {
 
 export const isPaidJourneyStatus = (status: string) =>
   ["CONFIRMED","RECEIVED","RECEIVED_IN_CASH"].includes(status.toUpperCase());
+
+
+export function jornadaObservationsUtf8Bytes(value: string) {
+  return new TextEncoder().encode(value).byteLength;
+}
+
+export function jornadaObservationsWithinSafetyBudget(value: string) {
+  return jornadaObservationsUtf8Bytes(value) <= JORNADA_YOGA_OBSERVATIONS_SAFETY_BUDGET_BYTES;
+}

@@ -268,12 +268,14 @@ O fluxo da Jornada é independente do cadastro clínico:
 3. consulta automaticamente o CEP por `/api/cep` assim que os 8 dígitos são preenchidos, sem botão manual de busca; logradouro, número, complemento e bairro permanecem editáveis;
 4. valida o Turnstile com a action `jornada_yoga`;
 5. procura o cliente no Asaas por CPF e por e-mail antes de criar um novo registro;
-6. para cliente novo, envia endereço e o campo `observations` com data de nascimento e “Como ficou sabendo da Jornada”; quando a origem for `Outro`, grava também o texto informado pelo participante;
-7. para cliente existente, lê as observações atuais, preserva o conteúdo já registrado e adiciona/atualiza um bloco identificado da Jornada junto com os dados de endereço por `PUT /v3/customers/{id}`;
+6. para cliente novo, envia endereço e o campo `observations` com uma linha compacta da Jornada contendo data de nascimento e “Como ficou sabendo da Jornada”; quando a origem for `Outro`, grava também o texto informado pelo participante;
+7. para cliente existente, lê as observações atuais, preserva o conteúdo já registrado e adiciona/atualiza uma única linha `Jornada 2026: ...` junto com os dados de endereço por `PUT /v3/customers/{id}`; o formato compacto evita ultrapassar desnecessariamente o orçamento interno de 550 bytes UTF-8 usado pelo projeto;
 8. usa uma referência determinística da Jornada para impedir duas cobranças do mesmo evento para o mesmo CPF;
 9. cria cobrança avulsa de **R$ 297,00**, com `billingType=UNDEFINED`;
 10. encaminha cadastro e pagamento ao webhook específico do n8n;
 11. após a confirmação do pagamento, o webhook do Asaas mantém a emissão explícita da NFS-e e encaminha o evento `jornada_yoga_payment_paid` ao n8n.
+
+Erros do backend da Jornada retornam JSON estruturado com código técnico curto e a interface não tenta interpretar páginas HTML de erro como JSON. Falhas fatais no PHP são registradas com a etapa do fluxo, sem expor CPF, tokens ou chaves.
 
 A lista administrativa fica em:
 

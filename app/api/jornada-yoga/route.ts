@@ -17,6 +17,8 @@ import {
   isValidFullName,
   isValidJornadaDiscoveryOther,
   isValidJornadaDiscoverySource,
+  jornadaObservationsUtf8Bytes,
+  jornadaObservationsWithinSafetyBudget,
   mergeJornadaObservations,
   normalizeBrazilianWhatsapp,
   onlyDigits,
@@ -213,6 +215,13 @@ async function getCustomer(
   customerId: string,
   signal: AbortSignal,
 ) {
+  if (!jornadaObservationsWithinSafetyBudget(observations)) {
+    console.error("Journey customer observations exceed safety budget", {
+      utf8Bytes: jornadaObservationsUtf8Bytes(observations),
+    });
+    return { ok: false as const, code: "observations-too-long" as const };
+  }
+
   const response = await fetch(base + "/customers/" + encodeURIComponent(customerId), {
     headers: headers(key),
     signal,
@@ -235,7 +244,7 @@ async function updateCustomerRegistration(
     console.error("Journey customer lookup before update failed", {
       customerId: customerId.slice(0, 20),
     });
-    return false;
+    return { ok: false as const, code: "customer-get-failed" as const };
   }
 
   const observations = mergeJornadaObservations(
@@ -259,7 +268,9 @@ async function updateCustomerRegistration(
     });
   }
 
-  return response.ok;
+  return response.ok
+    ? { ok: true as const, code: null }
+    : { ok: false as const, code: "customer-update-failed" as const };
 }
 
 async function ensurePayment(
@@ -453,7 +464,11 @@ export async function POST(request: Request) {
     const existing = await findPayment(base, key, reference, controller.signal);
     if (!existing.ok) {
       return NextResponse.json(
-        { message: "Não conseguimos confirmar sua inscrição agora." },
+        {
+          success: false,
+          message: "Não conseguimos confirmar sua inscrição agora.",
+          code: "JOURNEY_PAYMENT_LOOKUP_FAILED",
+        },
         { status: 502 },
       );
     }
@@ -482,13 +497,20 @@ export async function POST(request: Request) {
         discoveryOther,
         controller.signal,
       );
-      if (!updated) {
+      if (!updated.ok) {
         return NextResponse.json(
           {
+            success: false,
             message:
-              "Localizamos sua inscrição, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal. Tente novamente.",
+              updated.code === "observations-too-long"
+                ? "Seu cadastro já possui muitas informações nas observações. Entre em contato com a Conexão Seres para concluirmos sua inscrição sem perder dados anteriores."
+                : "Localizamos sua inscrição, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal. Tente novamente.",
+            code:
+              updated.code === "observations-too-long"
+                ? "JOURNEY_OBSERVATIONS_TOO_LONG"
+                : "JOURNEY_EXISTING_REGISTRATION_UPDATE_FAILED",
           },
-          { status: 502 },
+          { status: updated.code === "observations-too-long" ? 409 : 502 },
         );
       }
 
@@ -517,7 +539,11 @@ export async function POST(request: Request) {
 
     if (!byCpf.ok || !byEmail.ok) {
       return NextResponse.json(
-        { message: "Não conseguimos consultar seu cadastro agora." },
+        {
+          success: false,
+          message: "Não conseguimos consultar seu cadastro agora.",
+          code: "JOURNEY_CUSTOMER_LOOKUP_FAILED",
+        },
         { status: 502 },
       );
     }
@@ -547,16 +573,35 @@ export async function POST(request: Request) {
         discoveryOther,
         controller.signal,
       );
-      if (!updated) {
+      if (!updated.ok) {
         return NextResponse.json(
           {
+            success: false,
             message:
-              "Seu cadastro foi localizado, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal.",
+              updated.code === "observations-too-long"
+                ? "Seu cadastro já possui muitas informações nas observações. Entre em contato com a Conexão Seres para concluirmos sua inscrição sem perder dados anteriores."
+                : "Seu cadastro foi localizado, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal.",
+            code:
+              updated.code === "observations-too-long"
+                ? "JOURNEY_OBSERVATIONS_TOO_LONG"
+                : "JOURNEY_CUSTOMER_UPDATE_FAILED",
           },
-          { status: 502 },
+          { status: updated.code === "observations-too-long" ? 409 : 502 },
         );
       }
     } else {
+      if (!jornadaObservationsWithinSafetyBudget(observations)) {
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              "Os dados da inscrição ficaram extensos demais para serem gravados com segurança. Entre em contato com a Conexão Seres.",
+            code: "JOURNEY_OBSERVATIONS_TOO_LONG",
+          },
+          { status: 400 },
+        );
+      }
+
       const response = await fetch(base + "/customers", {
         method: "POST",
         headers: headers(key),
@@ -577,7 +622,11 @@ export async function POST(request: Request) {
 
       if (!response.ok || !customerId) {
         return NextResponse.json(
-          { message: "Não conseguimos concluir seu cadastro agora." },
+          {
+            success: false,
+            message: "Não conseguimos concluir seu cadastro agora.",
+            code: "JOURNEY_CUSTOMER_CREATE_FAILED",
+          },
           { status: 502 },
         );
       }
@@ -625,7 +674,11 @@ export async function POST(request: Request) {
       timedOut: error instanceof Error && error.name === "AbortError",
     });
     return NextResponse.json(
-      { message: "Não conseguimos concluir sua inscrição agora. Tente novamente em instantes." },
+      {
+        success: false,
+        message: "Não conseguimos concluir sua inscrição agora. Tente novamente em instantes.",
+        code: "JOURNEY_SERVER_EXCEPTION",
+      },
       { status: 502 },
     );
   } finally {
