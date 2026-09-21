@@ -18,6 +18,12 @@ function customer_ref(string $cpf):string{return 'cs-jornada-cliente-'.substr(ha
 function due_date():string{$d=new DateTimeImmutable('now',new DateTimeZone('America/Sao_Paulo'));$w=(int)$d->format('N');return $d->modify('+'.($w===5?3:($w===6?2:1)).' day')->format('Y-m-d');}
 function find_payment(string $base,string $key,string $ref):array{$r=api('GET',$base.'/payments?'.http_build_query(['externalReference'=>$ref,'limit'=>10]),$key);if(!$r['ok'])return ['ok'=>false,'payment'=>null];foreach(($r['data']['data']??[]) as $p)if(is_array($p)&&($p['externalReference']??'')===$ref)return ['ok'=>true,'payment'=>$p];return ['ok'=>true,'payment'=>null];}
 function verify_turnstile(string $secret,string $token,string $hostname):bool{$c=curl_init('https://challenges.cloudflare.com/turnstile/v0/siteverify');if(!$c)return false;curl_setopt_array($c,[CURLOPT_POST=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>8,CURLOPT_HTTPHEADER=>['Content-Type: application/json'],CURLOPT_POSTFIELDS=>json_encode(['secret'=>$secret,'response'=>$token])]);$raw=curl_exec($c);$status=(int)curl_getinfo($c,CURLINFO_RESPONSE_CODE);curl_close($c);$data=is_string($raw)?json_decode($raw,true):null;return $status>=200&&$status<300&&is_array($data)&&($data['success']??false)===true&&($data['action']??'')==='jornada_yoga'&&($hostname===''||($data['hostname']??'')===$hostname);}
+function post_n8n(string $url,string $authToken,array $payload):void{
+    if($url===''||$authToken===''||str_starts_with($authToken,'COLE_AQUI'))return;
+    $c=curl_init($url);if(!$c)return;
+    curl_setopt_array($c,[CURLOPT_POST=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_CONNECTTIMEOUT=>2,CURLOPT_TIMEOUT=>3,CURLOPT_HTTPHEADER=>['Content-Type: application/json','Authorization: Bearer '.$authToken],CURLOPT_POSTFIELDS=>json_encode($payload,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)]);
+    curl_exec($c);curl_close($c);
+}
 function payment_payload(array $p,bool $existing,bool $customer):array{return ['success'=>true,'eventId'=>'jornada-yoga-2026','paymentId'=>(string)($p['id']??''),'invoiceUrl'=>(string)($p['invoiceUrl']??''),'status'=>(string)($p['status']??'PENDING'),'value'=>297,'existingRegistration'=>$existing,'existingCustomer'=>$customer];}
 
 if($_SERVER['REQUEST_METHOD']!=='POST')reply(['message'=>'Método não permitido.'],405);
@@ -33,4 +39,10 @@ $cpfMatches=customer_list($base,$key,'cpfCnpj',$cpf);$emailMatches=customer_list
 $customer=(string)$resolved['id'];$existingCustomer=$customer!=='';if(!$customer){$created=api('POST',$base.'/customers',$key,['name'=>$name,'cpfCnpj'=>$cpf,'email'=>$email,'mobilePhone'=>$phone,'externalReference'=>customer_ref($cpf),'notificationDisabled'=>false]);$customer=trim((string)($created['data']['id']??''));if(!$created['ok']||$customer==='')reply(['message'=>'Não conseguimos concluir seu cadastro agora.'],502);}
 $charge=find_payment($base,$key,$ref);if(!$charge['ok'])reply(['message'=>'Não conseguimos gerar a cobrança agora.'],502);$createdPayment=false;
 if(!is_array($charge['payment'])){$made=api('POST',$base.'/payments',$key,['customer'=>$customer,'billingType'=>'UNDEFINED','value'=>297,'dueDate'=>due_date(),'description'=>'Jornada de Expansão Mental e Corporal — 8 encontros online, de 07/10/2026 a 25/11/2026.','externalReference'=>$ref]);if($made['ok']&&trim((string)($made['data']['id']??''))!==''){$charge['payment']=$made['data'];$createdPayment=true;}else{$reconcile=find_payment($base,$key,$ref);if(!$reconcile['ok']||!is_array($reconcile['payment']))reply(['message'=>'Não conseguimos gerar a cobrança da Jornada agora.'],502);$charge['payment']=$reconcile['payment'];}}
-reply(payment_payload($charge['payment'],!$createdPayment,$existingCustomer),$createdPayment?201:200);
+$payment=$charge['payment'];
+post_n8n(
+    trim((string)($config['n8n_jornada_webhook_url']??'')),
+    trim((string)($config['n8n_jornada_webhook_token']??'')),
+    ['eventType'=>'jornada_yoga_registration_created','eventId'=>'jornada-yoga-2026','customerName'=>$name,'customerEmail'=>$email,'customerWhatsapp'=>$phone,'asaasCustomerId'=>$customer,'paymentId'=>(string)($payment['id']??''),'invoiceUrl'=>(string)($payment['invoiceUrl']??''),'value'=>297,'status'=>(string)($payment['status']??'PENDING'),'externalReference'=>$ref,'existingCustomer'=>$existingCustomer]
+);
+reply(payment_payload($payment,!$createdPayment,$existingCustomer),$createdPayment?201:200);
