@@ -263,13 +263,16 @@ https://cadastro.conexaoseres.com.br/jornada-yoga
 
 O fluxo da Jornada é independente do cadastro clínico:
 
-1. recebe somente nome completo, CPF, e-mail e WhatsApp de participantes adultos;
-2. valida o Turnstile com a action `jornada_yoga`;
-3. procura o cliente no Asaas por CPF e por e-mail antes de criar um novo registro;
-4. usa uma referência determinística da Jornada para impedir duas cobranças do mesmo evento para o mesmo CPF;
-5. cria cobrança avulsa de **R$ 297,00**, com `billingType=UNDEFINED`;
-6. encaminha cadastro e pagamento ao webhook específico do n8n;
-7. mantém os envios de WhatsApp/e-mail da Jornada desativados até a aprovação dos textos.
+1. recebe nome completo, CPF, e-mail, WhatsApp e endereço do participante adulto;
+2. consulta o CEP por `/api/cep` para facilitar o preenchimento, mantendo logradouro, número, complemento e bairro editáveis;
+3. valida o Turnstile com a action `jornada_yoga`;
+4. procura o cliente no Asaas por CPF e por e-mail antes de criar um novo registro;
+5. para cliente novo, envia `postalCode`, `address`, `addressNumber`, `complement` e `province` já na criação;
+6. para cliente existente, atualiza esses campos de endereço por `PUT /v3/customers/{id}` antes de criar ou devolver a cobrança da Jornada;
+7. usa uma referência determinística da Jornada para impedir duas cobranças do mesmo evento para o mesmo CPF;
+8. cria cobrança avulsa de **R$ 297,00**, com `billingType=UNDEFINED`;
+9. encaminha cadastro e pagamento ao webhook específico do n8n;
+10. após a confirmação do pagamento, o webhook do Asaas mantém a emissão explícita da NFS-e e encaminha o evento `jornada_yoga_payment_paid` ao n8n.
 
 A lista administrativa fica em:
 
