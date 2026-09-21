@@ -15,4 +15,9 @@ return [
     'n8n_cadastro_webhook_token' => 'COLE_AQUI_O_TOKEN_DO_WEBHOOK_N8N',
     'n8n_pagamento_webhook_url' => 'COLE_AQUI_A_URL_DO_WEBHOOK_N8N_DE_PAGAMENTO',
     'n8n_pagamento_webhook_token' => 'COLE_AQUI_O_TOKEN_DO_WEBHOOK_N8N_DE_PAGAMENTO',
+    'n8n_jornada_webhook_url' => 'https://webhook.studio4x.com.br/webhook/conexao-seres-jornada-yoga',
+    'n8n_jornada_webhook_token' => 'COLE_AQUI_O_TOKEN_DO_WEBHOOK_N8N_DA_JORNADA',
+    'jornada_admin_email' => 'contato@conexaoseres.com.br',
+    'jornada_admin_password_pbkdf2' => 'COLE_AQUI_O_VERIFICADOR_PBKDF2_DA_SENHA',
+    'jornada_admin_session_secret' => 'COLE_AQUI_UM_SEGREDO_ALEATORIO_COM_PELO_MENOS_32_CARACTERES',
 ];
