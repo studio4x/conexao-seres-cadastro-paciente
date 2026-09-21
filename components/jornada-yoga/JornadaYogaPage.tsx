@@ -239,7 +239,7 @@ export function JornadaYogaPage() {
             <div className="mt-5 space-y-5">
               <div className="flex items-center gap-4">
                 <img
-                  src="/jornada-yoga/deyse-simon-v2.jpg"
+                  src="/jornada-yoga/deyse-simon.jpg?v=131"
                   alt="Deyse Simon"
                   className="size-16 shrink-0 rounded-full border-2 border-[#d9e4d4] object-cover shadow-sm sm:size-[72px]"
                 />
