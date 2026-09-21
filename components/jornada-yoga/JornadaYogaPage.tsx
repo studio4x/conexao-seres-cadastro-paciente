@@ -339,7 +339,7 @@ export function JornadaYogaPage() {
             alt="Informações da Jornada de Expansão Mental e Corporal"
             loading="lazy"
             decoding="async"
-            className="mb-8 w-full rounded-2xl border border-[#d5ded1] bg-white shadow-sm"
+            className="mb-8 hidden w-full rounded-2xl border border-[#d5ded1] bg-white shadow-sm sm:block"
           />
           <p className="text-xs font-semibold uppercase tracking-[.12em] text-[#8a5a18]">
             Datas
