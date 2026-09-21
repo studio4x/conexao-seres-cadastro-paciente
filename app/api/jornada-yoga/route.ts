@@ -15,6 +15,7 @@ import {
   isValidCpf,
   isValidEmail,
   isValidFullName,
+  isValidJornadaDiscoveryOther,
   isValidJornadaDiscoverySource,
   mergeJornadaObservations,
   normalizeBrazilianWhatsapp,
@@ -48,22 +49,33 @@ type AddressPayload = {
   province: string;
 };
 
-const schema = z.object({
-  name: z.string().trim().max(120).refine(isValidFullName),
-  cpf: z.string().max(30).refine(isValidCpf),
-  email: z.string().trim().max(150).refine(isValidEmail),
-  whatsapp: z.string().max(40).refine(isValidBrazilianWhatsapp),
-  birthDate: z.string().refine(isValidAdultBirthDate),
-  discoverySource: z.string().max(80).refine(isValidJornadaDiscoverySource),
-  postalCode: z.string().max(12).refine(isValidCep),
-  address: z.string().trim().min(3).max(180),
-  addressNumber: z.string().trim().min(1).max(30),
-  complement: z.string().trim().max(255),
-  province: z.string().trim().min(2).max(120),
-  consent: z.literal(true),
-  website: z.string().max(0),
-  turnstileToken: z.string().min(1).max(2048),
-});
+const schema = z
+  .object({
+    name: z.string().trim().max(120).refine(isValidFullName),
+    cpf: z.string().max(30).refine(isValidCpf),
+    email: z.string().trim().max(150).refine(isValidEmail),
+    whatsapp: z.string().max(40).refine(isValidBrazilianWhatsapp),
+    birthDate: z.string().refine(isValidAdultBirthDate),
+    discoverySource: z.string().max(80).refine(isValidJornadaDiscoverySource),
+    discoveryOther: z.string().trim().max(160),
+    postalCode: z.string().max(12).refine(isValidCep),
+    address: z.string().trim().min(3).max(180),
+    addressNumber: z.string().trim().min(1).max(30),
+    complement: z.string().trim().max(255),
+    province: z.string().trim().min(2).max(120),
+    consent: z.literal(true),
+    website: z.string().max(0),
+    turnstileToken: z.string().min(1).max(2048),
+  })
+  .superRefine((data, context) => {
+    if (!isValidJornadaDiscoveryOther(data.discoverySource, data.discoveryOther)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["discoveryOther"],
+        message: "Informe como ficou sabendo da Jornada.",
+      });
+    }
+  });
 
 const headers = (key: string) => ({
   accept: "application/json",
@@ -215,6 +227,7 @@ async function updateCustomerRegistration(
   address: AddressPayload,
   birthDate: string,
   discoverySource: JornadaYogaDiscoverySource,
+  discoveryOther: string,
   signal: AbortSignal,
 ) {
   const current = await getCustomer(base, key, customerId, signal);
@@ -229,6 +242,7 @@ async function updateCustomerRegistration(
     current.observations,
     birthDate,
     discoverySource,
+    discoveryOther,
   );
 
   const response = await fetch(base + "/customers/" + encodeURIComponent(customerId), {
@@ -423,7 +437,13 @@ export async function POST(request: Request) {
   };
   const birthDate = parsed.data.birthDate;
   const discoverySource = parsed.data.discoverySource;
-  const observations = buildJornadaObservations(birthDate, discoverySource);
+  const discoveryOther =
+    discoverySource === "Outro" ? cleanText(parsed.data.discoveryOther) : "";
+  const observations = buildJornadaObservations(
+    birthDate,
+    discoverySource,
+    discoveryOther,
+  );
 
   const reference = await paymentRef(cpf);
   const controller = new AbortController();
@@ -459,6 +479,7 @@ export async function POST(request: Request) {
         address,
         birthDate,
         discoverySource,
+        discoveryOther,
         controller.signal,
       );
       if (!updated) {
@@ -523,6 +544,7 @@ export async function POST(request: Request) {
         address,
         birthDate,
         discoverySource,
+        discoveryOther,
         controller.signal,
       );
       if (!updated) {
