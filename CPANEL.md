@@ -97,6 +97,24 @@ No `config.php` privado, configure:
 
 As variáveis equivalentes são `N8N_CONEXAO_SERES_PAGAMENTO_WEBHOOK_URL` e `N8N_CONEXAO_SERES_PAGAMENTO_WEBHOOK_TOKEN`. O POST usa Bearer token, JSON e timeout de 3 segundos. Quando `observations` contém uma linha válida `Idade: <inteiro> anos` ou o formato legado `Idade: <inteiro>`, entre 0 e 120, o evento também envia `patientAge` e `contractType` (`ADULT` para idade maior ou igual a 18; `CHILD_ADOLESCENT` para idade menor que 18), sempre com base na pessoa atendida. Idade ausente ou inválida omite os dois campos. URL/token ausentes, erro HTTP, indisponibilidade ou timeout são best-effort: o log contém somente dados técnicos mínimos e o processamento da NFS-e continua independente. Não configure workflow n8n neste repositório.
 
+## Jornada de Expansão Mental e Corporal
+
+A rota pública `/jornada-yoga` usa o mesmo endpoint de CEP já publicado no cPanel e envia a inscrição para `/api/jornada-yoga`.
+
+Para preparar o cadastro do pagador para emissão fiscal, o formulário exige:
+
+- CEP;
+- logradouro;
+- número;
+- complemento opcional;
+- bairro.
+
+O backend PHP normaliza e valida esses campos. Em cliente novo, envia `postalCode`, `address`, `addressNumber`, `complement` e `province` em `POST /v3/customers`. Quando o cliente já existe no Asaas, executa uma atualização parcial por `PUT /v3/customers/{id}` antes de criar ou retornar a cobrança de R$ 297,00 da Jornada. Se a atualização do endereço falhar, a cobrança não é criada por esse envio.
+
+A consulta de CEP apenas auxilia o preenchimento; logradouro, número, complemento e bairro permanecem editáveis. Cidade/UF são exibidos a partir do ViaCEP, enquanto o Asaas usa o CEP para completar os dados geográficos do cadastro.
+
+O webhook fiscal da Jornada continua em `/api/asaas/webhook`, compartilhando o mesmo mecanismo de emissão idempotente da NFS-e após `PAYMENT_CONFIRMED` ou `PAYMENT_RECEIVED`.
+
 ## Deploy automático por webhook do GitHub
 
 A atualização principal de produção é feita por webhook HTTPS do GitHub.
