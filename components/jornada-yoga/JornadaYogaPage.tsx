@@ -113,10 +113,7 @@ export function JornadaYogaPage() {
   useEffect(() => {
     const digits = onlyDigits(form.postalCode);
 
-    if (digits.length !== 8) {
-      setCepLoading(false);
-      return;
-    }
+    if (digits.length !== 8) return;
 
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
@@ -504,6 +501,7 @@ export function JornadaYogaPage() {
                                   : {}),
                               }));
                               setCepMessage("");
+                              if (incomplete) setCepLoading(false);
                             }}
                             placeholder="00000-000"
                           />
