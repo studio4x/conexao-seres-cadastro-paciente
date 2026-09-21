@@ -23,7 +23,7 @@ jobs:
           php-version: "8.3"
           coverage: none
       - name: Build cPanel
-        run: bash scripts/build-cpanel.sh
+        run: CONEXAO_SERES_BUMP_IN_CI=1 npm run build:cpanel
       - name: Lint
         run: npm run lint
       - name: Validate Journey PHP syntax
