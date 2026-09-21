@@ -299,9 +299,9 @@ export function JornadaYogaPage() {
             <div className="mt-5 space-y-5">
               <div className="flex items-center gap-4">
                 <img
-                  src="https://conexaoseres.com.br/wp-content/uploads/2025/07/CONEXAO-SERES-FOTO-DEYSE-INTEGRACAO-SENSORIAL-jpg.webp"
+                  src="/jornada-yoga/foto_deyse_jornada%20yoga_convertida.webp"
                   alt="Deyse Simon"
-                  className="size-16 shrink-0 rounded-full border-2 border-[#d9e4d4] object-cover object-[50%_38%] shadow-sm sm:size-[72px]"
+                  className="size-16 shrink-0 rounded-full border-2 border-[#d9e4d4] object-cover shadow-sm sm:size-[72px]"
                 />
                 <div className="min-w-0">
                   <p className="font-semibold text-[#005000]">Deyse Simon</p>
