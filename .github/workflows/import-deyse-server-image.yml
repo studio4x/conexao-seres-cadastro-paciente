@@ -1,9 +1,9 @@
 name: Import Deyse image from production
 
 on:
-  push:
+  pull_request:
     branches:
-      - fix/jornada-yoga-foto-deyse
+      - main
 
 permissions:
   contents: write
