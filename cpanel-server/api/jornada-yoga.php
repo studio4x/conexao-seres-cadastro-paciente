@@ -857,7 +857,7 @@ if (is_array($found['payment'])) {
                                 ? 'Localizamos sua inscrição, mas o endereço para emissão fiscal não pôde ser atualizado. Confira os dados e tente novamente.'
                                 : ($observationsFailed
                                     ? 'Localizamos sua inscrição, mas os dados complementares da Jornada não puderam ser registrados. Tente novamente.'
-                                    : 'Localizamos sua inscrição, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal. Tente novamente.'))),
+                                    : 'Localizamos sua inscrição, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal. Tente novamente.')))),
                 'code' => $tooLong
                     ? 'JOURNEY_OBSERVATIONS_TOO_LONG'
                     : ($restoreFailed
@@ -965,7 +965,7 @@ if ($customer !== '') {
                                 ? 'Seu cadastro foi localizado, mas o endereço para emissão fiscal não pôde ser atualizado. Confira os dados e tente novamente.'
                                 : ($observationsFailed
                                     ? 'Seu cadastro foi localizado, mas os dados complementares da Jornada não puderam ser registrados. Tente novamente.'
-                                    : 'Seu cadastro foi localizado, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal.'))),
+                                    : 'Seu cadastro foi localizado, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal.')))),
                 'code' => $tooLong
                     ? 'JOURNEY_OBSERVATIONS_TOO_LONG'
                     : ($restoreFailed
