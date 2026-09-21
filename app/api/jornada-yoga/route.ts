@@ -430,6 +430,21 @@ export async function POST(request: Request) {
         );
       }
 
+      await sendN8n({
+        eventType: "jornada_yoga_registration_created",
+        eventId: JORNADA_YOGA_EVENT_ID,
+        customerName: cleanText(parsed.data.name),
+        customerEmail: email,
+        customerWhatsapp: whatsapp,
+        asaasCustomerId: customerId,
+        paymentId: payment.id || "",
+        invoiceUrl: payment.invoiceUrl || "",
+        value: JORNADA_YOGA_AMOUNT,
+        status: payment.status || "PENDING",
+        externalReference: reference,
+        existingCustomer: true,
+      });
+
       return NextResponse.json(result(payment, true, true));
     }
 
