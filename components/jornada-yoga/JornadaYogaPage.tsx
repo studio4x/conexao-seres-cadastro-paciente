@@ -334,6 +334,13 @@ export function JornadaYogaPage() {
 
       <section className="mx-auto grid max-w-7xl gap-10 px-5 py-12 sm:px-8 lg:grid-cols-[.85fr_1.15fr] lg:py-16">
         <aside>
+          <img
+            src="/jornada-yoga/FOTO-LANDINGPAGE_convertida.webp"
+            alt="Informações da Jornada de Expansão Mental e Corporal"
+            loading="lazy"
+            decoding="async"
+            className="mb-8 w-full rounded-2xl border border-[#d5ded1] bg-white shadow-sm"
+          />
           <p className="text-xs font-semibold uppercase tracking-[.12em] text-[#8a5a18]">
             Datas
           </p>
