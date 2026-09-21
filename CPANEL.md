@@ -117,7 +117,7 @@ O backend PHP normaliza e valida os campos. Em cliente novo, envia `postalCode`,
 
 Quando o cliente já existe, o backend consulta o cadastro atual e preserva outras observações já existentes. A linha da Jornada é adicionada ou atualizada de forma idempotente junto com o endereço por `PUT /v3/customers/{id}` antes de criar ou retornar a cobrança de R$ 297,00. O conteúdo combinado respeita o orçamento interno conservador de 550 bytes UTF-8; acima disso, o fluxo é interrompido com mensagem controlada, sem truncar observações anteriores.
 
-O endpoint também captura exceções e erros fatais para responder JSON controlado. A interface lê primeiro o corpo como texto e só então tenta converter JSON, evitando que uma página HTML de erro do servidor apareça ao usuário como `Unexpected token '<'`.
+O endpoint também captura exceções e erros fatais para responder JSON controlado. Falhas de dependência externa são devolvidas como HTTP 424 com `code` e `stage`, em vez de 502, para reduzir a chance de o proxy do cPanel substituir o JSON por HTML. GET/PUT ao provedor de pagamentos fazem uma única retentativa curta em timeout, 429 ou 5xx. A interface lê primeiro o corpo como texto e só então tenta converter JSON.
 
 O webhook fiscal da Jornada continua em `/api/asaas/webhook`, compartilhando o mesmo mecanismo de emissão idempotente da NFS-e após `PAYMENT_CONFIRMED` ou `PAYMENT_RECEIVED`.
 
