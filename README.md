@@ -263,12 +263,12 @@ https://cadastro.conexaoseres.com.br/jornada-yoga
 
 O fluxo da Jornada é independente do cadastro clínico:
 
-1. recebe nome completo, CPF, e-mail, WhatsApp, data de nascimento, origem da Jornada e endereço do participante adulto;
+1. recebe nome completo, CPF, e-mail, WhatsApp, data de nascimento, origem da Jornada e endereço do participante adulto; ao selecionar `Outro` na origem, exige uma descrição complementar;
 2. valida que a data de nascimento corresponde a participante maior de 18 anos;
 3. consulta automaticamente o CEP por `/api/cep` assim que os 8 dígitos são preenchidos, sem botão manual de busca; logradouro, número, complemento e bairro permanecem editáveis;
 4. valida o Turnstile com a action `jornada_yoga`;
 5. procura o cliente no Asaas por CPF e por e-mail antes de criar um novo registro;
-6. para cliente novo, envia endereço e o campo `observations` com data de nascimento e “Como ficou sabendo da Jornada”;
+6. para cliente novo, envia endereço e o campo `observations` com data de nascimento e “Como ficou sabendo da Jornada”; quando a origem for `Outro`, grava também o texto informado pelo participante;
 7. para cliente existente, lê as observações atuais, preserva o conteúdo já registrado e adiciona/atualiza um bloco identificado da Jornada junto com os dados de endereço por `PUT /v3/customers/{id}`;
 8. usa uma referência determinística da Jornada para impedir duas cobranças do mesmo evento para o mesmo CPF;
 9. cria cobrança avulsa de **R$ 297,00**, com `billingType=UNDEFINED`;

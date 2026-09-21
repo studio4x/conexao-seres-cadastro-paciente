@@ -124,14 +124,21 @@ function format_birth_date_br(string $value): string
         : $value;
 }
 
-function journey_observations_block(string $birthDate, string $discoverySource): string
-{
+function journey_observations_block(
+    string $birthDate,
+    string $discoverySource,
+    string $discoveryOther = ''
+): string {
+    $discoveryLabel = $discoverySource === 'Outro'
+        ? 'Outro — ' . clean_text($discoveryOther)
+        : $discoverySource;
+
     return implode(
         "\n",
         [
             '[JORNADA DE EXPANSÃO MENTAL E CORPORAL 2026]',
             'Data de nascimento: ' . format_birth_date_br($birthDate),
-            'Como ficou sabendo da Jornada: ' . $discoverySource,
+            'Como ficou sabendo da Jornada: ' . $discoveryLabel,
             '[/JORNADA DE EXPANSÃO MENTAL E CORPORAL 2026]',
         ]
     );
@@ -140,11 +147,16 @@ function journey_observations_block(string $birthDate, string $discoverySource):
 function merge_journey_observations(
     string $current,
     string $birthDate,
-    string $discoverySource
+    string $discoverySource,
+    string $discoveryOther = ''
 ): string {
     $startMarker = '[JORNADA DE EXPANSÃO MENTAL E CORPORAL 2026]';
     $endMarker = '[/JORNADA DE EXPANSÃO MENTAL E CORPORAL 2026]';
-    $block = journey_observations_block($birthDate, $discoverySource);
+    $block = journey_observations_block(
+        $birthDate,
+        $discoverySource,
+        $discoveryOther
+    );
     $existing = trim($current);
 
     if ($existing === '') {
@@ -327,7 +339,8 @@ function update_customer_registration(
     string $customerId,
     array $address,
     string $birthDate,
-    string $discoverySource
+    string $discoverySource,
+    string $discoveryOther
 ): bool {
     $current = get_customer($base, $key, $customerId);
     if (!is_array($current)) {
@@ -342,7 +355,8 @@ function update_customer_registration(
     $payload['observations'] = merge_journey_observations(
         (string) ($current['observations'] ?? ''),
         $birthDate,
-        $discoverySource
+        $discoverySource,
+        $discoveryOther
     );
 
     $result = api(
@@ -478,6 +492,7 @@ $email = strtolower(trim((string) ($body['email'] ?? '')));
 $phone = national_phone((string) ($body['whatsapp'] ?? ''));
 $birthDate = trim((string) ($body['birthDate'] ?? ''));
 $discoverySource = clean_text((string) ($body['discoverySource'] ?? ''));
+$discoveryOther = clean_text((string) ($body['discoveryOther'] ?? ''));
 $postalCode = digits((string) ($body['postalCode'] ?? ''));
 $addressLine = clean_text((string) ($body['address'] ?? ''));
 $addressNumber = clean_text((string) ($body['addressNumber'] ?? ''));
@@ -495,6 +510,8 @@ if (
     || !valid_phone($phone)
     || !valid_birth_date($birthDate)
     || !valid_discovery_source($discoverySource)
+    || mb_strlen($discoveryOther) > 160
+    || ($discoverySource === 'Outro' && mb_strlen($discoveryOther) < 2)
     || !valid_cep($postalCode)
     || mb_strlen($addressLine) < 3
     || mb_strlen($addressLine) > 180
@@ -517,7 +534,11 @@ $address = [
     'complement' => $complement,
     'province' => $province,
 ];
-$observations = journey_observations_block($birthDate, $discoverySource);
+$observations = journey_observations_block(
+    $birthDate,
+    $discoverySource,
+    $discoverySource === 'Outro' ? $discoveryOther : ''
+);
 
 $key = trim((string) ($config['asaas_api_key'] ?? ''));
 $base = rtrim(
@@ -569,7 +590,8 @@ if (is_array($found['payment'])) {
         $customerId,
         $address,
         $birthDate,
-        $discoverySource
+        $discoverySource,
+        $discoverySource === 'Outro' ? $discoveryOther : ''
     )) {
         reply(
             [
@@ -630,7 +652,8 @@ if ($customer !== '') {
         $customer,
         $address,
         $birthDate,
-        $discoverySource
+        $discoverySource,
+        $discoverySource === 'Outro' ? $discoveryOther : ''
     )) {
         reply(
             [

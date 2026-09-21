@@ -119,14 +119,28 @@ export function isValidJornadaDiscoverySource(value: string): value is JornadaYo
   return (JORNADA_YOGA_DISCOVERY_OPTIONS as readonly string[]).includes(value);
 }
 
+export function isValidJornadaDiscoveryOther(
+  discoverySource: string,
+  discoveryOther: string,
+) {
+  const clean = cleanText(discoveryOther);
+  return discoverySource !== "Outro" || (clean.length >= 2 && clean.length <= 160);
+}
+
 export function buildJornadaObservations(
   birthDate: string,
   discoverySource: JornadaYogaDiscoverySource,
+  discoveryOther = "",
 ) {
+  const discoveryLabel =
+    discoverySource === "Outro"
+      ? `Outro — ${cleanText(discoveryOther)}`
+      : discoverySource;
+
   return [
     JORNADA_OBSERVATIONS_START,
     `Data de nascimento: ${formatBirthDateBr(birthDate)}`,
-    `Como ficou sabendo da Jornada: ${discoverySource}`,
+    `Como ficou sabendo da Jornada: ${discoveryLabel}`,
     JORNADA_OBSERVATIONS_END,
   ].join("\n");
 }
@@ -135,8 +149,13 @@ export function mergeJornadaObservations(
   current: string | undefined,
   birthDate: string,
   discoverySource: JornadaYogaDiscoverySource,
+  discoveryOther = "",
 ) {
-  const block = buildJornadaObservations(birthDate, discoverySource);
+  const block = buildJornadaObservations(
+    birthDate,
+    discoverySource,
+    discoveryOther,
+  );
   const existing = (current || "").trim();
   if (!existing) return block;
 

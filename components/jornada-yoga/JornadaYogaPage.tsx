@@ -33,6 +33,7 @@ import {
   isValidEmail,
   isValidFullName,
   isValidAdultBirthDate,
+  isValidJornadaDiscoveryOther,
   isValidJornadaDiscoverySource,
   maxAdultBirthDate,
   onlyDigits,
@@ -48,6 +49,7 @@ type State = {
   whatsapp: string;
   birthDate: string;
   discoverySource: string;
+  discoveryOther: string;
   postalCode: string;
   address: string;
   addressNumber: string;
@@ -82,6 +84,7 @@ const initial: State = {
   whatsapp: "",
   birthDate: "",
   discoverySource: "",
+  discoveryOther: "",
   postalCode: "",
   address: "",
   addressNumber: "",
@@ -176,6 +179,9 @@ export function JornadaYogaPage() {
     }
     if (!isValidJornadaDiscoverySource(form.discoverySource)) {
       return setError("Informe como você ficou sabendo da Jornada.");
+    }
+    if (!isValidJornadaDiscoveryOther(form.discoverySource, form.discoveryOther)) {
+      return setError("Conte como você ficou sabendo da Jornada.");
     }
     if (!isValidCep(form.postalCode)) return setError("Informe um CEP válido.");
     if (cleanText(form.address).length < 3) return setError("Informe o logradouro do endereço.");
@@ -454,9 +460,15 @@ export function JornadaYogaPage() {
                   <select
                     className={input}
                     value={form.discoverySource}
-                    onChange={(event) =>
-                      setForm({ ...form, discoverySource: event.target.value })
-                    }
+                    onChange={(event) => {
+                      const discoverySource = event.target.value;
+                      setForm((current) => ({
+                        ...current,
+                        discoverySource,
+                        discoveryOther:
+                          discoverySource === "Outro" ? current.discoveryOther : "",
+                      }));
+                    }}
                   >
                     <option value="">Selecione uma opção</option>
                     {JORNADA_YOGA_DISCOVERY_OPTIONS.map((option) => (
@@ -466,6 +478,23 @@ export function JornadaYogaPage() {
                     ))}
                   </select>
                 </label>
+
+                {form.discoverySource === "Outro" ? (
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-semibold text-[#514821]">
+                      Conte como ficou sabendo da Jornada
+                    </span>
+                    <input
+                      className={input}
+                      maxLength={160}
+                      value={form.discoveryOther}
+                      onChange={(event) =>
+                        setForm({ ...form, discoveryOther: event.target.value })
+                      }
+                      placeholder="Ex.: evento, parceiro, comunidade..."
+                    />
+                  </label>
+                ) : null}
 
                 <div className="rounded-xl border border-[#d8e1d4] bg-[#f8fbf6] p-4 sm:p-5">
                   <div className="flex items-start gap-3">
