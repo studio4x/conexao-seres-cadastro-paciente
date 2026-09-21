@@ -299,9 +299,12 @@ function customer_list(
         $key
     );
 
-    return $result['ok']
-        ? (is_array($result['data']['data'] ?? null) ? $result['data']['data'] : [])
-        : null;
+    if (!$result['ok']) {
+        log_api_failure('customer-list-' . $field, $result);
+        return null;
+    }
+
+    return is_array($result['data']['data'] ?? null) ? $result['data']['data'] : [];
 }
 
 function customer_ids(array $items): array
@@ -374,6 +377,7 @@ function find_payment(string $base, string $key, string $reference): array
     );
 
     if (!$result['ok']) {
+        log_api_failure('payment-lookup', $result);
         return ['ok' => false, 'payment' => null];
     }
 
@@ -393,13 +397,21 @@ function find_payment(string $base, string $key, string $reference): array
 function get_payment(string $base, string $key, string $paymentId): ?array
 {
     $result = api('GET', $base . '/payments/' . rawurlencode($paymentId), $key);
-    return $result['ok'] ? $result['data'] : null;
+    if (!$result['ok']) {
+        log_api_failure('payment-get', $result);
+        return null;
+    }
+    return $result['data'];
 }
 
 function get_customer(string $base, string $key, string $customerId): ?array
 {
     $result = api('GET', $base . '/customers/' . rawurlencode($customerId), $key);
-    return $result['ok'] ? $result['data'] : null;
+    if (!$result['ok']) {
+        log_api_failure('customer-get', $result);
+        return null;
+    }
+    return $result['data'];
 }
 
 function update_customer_registration(
@@ -436,6 +448,7 @@ function update_customer_registration(
     );
 
     if (!$result['ok']) {
+        log_api_failure('customer-update', $result);
         error_log(
             'Journey customer registration update failed. Customer prefix '
             . substr($customerId, 0, 20)
@@ -533,6 +546,9 @@ function payment_payload(
     ];
 }
 
+try {
+$journeyStage = 'request-validation';
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     reply(['message' => 'Método não permitido.'], 405);
 }
@@ -628,11 +644,19 @@ if (!verify_turnstile($secret, $turnstile, $hostname)) {
     );
 }
 
+$journeyStage = 'payment-lookup';
 $reference = payment_ref($cpf);
 $found = find_payment($base, $key, $reference);
 
 if (!$found['ok']) {
-    reply(['message' => 'Não conseguimos confirmar sua inscrição agora.'], 502);
+    reply(
+        [
+            'success' => false,
+            'message' => 'Não conseguimos confirmar sua inscrição agora.',
+            'code' => 'JOURNEY_PAYMENT_LOOKUP_FAILED',
+        ],
+        502
+    );
 }
 
 if (is_array($found['payment'])) {
@@ -653,6 +677,7 @@ if (is_array($found['payment'])) {
         );
     }
 
+    $journeyStage = 'existing-registration-customer-update';
     if (!update_customer_registration(
         $base,
         $key,
@@ -666,6 +691,7 @@ if (is_array($found['payment'])) {
             [
                 'message' =>
                     'Localizamos sua inscrição, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal. Tente novamente.',
+                'code' => 'JOURNEY_EXISTING_REGISTRATION_UPDATE_FAILED',
             ],
             502
         );
@@ -693,11 +719,19 @@ if (is_array($found['payment'])) {
     reply(payment_payload($payment, true, true));
 }
 
+$journeyStage = 'customer-lookup';
 $cpfMatches = customer_list($base, $key, 'cpfCnpj', $cpf);
 $emailMatches = customer_list($base, $key, 'email', $email);
 
 if ($cpfMatches === null || $emailMatches === null) {
-    reply(['message' => 'Não conseguimos consultar seu cadastro agora.'], 502);
+    reply(
+        [
+            'success' => false,
+            'message' => 'Não conseguimos consultar seu cadastro agora.',
+            'code' => 'JOURNEY_CUSTOMER_LOOKUP_FAILED',
+        ],
+        502
+    );
 }
 
 $resolved = resolve_customer($cpfMatches, $emailMatches);
@@ -715,6 +749,7 @@ $customer = (string) $resolved['id'];
 $existingCustomer = $customer !== '';
 
 if ($customer !== '') {
+    $journeyStage = 'customer-update';
     if (!update_customer_registration(
         $base,
         $key,
@@ -728,11 +763,13 @@ if ($customer !== '') {
             [
                 'message' =>
                     'Seu cadastro foi localizado, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal.',
+                'code' => 'JOURNEY_CUSTOMER_UPDATE_FAILED',
             ],
             502
         );
     }
 } else {
+    $journeyStage = 'customer-create';
     $created = api(
         'POST',
         $base . '/customers',
@@ -751,18 +788,35 @@ if ($customer !== '') {
 
     $customer = trim((string) ($created['data']['id'] ?? ''));
     if (!$created['ok'] || $customer === '') {
-        reply(['message' => 'Não conseguimos concluir seu cadastro agora.'], 502);
+        log_api_failure('customer-create', $created);
+        reply(
+            [
+                'success' => false,
+                'message' => 'Não conseguimos concluir seu cadastro agora.',
+                'code' => 'JOURNEY_CUSTOMER_CREATE_FAILED',
+            ],
+            502
+        );
     }
 }
 
+$journeyStage = 'charge-lookup';
 $charge = find_payment($base, $key, $reference);
 if (!$charge['ok']) {
-    reply(['message' => 'Não conseguimos gerar a cobrança agora.'], 502);
+    reply(
+        [
+            'success' => false,
+            'message' => 'Não conseguimos gerar a cobrança agora.',
+            'code' => 'JOURNEY_CHARGE_LOOKUP_FAILED',
+        ],
+        502
+    );
 }
 
 $createdPayment = false;
 
 if (!is_array($charge['payment'])) {
+    $journeyStage = 'charge-create';
     $made = api(
         'POST',
         $base . '/payments',
@@ -782,10 +836,16 @@ if (!is_array($charge['payment'])) {
         $charge['payment'] = $made['data'];
         $createdPayment = true;
     } else {
+        log_api_failure('charge-create', $made);
+        $journeyStage = 'charge-reconcile';
         $reconcile = find_payment($base, $key, $reference);
         if (!$reconcile['ok'] || !is_array($reconcile['payment'])) {
             reply(
-                ['message' => 'Não conseguimos gerar a cobrança da Jornada agora.'],
+                [
+                    'success' => false,
+                    'message' => 'Não conseguimos gerar a cobrança da Jornada agora.',
+                    'code' => 'JOURNEY_CHARGE_CREATE_FAILED',
+                ],
                 502
             );
         }
@@ -795,6 +855,7 @@ if (!is_array($charge['payment'])) {
 
 $payment = $charge['payment'];
 
+$journeyStage = 'n8n-registration-notify';
 post_n8n(
     trim((string) ($config['n8n_jornada_webhook_url'] ?? '')),
     trim((string) ($config['n8n_jornada_webhook_token'] ?? '')),
@@ -818,3 +879,20 @@ reply(
     payment_payload($payment, !$createdPayment, $existingCustomer),
     $createdPayment ? 201 : 200
 );
+} catch (Throwable $error) {
+    error_log(
+        'Journey uncaught exception at stage ' . $journeyStage
+        . ': ' . $error->getMessage()
+        . ' in ' . basename($error->getFile())
+        . ':' . $error->getLine()
+    );
+    reply(
+        [
+            'success' => false,
+            'message' => 'O servidor encontrou uma falha ao processar a inscrição. Tente novamente em instantes.',
+            'code' => 'JOURNEY_SERVER_EXCEPTION',
+            'stage' => $journeyStage,
+        ],
+        500
+    );
+}
