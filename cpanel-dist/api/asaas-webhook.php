@@ -494,7 +494,7 @@ function build_invoice_payload(array $payment, array $service, string $effective
         'externalReference' => trim((string) $payment['externalReference']) . '-nfse',
         'serviceDescription' => '04510 | 4.08 - Terapia ocupacional.',
         'observations' => '',
-        'value' => 230,
+        'value' => is_numeric($payment['value'] ?? null) ? (float) $payment['value'] : 0,
         'deductions' => 0,
         'effectiveDate' => $effectiveDate,
         'municipalServiceName' => '04510 | 4.08 - Terapia ocupacional.',
@@ -740,7 +740,11 @@ if ($isJourney) {
         $event,
         $asaasEventId !== '' ? $asaasEventId : null
     );
-    respond(['received' => true, 'processed' => true, 'journey' => true], 200);
+    $retry = process_with_payment_lock($baseUrl, $apiKey, $payment, $event);
+    if ($retry) {
+        respond(['message' => 'Processamento fiscal temporariamente indisponível.'], 500);
+    }
+    respond(['received' => true, 'processed' => true, 'journey' => true, 'invoiceProcessed' => true], 200);
 }
 
 $n8nPaymentWebhookUrl = trim((string) (getenv('N8N_CONEXAO_SERES_PAGAMENTO_WEBHOOK_URL') ?: ($fileConfig['n8n_pagamento_webhook_url'] ?? '')));
