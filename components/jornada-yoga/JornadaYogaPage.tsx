@@ -21,6 +21,7 @@ import { TurnstileWidget } from "@/components/turnstile-widget";
 import {
   JORNADA_YOGA_AMOUNT,
   JORNADA_YOGA_DATES,
+  JORNADA_YOGA_DISCOVERY_OPTIONS,
   cleanText,
   formatCep,
   formatCpf,
@@ -31,6 +32,10 @@ import {
   isValidCpf,
   isValidEmail,
   isValidFullName,
+  isValidAdultBirthDate,
+  isValidJornadaDiscoverySource,
+  maxAdultBirthDate,
+  onlyDigits,
 } from "@/lib/jornada-yoga";
 
 const LOGO =
@@ -41,6 +46,8 @@ type State = {
   cpf: string;
   email: string;
   whatsapp: string;
+  birthDate: string;
+  discoverySource: string;
   postalCode: string;
   address: string;
   addressNumber: string;
@@ -73,6 +80,8 @@ const initial: State = {
   cpf: "",
   email: "",
   whatsapp: "",
+  birthDate: "",
+  discoverySource: "",
   postalCode: "",
   address: "",
   addressNumber: "",
@@ -101,43 +110,59 @@ export function JornadaYogaPage() {
     document.title = "Inscrição | Jornada de Expansão Mental e Corporal | Conexão Seres";
   }, []);
 
-  async function lookupCep() {
-    if (!isValidCep(form.postalCode)) {
-      setCepMessage("Informe um CEP válido com 8 dígitos.");
+  useEffect(() => {
+    const digits = onlyDigits(form.postalCode);
+
+    if (digits.length !== 8) {
+      setCepLoading(false);
       return;
     }
 
-    setCepLoading(true);
-    setCepMessage("");
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setCepLoading(true);
+      setCepMessage("");
 
-    try {
-      const response = await fetch(`/api/cep?cep=${encodeURIComponent(form.postalCode)}`, {
-        headers: { accept: "application/json" },
-      });
-      const payload = (await response.json()) as CepResult;
+      try {
+        const response = await fetch(`/api/cep?cep=${encodeURIComponent(form.postalCode)}`, {
+          headers: { accept: "application/json" },
+          signal: controller.signal,
+        });
+        const payload = (await response.json()) as CepResult;
 
-      if (!response.ok) {
-        throw new Error(payload.message || "Não foi possível consultar o CEP.");
+        if (!response.ok) {
+          throw new Error(payload.message || "Não foi possível consultar o CEP.");
+        }
+
+        setForm((current) => {
+          if (onlyDigits(current.postalCode) !== digits) return current;
+
+          return {
+            ...current,
+            address: payload.address?.trim() || "",
+            province: payload.province?.trim() || "",
+            city: payload.city?.trim() || "",
+            state: payload.state?.trim().toUpperCase() || "",
+          };
+        });
+        setCepMessage("Endereço localizado. Confira os dados antes de continuar.");
+      } catch (lookupError) {
+        if (controller.signal.aborted) return;
+        setCepMessage(
+          lookupError instanceof Error
+            ? lookupError.message
+            : "Não foi possível consultar o CEP. Preencha o endereço manualmente.",
+        );
+      } finally {
+        if (!controller.signal.aborted) setCepLoading(false);
       }
+    }, 250);
 
-      setForm((current) => ({
-        ...current,
-        address: payload.address?.trim() || current.address,
-        province: payload.province?.trim() || current.province,
-        city: payload.city?.trim() || "",
-        state: payload.state?.trim().toUpperCase() || "",
-      }));
-      setCepMessage("Endereço localizado. Confira os dados antes de continuar.");
-    } catch (lookupError) {
-      setCepMessage(
-        lookupError instanceof Error
-          ? lookupError.message
-          : "Não foi possível consultar o CEP. Preencha o endereço manualmente.",
-      );
-    } finally {
-      setCepLoading(false);
-    }
-  }
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [form.postalCode]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -148,6 +173,12 @@ export function JornadaYogaPage() {
     if (!isValidEmail(form.email)) return setError("Confira o e-mail informado.");
     if (!isValidBrazilianWhatsapp(form.whatsapp)) {
       return setError("Informe um WhatsApp válido com DDD.");
+    }
+    if (!isValidAdultBirthDate(form.birthDate)) {
+      return setError("Informe uma data de nascimento válida para participante maior de 18 anos.");
+    }
+    if (!isValidJornadaDiscoverySource(form.discoverySource)) {
+      return setError("Informe como você ficou sabendo da Jornada.");
     }
     if (!isValidCep(form.postalCode)) return setError("Informe um CEP válido.");
     if (cleanText(form.address).length < 3) return setError("Informe o logradouro do endereço.");
@@ -374,6 +405,23 @@ export function JornadaYogaPage() {
                   </label>
                   <label>
                     <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-[#514821]">
+                      <CalendarDays className="size-4" />
+                      Data de nascimento
+                    </span>
+                    <input
+                      className={input}
+                      type="date"
+                      autoComplete="bday"
+                      max={maxAdultBirthDate()}
+                      value={form.birthDate}
+                      onChange={(event) => setForm({ ...form, birthDate: event.target.value })}
+                    />
+                  </label>
+                </div>
+
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <label>
+                    <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-[#514821]">
                       <MessageCircle className="size-4" />
                       WhatsApp
                     </span>
@@ -387,20 +435,39 @@ export function JornadaYogaPage() {
                       placeholder="(11) 99999-9999"
                     />
                   </label>
+                  <label>
+                    <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-[#514821]">
+                      <Mail className="size-4" />
+                      E-mail
+                    </span>
+                    <input
+                      className={input}
+                      type="email"
+                      autoComplete="email"
+                      value={form.email}
+                      onChange={(event) => setForm({ ...form, email: event.target.value })}
+                    />
+                  </label>
                 </div>
 
                 <label className="block">
-                  <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-[#514821]">
-                    <Mail className="size-4" />
-                    E-mail
+                  <span className="mb-2 block text-sm font-semibold text-[#514821]">
+                    Como ficou sabendo da Jornada?
                   </span>
-                  <input
+                  <select
                     className={input}
-                    type="email"
-                    autoComplete="email"
-                    value={form.email}
-                    onChange={(event) => setForm({ ...form, email: event.target.value })}
-                  />
+                    value={form.discoverySource}
+                    onChange={(event) =>
+                      setForm({ ...form, discoverySource: event.target.value })
+                    }
+                  >
+                    <option value="">Selecione uma opção</option>
+                    {JORNADA_YOGA_DISCOVERY_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
                 </label>
 
                 <div className="rounded-xl border border-[#d8e1d4] bg-[#f8fbf6] p-4 sm:p-5">
@@ -415,36 +482,34 @@ export function JornadaYogaPage() {
                     <div className="grid gap-5 sm:grid-cols-[.45fr_.55fr]">
                       <label>
                         <span className="mb-2 block text-sm font-semibold text-[#514821]">CEP</span>
-                        <div className="flex gap-2">
+                        <div className="relative">
                           <input
-                            className={input}
+                            className={`${input} pr-11`}
                             inputMode="numeric"
                             autoComplete="postal-code"
                             value={form.postalCode}
                             onChange={(event) => {
                               const postalCode = formatCep(event.target.value);
+                              const incomplete = onlyDigits(postalCode).length < 8;
                               setForm((current) => ({
                                 ...current,
                                 postalCode,
-                                ...(postalCode.replace(/\D/g, "").length < 8
-                                  ? { city: "", state: "" }
+                                ...(incomplete
+                                  ? {
+                                      address: "",
+                                      province: "",
+                                      city: "",
+                                      state: "",
+                                    }
                                   : {}),
                               }));
                               setCepMessage("");
                             }}
-                            onBlur={() => {
-                              if (isValidCep(form.postalCode)) void lookupCep();
-                            }}
                             placeholder="00000-000"
                           />
-                          <button
-                            type="button"
-                            onClick={() => void lookupCep()}
-                            disabled={cepLoading}
-                            className="inline-flex min-w-24 items-center justify-center rounded-lg border border-[#cfd6ca] bg-white px-3 text-sm font-semibold text-[#315f31] disabled:opacity-60"
-                          >
-                            {cepLoading ? <Loader2 className="size-4 animate-spin" /> : "Buscar CEP"}
-                          </button>
+                          {cepLoading ? (
+                            <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-[#315f31]" />
+                          ) : null}
                         </div>
                       </label>
                       <label>
