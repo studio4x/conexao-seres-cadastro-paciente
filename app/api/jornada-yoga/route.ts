@@ -33,7 +33,12 @@ import { verifyTurnstileToken } from "../../../lib/turnstile-verification";
 export const runtime = "edge";
 
 type Obj = Record<string, unknown>;
-type Customer = { id?: string; observations?: string };
+type Customer = {
+  id?: string;
+  cpfCnpj?: string;
+  observations?: string;
+  deleted?: boolean;
+};
 type Payment = {
   id?: string;
   customer?: string;
@@ -226,13 +231,14 @@ async function updateCustomerRegistration(
   base: string,
   key: string,
   customerId: string,
+  expectedCpf: string,
   address: AddressPayload,
   birthDate: string,
   discoverySource: JornadaYogaDiscoverySource,
   discoveryOther: string,
   signal: AbortSignal,
 ) {
-  const current = await getCustomer(base, key, customerId, signal);
+  let current = await getCustomer(base, key, customerId, signal);
   if (!current) {
     console.error("Journey customer lookup before update failed", {
       customerId: customerId.slice(0, 20),
@@ -243,6 +249,52 @@ async function updateCustomerRegistration(
       stage: "customer-get",
       providerStatus: 0,
     };
+  }
+
+  if (!current.cpfCnpj || onlyDigits(current.cpfCnpj) !== onlyDigits(expectedCpf)) {
+    console.error("Journey linked customer CPF mismatch", {
+      customerId: customerId.slice(0, 20),
+    });
+    return {
+      ok: false as const,
+      code: "customer-mismatch" as const,
+      stage: "customer-identity-check",
+      providerStatus: 409,
+    };
+  }
+
+  if (current.deleted === true) {
+    const restoreResponse = await fetch(
+      base + "/customers/" + encodeURIComponent(customerId) + "/restore",
+      {
+        method: "POST",
+        headers: headers(key),
+        signal,
+      },
+    );
+
+    if (!restoreResponse.ok) {
+      console.error("Journey customer restore failed", {
+        customerId: customerId.slice(0, 20),
+        status: restoreResponse.status,
+      });
+      return {
+        ok: false as const,
+        code: "customer-restore-failed" as const,
+        stage: "customer-restore",
+        providerStatus: restoreResponse.status,
+      };
+    }
+
+    current = await getCustomer(base, key, customerId, signal);
+    if (!current || current.deleted === true) {
+      return {
+        ok: false as const,
+        code: "customer-restore-not-confirmed" as const,
+        stage: "customer-restore-confirmation",
+        providerStatus: 0,
+      };
+    }
   }
 
   const observations = mergeJornadaObservations(
@@ -550,6 +602,7 @@ export async function POST(request: Request) {
         base,
         key,
         customerId,
+        cpf,
         address,
         birthDate,
         discoverySource,
@@ -560,28 +613,40 @@ export async function POST(request: Request) {
         const tooLong = updated.code === "observations-too-long";
         const addressFailed = updated.code === "address-update-failed";
         const observationsFailed = updated.code === "observations-update-failed";
+        const restoreFailed =
+          updated.code === "customer-restore-failed" ||
+          updated.code === "customer-restore-not-confirmed";
+        const customerMismatch = updated.code === "customer-mismatch";
 
         return NextResponse.json(
           {
             success: false,
             message: tooLong
               ? "Seu cadastro já possui muitas informações nas observações. Entre em contato com a Conexão Seres para concluirmos sua inscrição sem perder dados anteriores."
-              : addressFailed
-                ? "Localizamos sua inscrição, mas o endereço para emissão fiscal não pôde ser atualizado. Confira os dados e tente novamente."
-                : observationsFailed
-                  ? "Localizamos sua inscrição, mas os dados complementares da Jornada não puderam ser registrados. Tente novamente."
-                  : "Localizamos sua inscrição, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal. Tente novamente.",
+              : restoreFailed
+                ? "Localizamos uma inscrição anterior vinculada a um cadastro removido, mas não conseguimos reativá-lo automaticamente. Entre em contato com a Conexão Seres."
+                : customerMismatch
+                  ? "Localizamos uma inscrição anterior que não corresponde ao CPF informado. Entre em contato com a Conexão Seres."
+                  : addressFailed
+                    ? "Localizamos sua inscrição, mas o endereço para emissão fiscal não pôde ser atualizado. Confira os dados e tente novamente."
+                    : observationsFailed
+                      ? "Localizamos sua inscrição, mas os dados complementares da Jornada não puderam ser registrados. Tente novamente."
+                      : "Localizamos sua inscrição, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal. Tente novamente.",
             code: tooLong
               ? "JOURNEY_OBSERVATIONS_TOO_LONG"
-              : addressFailed
-                ? "JOURNEY_ADDRESS_UPDATE_FAILED"
-                : observationsFailed
-                  ? "JOURNEY_OBSERVATIONS_UPDATE_FAILED"
-                  : "JOURNEY_EXISTING_REGISTRATION_UPDATE_FAILED",
+              : restoreFailed
+                ? "JOURNEY_CUSTOMER_RESTORE_FAILED"
+                : customerMismatch
+                  ? "JOURNEY_CUSTOMER_MISMATCH"
+                  : addressFailed
+                    ? "JOURNEY_ADDRESS_UPDATE_FAILED"
+                    : observationsFailed
+                      ? "JOURNEY_OBSERVATIONS_UPDATE_FAILED"
+                      : "JOURNEY_EXISTING_REGISTRATION_UPDATE_FAILED",
             stage: updated.stage,
             providerStatus: updated.providerStatus,
           },
-          { status: tooLong ? 409 : 424 },
+          { status: tooLong || customerMismatch ? 409 : 424 },
         );
       }
 
@@ -639,6 +704,7 @@ export async function POST(request: Request) {
         base,
         key,
         customerId,
+        cpf,
         address,
         birthDate,
         discoverySource,
@@ -649,28 +715,40 @@ export async function POST(request: Request) {
         const tooLong = updated.code === "observations-too-long";
         const addressFailed = updated.code === "address-update-failed";
         const observationsFailed = updated.code === "observations-update-failed";
+        const restoreFailed =
+          updated.code === "customer-restore-failed" ||
+          updated.code === "customer-restore-not-confirmed";
+        const customerMismatch = updated.code === "customer-mismatch";
 
         return NextResponse.json(
           {
             success: false,
             message: tooLong
               ? "Seu cadastro já possui muitas informações nas observações. Entre em contato com a Conexão Seres para concluirmos sua inscrição sem perder dados anteriores."
-              : addressFailed
-                ? "Seu cadastro foi localizado, mas o endereço para emissão fiscal não pôde ser atualizado. Confira os dados e tente novamente."
-                : observationsFailed
-                  ? "Seu cadastro foi localizado, mas os dados complementares da Jornada não puderam ser registrados. Tente novamente."
-                  : "Seu cadastro foi localizado, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal.",
+              : restoreFailed
+                ? "Seu cadastro foi localizado como removido, mas não conseguimos reativá-lo automaticamente. Entre em contato com a Conexão Seres."
+                : customerMismatch
+                  ? "O cadastro localizado não corresponde ao CPF informado. Entre em contato com a Conexão Seres."
+                  : addressFailed
+                    ? "Seu cadastro foi localizado, mas o endereço para emissão fiscal não pôde ser atualizado. Confira os dados e tente novamente."
+                    : observationsFailed
+                      ? "Seu cadastro foi localizado, mas os dados complementares da Jornada não puderam ser registrados. Tente novamente."
+                      : "Seu cadastro foi localizado, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal.",
             code: tooLong
               ? "JOURNEY_OBSERVATIONS_TOO_LONG"
-              : addressFailed
-                ? "JOURNEY_ADDRESS_UPDATE_FAILED"
-                : observationsFailed
-                  ? "JOURNEY_OBSERVATIONS_UPDATE_FAILED"
-                  : "JOURNEY_CUSTOMER_UPDATE_FAILED",
+              : restoreFailed
+                ? "JOURNEY_CUSTOMER_RESTORE_FAILED"
+                : customerMismatch
+                  ? "JOURNEY_CUSTOMER_MISMATCH"
+                  : addressFailed
+                    ? "JOURNEY_ADDRESS_UPDATE_FAILED"
+                    : observationsFailed
+                      ? "JOURNEY_OBSERVATIONS_UPDATE_FAILED"
+                      : "JOURNEY_CUSTOMER_UPDATE_FAILED",
             stage: updated.stage,
             providerStatus: updated.providerStatus,
           },
-          { status: tooLong ? 409 : 424 },
+          { status: tooLong || customerMismatch ? 409 : 424 },
         );
       }
     } else {
