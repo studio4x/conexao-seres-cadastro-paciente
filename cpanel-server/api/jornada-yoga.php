@@ -454,6 +454,7 @@ function update_customer_registration(
     string $base,
     string $key,
     string $customerId,
+    string $expectedCpf,
     array $address,
     string $birthDate,
     string $discoverySource,
@@ -469,7 +470,50 @@ function update_customer_registration(
             'ok' => false,
             'code' => 'customer-get-failed',
             'stage' => 'customer-get',
+            'providerStatus' => 0,
         ];
+    }
+
+    $currentCpf = digits((string) ($current['cpfCnpj'] ?? ''));
+    if ($currentCpf === '' || $currentCpf !== digits($expectedCpf)) {
+        error_log(
+            'Journey linked customer CPF mismatch. Customer prefix '
+            . substr($customerId, 0, 20)
+        );
+        return [
+            'ok' => false,
+            'code' => 'customer-mismatch',
+            'stage' => 'customer-identity-check',
+            'providerStatus' => 409,
+        ];
+    }
+
+    if (($current['deleted'] ?? false) === true) {
+        $restore = api(
+            'POST',
+            $base . '/customers/' . rawurlencode($customerId) . '/restore',
+            $key
+        );
+
+        if (!$restore['ok']) {
+            log_api_failure('customer-restore', $restore);
+            return [
+                'ok' => false,
+                'code' => 'customer-restore-failed',
+                'stage' => 'customer-restore',
+                'providerStatus' => (int) ($restore['status'] ?? 0),
+            ];
+        }
+
+        $current = get_customer($base, $key, $customerId);
+        if (!is_array($current) || (($current['deleted'] ?? false) === true)) {
+            return [
+                'ok' => false,
+                'code' => 'customer-restore-not-confirmed',
+                'stage' => 'customer-restore-confirmation',
+                'providerStatus' => 0,
+            ];
+        }
     }
 
     $observations = merge_journey_observations(
@@ -782,6 +826,7 @@ if (is_array($found['payment'])) {
         $base,
         $key,
         $customerId,
+        $cpf,
         $address,
         $birthDate,
         $discoverySource,
@@ -792,28 +837,42 @@ if (is_array($found['payment'])) {
         $tooLong = $updateCode === 'observations-too-long';
         $addressFailed = $updateCode === 'address-update-failed';
         $observationsFailed = $updateCode === 'observations-update-failed';
+        $restoreFailed = in_array(
+            $updateCode,
+            ['customer-restore-failed', 'customer-restore-not-confirmed'],
+            true
+        );
+        $customerMismatch = $updateCode === 'customer-mismatch';
 
         reply(
             [
                 'success' => false,
                 'message' => $tooLong
                     ? 'Seu cadastro já possui muitas informações nas observações. Entre em contato com a Conexão Seres para concluirmos sua inscrição sem perder dados anteriores.'
-                    : ($addressFailed
-                        ? 'Localizamos sua inscrição, mas o endereço para emissão fiscal não pôde ser atualizado. Confira os dados e tente novamente.'
-                        : ($observationsFailed
-                            ? 'Localizamos sua inscrição, mas os dados complementares da Jornada não puderam ser registrados. Tente novamente.'
-                            : 'Localizamos sua inscrição, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal. Tente novamente.')),
+                    : ($restoreFailed
+                        ? 'Localizamos uma inscrição anterior vinculada a um cadastro removido, mas não conseguimos reativá-lo automaticamente. Entre em contato com a Conexão Seres.'
+                        : ($customerMismatch
+                            ? 'Localizamos uma inscrição anterior que não corresponde ao CPF informado. Entre em contato com a Conexão Seres.'
+                            : ($addressFailed
+                                ? 'Localizamos sua inscrição, mas o endereço para emissão fiscal não pôde ser atualizado. Confira os dados e tente novamente.'
+                                : ($observationsFailed
+                                    ? 'Localizamos sua inscrição, mas os dados complementares da Jornada não puderam ser registrados. Tente novamente.'
+                                    : 'Localizamos sua inscrição, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal. Tente novamente.'))),
                 'code' => $tooLong
                     ? 'JOURNEY_OBSERVATIONS_TOO_LONG'
-                    : ($addressFailed
-                        ? 'JOURNEY_ADDRESS_UPDATE_FAILED'
-                        : ($observationsFailed
-                            ? 'JOURNEY_OBSERVATIONS_UPDATE_FAILED'
-                            : 'JOURNEY_EXISTING_REGISTRATION_UPDATE_FAILED')),
+                    : ($restoreFailed
+                        ? 'JOURNEY_CUSTOMER_RESTORE_FAILED'
+                        : ($customerMismatch
+                            ? 'JOURNEY_CUSTOMER_MISMATCH'
+                            : ($addressFailed
+                                ? 'JOURNEY_ADDRESS_UPDATE_FAILED'
+                                : ($observationsFailed
+                                    ? 'JOURNEY_OBSERVATIONS_UPDATE_FAILED'
+                                    : 'JOURNEY_EXISTING_REGISTRATION_UPDATE_FAILED')))),
                 'stage' => (string) ($updateResult['stage'] ?? $journeyStage),
                 'providerStatus' => (int) ($updateResult['providerStatus'] ?? 0),
             ],
-            $tooLong ? 409 : 424
+            ($tooLong || $customerMismatch) ? 409 : 424
         );
     }
 
@@ -875,6 +934,7 @@ if ($customer !== '') {
         $base,
         $key,
         $customer,
+        $cpf,
         $address,
         $birthDate,
         $discoverySource,
@@ -885,28 +945,42 @@ if ($customer !== '') {
         $tooLong = $updateCode === 'observations-too-long';
         $addressFailed = $updateCode === 'address-update-failed';
         $observationsFailed = $updateCode === 'observations-update-failed';
+        $restoreFailed = in_array(
+            $updateCode,
+            ['customer-restore-failed', 'customer-restore-not-confirmed'],
+            true
+        );
+        $customerMismatch = $updateCode === 'customer-mismatch';
 
         reply(
             [
                 'success' => false,
                 'message' => $tooLong
                     ? 'Seu cadastro já possui muitas informações nas observações. Entre em contato com a Conexão Seres para concluirmos sua inscrição sem perder dados anteriores.'
-                    : ($addressFailed
-                        ? 'Seu cadastro foi localizado, mas o endereço para emissão fiscal não pôde ser atualizado. Confira os dados e tente novamente.'
-                        : ($observationsFailed
-                            ? 'Seu cadastro foi localizado, mas os dados complementares da Jornada não puderam ser registrados. Tente novamente.'
-                            : 'Seu cadastro foi localizado, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal.')),
+                    : ($restoreFailed
+                        ? 'Seu cadastro foi localizado como removido, mas não conseguimos reativá-lo automaticamente. Entre em contato com a Conexão Seres.'
+                        : ($customerMismatch
+                            ? 'O cadastro localizado não corresponde ao CPF informado. Entre em contato com a Conexão Seres.'
+                            : ($addressFailed
+                                ? 'Seu cadastro foi localizado, mas o endereço para emissão fiscal não pôde ser atualizado. Confira os dados e tente novamente.'
+                                : ($observationsFailed
+                                    ? 'Seu cadastro foi localizado, mas os dados complementares da Jornada não puderam ser registrados. Tente novamente.'
+                                    : 'Seu cadastro foi localizado, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal.'))),
                 'code' => $tooLong
                     ? 'JOURNEY_OBSERVATIONS_TOO_LONG'
-                    : ($addressFailed
-                        ? 'JOURNEY_ADDRESS_UPDATE_FAILED'
-                        : ($observationsFailed
-                            ? 'JOURNEY_OBSERVATIONS_UPDATE_FAILED'
-                            : 'JOURNEY_CUSTOMER_UPDATE_FAILED')),
+                    : ($restoreFailed
+                        ? 'JOURNEY_CUSTOMER_RESTORE_FAILED'
+                        : ($customerMismatch
+                            ? 'JOURNEY_CUSTOMER_MISMATCH'
+                            : ($addressFailed
+                                ? 'JOURNEY_ADDRESS_UPDATE_FAILED'
+                                : ($observationsFailed
+                                    ? 'JOURNEY_OBSERVATIONS_UPDATE_FAILED'
+                                    : 'JOURNEY_CUSTOMER_UPDATE_FAILED')))),
                 'stage' => (string) ($updateResult['stage'] ?? $journeyStage),
                 'providerStatus' => (int) ($updateResult['providerStatus'] ?? 0),
             ],
-            $tooLong ? 409 : 424
+            ($tooLong || $customerMismatch) ? 409 : 424
         );
     }
 } else {
