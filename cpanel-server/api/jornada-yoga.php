@@ -5,6 +5,8 @@ declare(strict_types=1);
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 
+const JORNADA_OBSERVATIONS_SAFETY_BUDGET_BYTES = 550;
+
 $journeyStage = 'bootstrap';
 
 register_shutdown_function(static function () use (&$journeyStage): void {
@@ -170,15 +172,8 @@ function journey_observations_block(
         ? 'Outro — ' . clean_text($discoveryOther)
         : $discoverySource;
 
-    return implode(
-        "\n",
-        [
-            '[JORNADA DE EXPANSÃO MENTAL E CORPORAL 2026]',
-            'Data de nascimento: ' . format_birth_date_br($birthDate),
-            'Como ficou sabendo da Jornada: ' . $discoveryLabel,
-            '[/JORNADA DE EXPANSÃO MENTAL E CORPORAL 2026]',
-        ]
-    );
+    return 'Jornada 2026: Nasc. ' . format_birth_date_br($birthDate)
+        . ' | Origem: ' . $discoveryLabel;
 }
 
 function merge_journey_observations(
@@ -187,8 +182,9 @@ function merge_journey_observations(
     string $discoverySource,
     string $discoveryOther = ''
 ): string {
-    $startMarker = '[JORNADA DE EXPANSÃO MENTAL E CORPORAL 2026]';
-    $endMarker = '[/JORNADA DE EXPANSÃO MENTAL E CORPORAL 2026]';
+    $legacyStartMarker = '[JORNADA DE EXPANSÃO MENTAL E CORPORAL 2026]';
+    $legacyEndMarker = '[/JORNADA DE EXPANSÃO MENTAL E CORPORAL 2026]';
+    $compactPrefix = 'Jornada 2026:';
     $block = journey_observations_block(
         $birthDate,
         $discoverySource,
@@ -200,17 +196,39 @@ function merge_journey_observations(
         return $block;
     }
 
-    $start = strpos($existing, $startMarker);
-    $end = strpos($existing, $endMarker);
-
-    if ($start !== false && $end !== false && $end >= $start) {
-        $after = $end + strlen($endMarker);
-        $beforeText = trim(substr($existing, 0, $start));
-        $afterText = trim(substr($existing, $after));
-        return trim(implode("\n\n", array_filter([$beforeText, $block, $afterText])));
+    $legacyStart = strpos($existing, $legacyStartMarker);
+    $legacyEnd = strpos($existing, $legacyEndMarker);
+    if ($legacyStart !== false && $legacyEnd !== false && $legacyEnd >= $legacyStart) {
+        $after = $legacyEnd + strlen($legacyEndMarker);
+        $existing = trim(
+            substr($existing, 0, $legacyStart)
+            . "\n"
+            . substr($existing, $after)
+        );
     }
 
-    return $existing . "\n\n" . $block;
+    $lines = preg_split('/\r?\n/', $existing) ?: [];
+    $preserved = [];
+    foreach ($lines as $line) {
+        if (str_starts_with(trim($line), $compactPrefix)) {
+            continue;
+        }
+        $preserved[] = $line;
+    }
+
+    $base = trim(implode("\n", $preserved));
+    return $base === '' ? $block : $base . "\n" . $block;
+}
+
+function journey_observations_utf8_bytes(string $value): int
+{
+    return strlen($value);
+}
+
+function journey_observations_within_safety_budget(string $value): bool
+{
+    return journey_observations_utf8_bytes($value)
+        <= JORNADA_OBSERVATIONS_SAFETY_BUDGET_BYTES;
 }
 
 function api(string $method, string $url, string $key, ?array $payload = null): array
@@ -440,6 +458,15 @@ function update_customer_registration(
         $discoveryOther
     );
 
+    if (!journey_observations_within_safety_budget($payload['observations'])) {
+        error_log(
+            'Journey customer observations exceed safety budget. UTF-8 bytes: '
+            . journey_observations_utf8_bytes($payload['observations'])
+            . '. Safety budget bytes: ' . JORNADA_OBSERVATIONS_SAFETY_BUDGET_BYTES
+        );
+        return false;
+    }
+
     $result = api(
         'PUT',
         $base . '/customers/' . rawurlencode($customerId),
@@ -624,6 +651,17 @@ $observations = journey_observations_block(
     $discoverySource,
     $discoverySource === 'Outro' ? $discoveryOther : ''
 );
+
+if (!journey_observations_within_safety_budget($observations)) {
+    reply(
+        [
+            'success' => false,
+            'message' => 'Os dados da inscrição ficaram extensos demais para serem gravados com segurança. Entre em contato com a Conexão Seres.',
+            'code' => 'JOURNEY_OBSERVATIONS_TOO_LONG',
+        ],
+        400
+    );
+}
 
 $key = trim((string) ($config['asaas_api_key'] ?? ''));
 $base = rtrim(
