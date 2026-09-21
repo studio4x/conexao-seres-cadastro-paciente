@@ -22,7 +22,15 @@ jobs:
         run: |
           php -l cpanel-server/api/patients.php
           php -l cpanel-server/api/asaas-webhook.php
+          php -l cpanel-server/api/jornada-yoga.php
+          php -l cpanel-server/api/jornada-admin-login.php
+          php -l cpanel-server/api/jornada-admin-logout.php
+          php -l cpanel-server/api/jornada-admin-registrations.php
           php -l cpanel-dist/api/patients.php
           php -l cpanel-dist/api/asaas-webhook.php
+          php -l cpanel-dist/api/jornada-yoga.php
+          php -l cpanel-dist/api/jornada-admin-login.php
+          php -l cpanel-dist/api/jornada-admin-logout.php
+          php -l cpanel-dist/api/jornada-admin-registrations.php
       - name: Validate PHP observations contract
         run: php tests/php/asaas-customer-observations-contract.php
