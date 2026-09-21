@@ -1,0 +1,109 @@
+name: Import Deyse image from production
+
+on:
+  push:
+    branches:
+      - fix/jornada-yoga-foto-deyse
+
+permissions:
+  contents: write
+
+jobs:
+  import-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+        with:
+          ref: fix/jornada-yoga-foto-deyse
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          coverage: none
+
+      - name: Download exact WebP from production server
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p public/jornada-yoga
+          target="public/jornada-yoga/foto_deyse_jornada yoga_convertida.webp"
+          tmp="$(mktemp)"
+          success=0
+          for url in             "https://cadastro.conexaoseres.com.br/jornada-yoga/foto_deyse_jornada%20yoga_convertida.webp"             "https://cadastro.conexaoseres.com.br/public/jornada-yoga/foto_deyse_jornada%20yoga_convertida.webp"
+          do
+            echo "Tentando: $url"
+            if curl --fail --location --silent --show-error --retry 2 --connect-timeout 15 --max-time 60 "$url" -o "$tmp"; then
+              if python - "$tmp" <<'PY'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1])
+data = p.read_bytes()
+valid = len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP"
+print(f"bytes={len(data)} webp={valid}")
+raise SystemExit(0 if valid else 1)
+PY
+              then
+                mv "$tmp" "$target"
+                success=1
+                break
+              fi
+            fi
+          done
+          if [ "$success" -ne 1 ]; then
+            echo "Não foi possível baixar um WebP válido do servidor." >&2
+            exit 1
+          fi
+          file "$target"
+
+      - name: Install
+        run: npm ci
+
+      - name: Build cPanel
+        run: CONEXAO_SERES_BUMP_IN_CI=1 npm run build:cpanel
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Validate PHP syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l cpanel-server/api/jornada-yoga.php
+          php -l cpanel-server/api/jornada-admin-login.php
+          php -l cpanel-server/api/jornada-admin-logout.php
+          php -l cpanel-server/api/jornada-admin-registrations.php
+          php -l cpanel-server/api/asaas-webhook.php
+          php -l cpanel-dist/api/jornada-yoga.php
+          php -l cpanel-dist/api/jornada-admin-login.php
+          php -l cpanel-dist/api/jornada-admin-logout.php
+          php -l cpanel-dist/api/jornada-admin-registrations.php
+          php -l cpanel-dist/api/asaas-webhook.php
+
+      - name: Verify generated asset and build
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s "public/jornada-yoga/foto_deyse_jornada yoga_convertida.webp"
+          test -s "cpanel-dist/jornada-yoga/foto_deyse_jornada yoga_convertida.webp"
+          grep -q 'BUILD_VERSION = "1.0.145"' components/layout/AppVersion.tsx
+          grep -q '/jornada-yoga/foto_deyse_jornada%20yoga_convertida.webp' components/jornada-yoga/JornadaYogaPage.tsx
+
+      - name: Commit imported image and generated cPanel build
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/import-deyse-server-image.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git status --short
+          git commit -m "build: versionar foto da Deyse e cPanel v1.0.145"
+          git push origin HEAD:fix/jornada-yoga-foto-deyse
