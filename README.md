@@ -253,6 +253,44 @@ Exemplo de payload (valores fictícios):
 
 No cPanel, use no `config.php` privado as chaves `n8n_pagamento_webhook_url` e `n8n_pagamento_webhook_token` do modelo em `cpanel-server/api/config.example.php`. O workflow n8n não faz parte deste repositório.
 
+## Jornada de Expansão Mental e Corporal
+
+O mesmo projeto também publica a inscrição do evento em:
+
+```text
+https://cadastro.conexaoseres.com.br/jornada-yoga
+```
+
+O fluxo da Jornada é independente do cadastro clínico:
+
+1. recebe somente nome completo, CPF, e-mail e WhatsApp de participantes adultos;
+2. valida o Turnstile com a action `jornada_yoga`;
+3. procura o cliente no Asaas por CPF e por e-mail antes de criar um novo registro;
+4. usa uma referência determinística da Jornada para impedir duas cobranças do mesmo evento para o mesmo CPF;
+5. cria cobrança avulsa de **R$ 297,00**, com `billingType=UNDEFINED`;
+6. encaminha cadastro e pagamento ao webhook específico do n8n;
+7. mantém os envios de WhatsApp/e-mail da Jornada desativados até a aprovação dos textos.
+
+A lista administrativa fica em:
+
+```text
+https://cadastro.conexaoseres.com.br/admin/jornada-yoga
+```
+
+Ela exige autenticação, consulta no Asaas somente as cobranças com referência da Jornada, permite busca/filtro por pagamento e exportação CSV. A senha não é versionada. O servidor deve configurar:
+
+```text
+JORNADA_ADMIN_EMAIL
+JORNADA_ADMIN_PASSWORD_PBKDF2
+JORNADA_ADMIN_SESSION_SECRET
+N8N_CONEXAO_SERES_JORNADA_WEBHOOK_URL
+N8N_CONEXAO_SERES_JORNADA_WEBHOOK_TOKEN
+```
+
+No cPanel, os valores equivalentes ficam apenas no `api/config.php` privado, conforme `config.example.php`.
+
+O workflow importável está em `n8n/conexao-seres-jornada-yoga-v1.0.json`. Nesta versão, ele valida e separa os eventos `jornada_yoga_registration_created` e `jornada_yoga_payment_paid`, mas não possui nós de envio de mensagens.
+
 ## Arquitetura
 
 O projeto compartilha o frontend entre dois ambientes.
