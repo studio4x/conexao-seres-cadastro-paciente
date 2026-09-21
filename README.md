@@ -263,16 +263,17 @@ https://cadastro.conexaoseres.com.br/jornada-yoga
 
 O fluxo da Jornada é independente do cadastro clínico:
 
-1. recebe nome completo, CPF, e-mail, WhatsApp e endereço do participante adulto;
-2. consulta o CEP por `/api/cep` para facilitar o preenchimento, mantendo logradouro, número, complemento e bairro editáveis;
-3. valida o Turnstile com a action `jornada_yoga`;
-4. procura o cliente no Asaas por CPF e por e-mail antes de criar um novo registro;
-5. para cliente novo, envia `postalCode`, `address`, `addressNumber`, `complement` e `province` já na criação;
-6. para cliente existente, atualiza esses campos de endereço por `PUT /v3/customers/{id}` antes de criar ou devolver a cobrança da Jornada;
-7. usa uma referência determinística da Jornada para impedir duas cobranças do mesmo evento para o mesmo CPF;
-8. cria cobrança avulsa de **R$ 297,00**, com `billingType=UNDEFINED`;
-9. encaminha cadastro e pagamento ao webhook específico do n8n;
-10. após a confirmação do pagamento, o webhook do Asaas mantém a emissão explícita da NFS-e e encaminha o evento `jornada_yoga_payment_paid` ao n8n.
+1. recebe nome completo, CPF, e-mail, WhatsApp, data de nascimento, origem da Jornada e endereço do participante adulto;
+2. valida que a data de nascimento corresponde a participante maior de 18 anos;
+3. consulta automaticamente o CEP por `/api/cep` assim que os 8 dígitos são preenchidos, sem botão manual de busca; logradouro, número, complemento e bairro permanecem editáveis;
+4. valida o Turnstile com a action `jornada_yoga`;
+5. procura o cliente no Asaas por CPF e por e-mail antes de criar um novo registro;
+6. para cliente novo, envia endereço e o campo `observations` com data de nascimento e “Como ficou sabendo da Jornada”;
+7. para cliente existente, lê as observações atuais, preserva o conteúdo já registrado e adiciona/atualiza um bloco identificado da Jornada junto com os dados de endereço por `PUT /v3/customers/{id}`;
+8. usa uma referência determinística da Jornada para impedir duas cobranças do mesmo evento para o mesmo CPF;
+9. cria cobrança avulsa de **R$ 297,00**, com `billingType=UNDEFINED`;
+10. encaminha cadastro e pagamento ao webhook específico do n8n;
+11. após a confirmação do pagamento, o webhook do Asaas mantém a emissão explícita da NFS-e e encaminha o evento `jornada_yoga_payment_paid` ao n8n.
 
 A lista administrativa fica em:
 
