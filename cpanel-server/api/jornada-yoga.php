@@ -5,6 +5,43 @@ declare(strict_types=1);
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 
+$journeyStage = 'bootstrap';
+
+register_shutdown_function(static function () use (&$journeyStage): void {
+    $error = error_get_last();
+    if (!is_array($error)) {
+        return;
+    }
+
+    $fatalTypes = [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR];
+    if (!in_array((int) ($error['type'] ?? 0), $fatalTypes, true)) {
+        return;
+    }
+
+    error_log(
+        'Journey fatal error at stage ' . $journeyStage
+        . ': ' . (string) ($error['message'] ?? 'unknown')
+        . ' in ' . basename((string) ($error['file'] ?? 'unknown'))
+        . ':' . (int) ($error['line'] ?? 0)
+    );
+
+    if (!headers_sent()) {
+        http_response_code(500);
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+    }
+
+    echo json_encode(
+        [
+            'success' => false,
+            'message' => 'O servidor encontrou uma falha ao processar a inscrição. Tente novamente em instantes.',
+            'code' => 'JOURNEY_SERVER_ERROR',
+            'stage' => $journeyStage,
+        ],
+        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+    );
+});
+
 function reply(array $data, int $status = 200): never
 {
     http_response_code($status);
@@ -206,16 +243,48 @@ function api(string $method, string $url, string $key, ?array $payload = null): 
     curl_setopt_array($curl, $options);
     $raw = curl_exec($curl);
     $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-    $error = curl_errno($curl);
+    $errorNumber = curl_errno($curl);
+    $errorMessage = curl_error($curl);
     curl_close($curl);
 
     $parsed = is_string($raw) ? json_decode($raw, true) : null;
 
     return [
-        'ok' => $error === 0 && $status >= 200 && $status < 300,
+        'ok' => $errorNumber === 0 && $status >= 200 && $status < 300,
         'status' => $status,
         'data' => is_array($parsed) ? $parsed : [],
+        'curlError' => $errorMessage,
     ];
+}
+
+function api_error_summary(array $result): string
+{
+    $messages = [];
+    foreach (($result['data']['errors'] ?? []) as $error) {
+        if (!is_array($error)) {
+            continue;
+        }
+        $description = clean_text((string) ($error['description'] ?? $error['message'] ?? ''));
+        if ($description !== '') {
+            $messages[] = mb_substr($description, 0, 180);
+        }
+    }
+
+    $curlError = clean_text((string) ($result['curlError'] ?? ''));
+    if ($curlError !== '') {
+        $messages[] = mb_substr($curlError, 0, 180);
+    }
+
+    return implode(' | ', array_slice($messages, 0, 3));
+}
+
+function log_api_failure(string $stage, array $result): void
+{
+    error_log(
+        'Journey Asaas failure at stage ' . $stage
+        . ' HTTP ' . (int) ($result['status'] ?? 0)
+        . ' ' . api_error_summary($result)
+    );
 }
 
 function customer_list(
