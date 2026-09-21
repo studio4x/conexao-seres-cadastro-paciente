@@ -1,24 +1,15 @@
 name: Jornada Yoga validation
 
 on:
-  push:
-    branches: [feat/jornada-yoga]
   pull_request:
     branches: [main]
 
-permissions:
-  contents: write
-
 jobs:
   build:
-    if: ${{ github.event_name == 'pull_request' || !contains(github.event.head_commit.message, '[generated]') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
-        with:
-          ref: feat/jornada-yoga
-          fetch-depth: 0
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
@@ -31,8 +22,8 @@ jobs:
         with:
           php-version: "8.3"
           coverage: none
-      - name: Build cPanel and bump version
-        run: CONEXAO_SERES_BUMP_IN_CI=1 npm run build:cpanel
+      - name: Build cPanel
+        run: bash scripts/build-cpanel.sh
       - name: Lint
         run: npm run lint
       - name: Validate Journey PHP syntax
@@ -47,14 +38,3 @@ jobs:
           php -l cpanel-dist/api/jornada-admin-logout.php
           php -l cpanel-dist/api/jornada-admin-registrations.php
           php -l cpanel-dist/api/asaas-webhook.php
-      - name: Commit generated cPanel package
-        run: |
-          git config user.name "OpenAI Codex"
-          git config user.email "codex@openai.com"
-          git add components/layout/AppVersion.tsx cpanel-dist
-          if git diff --cached --quiet; then
-            echo "No generated changes."
-            exit 0
-          fi
-          git commit -m "build: gera pacote cPanel da jornada [generated]"
-          git push origin HEAD:feat/jornada-yoga
