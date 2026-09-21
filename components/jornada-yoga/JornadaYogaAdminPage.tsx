@@ -433,6 +433,7 @@ export function JornadaYogaAdminPage() {
               onClick={() => void exportPdf()}
               disabled={!rows.length || exportingPdf}
               aria-busy={exportingPdf}
+              title="Exportar a lista exibida em PDF"
               className="flex items-center gap-2 rounded-lg border border-[#b9cbb4] bg-white px-4 py-2.5 text-sm font-semibold text-[#315f31] disabled:opacity-50"
             >
               {exportingPdf ? (
