@@ -293,8 +293,8 @@ export function JornadaYogaPage() {
                 Agora falta apenas concluir o pagamento.
               </h2>
               <p className="mt-4 leading-7 text-[#566451]">
-                Sua cobrança de {formatCurrency(result.value || JORNADA_YOGA_AMOUNT)} está no
-                Asaas. Após a identificação do pagamento, sua inscrição será considerada
+                Sua cobrança de {formatCurrency(result.value || JORNADA_YOGA_AMOUNT)} foi
+                gerada. Após a identificação do pagamento, sua inscrição será considerada
                 confirmada.
               </p>
               {result.invoiceUrl ? (
@@ -305,7 +305,7 @@ export function JornadaYogaPage() {
                   className="mt-7 inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 font-semibold text-white"
                 >
                   <CreditCard className="size-5" />
-                  Ir para o pagamento no Asaas
+                  Ir para o pagamento
                 </a>
               ) : (
                 <p className="mt-6 rounded-lg bg-[#fff8ee] p-4 text-sm text-[#754000]">
@@ -323,8 +323,8 @@ export function JornadaYogaPage() {
                 Garanta sua participação
               </h2>
               <p className="mt-3 text-sm leading-6 text-[#687264]">
-                Preencha os dados necessários para localizar ou criar seu cadastro no Asaas,
-                preparar a emissão fiscal e gerar a cobrança de{" "}
+                Preencha os dados necessários para preparar sua inscrição, a emissão fiscal e a
+                cobrança de{" "}
                 {formatCurrency(JORNADA_YOGA_AMOUNT)}.
               </p>
 
