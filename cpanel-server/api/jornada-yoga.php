@@ -70,6 +70,100 @@ function valid_cep(string $value): bool
     return preg_match('/^\d{8}$/', digits($value)) === 1;
 }
 
+function valid_birth_date(string $value): bool
+{
+    $birth = DateTimeImmutable::createFromFormat(
+        '!Y-m-d',
+        $value,
+        new DateTimeZone('America/Sao_Paulo')
+    );
+    $errors = DateTimeImmutable::getLastErrors();
+
+    if (
+        !$birth
+        || ($errors !== false && (($errors['warning_count'] ?? 0) > 0 || ($errors['error_count'] ?? 0) > 0))
+        || $birth->format('Y-m-d') !== $value
+        || (int) $birth->format('Y') < 1900
+    ) {
+        return false;
+    }
+
+    $today = new DateTimeImmutable('today', new DateTimeZone('America/Sao_Paulo'));
+    if ($birth > $today) {
+        return false;
+    }
+
+    $age = $birth->diff($today)->y;
+    return $age >= 18 && $age <= 120;
+}
+
+function valid_discovery_source(string $value): bool
+{
+    return in_array(
+        $value,
+        [
+            'Instagram',
+            'Facebook',
+            'WhatsApp',
+            'Google / pesquisa na internet',
+            'Site da Conexão Seres',
+            'Indicação de amigo(a) ou familiar',
+            'Indicação de profissional',
+            'Já conhecia a Conexão Seres',
+            'Outro',
+        ],
+        true
+    );
+}
+
+function format_birth_date_br(string $value): string
+{
+    $parts = explode('-', $value);
+    return count($parts) === 3
+        ? $parts[2] . '/' . $parts[1] . '/' . $parts[0]
+        : $value;
+}
+
+function journey_observations_block(string $birthDate, string $discoverySource): string
+{
+    return implode(
+        "\n",
+        [
+            '[JORNADA DE EXPANSÃO MENTAL E CORPORAL 2026]',
+            'Data de nascimento: ' . format_birth_date_br($birthDate),
+            'Como ficou sabendo da Jornada: ' . $discoverySource,
+            '[/JORNADA DE EXPANSÃO MENTAL E CORPORAL 2026]',
+        ]
+    );
+}
+
+function merge_journey_observations(
+    string $current,
+    string $birthDate,
+    string $discoverySource
+): string {
+    $startMarker = '[JORNADA DE EXPANSÃO MENTAL E CORPORAL 2026]';
+    $endMarker = '[/JORNADA DE EXPANSÃO MENTAL E CORPORAL 2026]';
+    $block = journey_observations_block($birthDate, $discoverySource);
+    $existing = trim($current);
+
+    if ($existing === '') {
+        return $block;
+    }
+
+    $start = strpos($existing, $startMarker);
+    $end = strpos($existing, $endMarker);
+
+    if ($start !== false && $end !== false && $end >= $start) {
+        $after = $end + strlen($endMarker);
+        $beforeText = trim(substr($existing, 0, $start));
+        $afterText = trim(substr($existing, $after));
+        return trim(implode("\n\n", array_filter([$beforeText, $block, $afterText])));
+    }
+
+    return $existing . "\n\n" . $block;
+}
+
 function api(string $method, string $url, string $key, ?array $payload = null): array
 {
     $curl = curl_init($url);
@@ -221,22 +315,46 @@ function get_payment(string $base, string $key, string $paymentId): ?array
     return $result['ok'] ? $result['data'] : null;
 }
 
-function update_customer_address(
+function get_customer(string $base, string $key, string $customerId): ?array
+{
+    $result = api('GET', $base . '/customers/' . rawurlencode($customerId), $key);
+    return $result['ok'] ? $result['data'] : null;
+}
+
+function update_customer_registration(
     string $base,
     string $key,
     string $customerId,
-    array $address
+    array $address,
+    string $birthDate,
+    string $discoverySource
 ): bool {
+    $current = get_customer($base, $key, $customerId);
+    if (!is_array($current)) {
+        error_log(
+            'Journey customer lookup before update failed. Customer prefix '
+            . substr($customerId, 0, 20)
+        );
+        return false;
+    }
+
+    $payload = $address;
+    $payload['observations'] = merge_journey_observations(
+        (string) ($current['observations'] ?? ''),
+        $birthDate,
+        $discoverySource
+    );
+
     $result = api(
         'PUT',
         $base . '/customers/' . rawurlencode($customerId),
         $key,
-        $address
+        $payload
     );
 
     if (!$result['ok']) {
         error_log(
-            'Journey customer address update failed. Customer prefix '
+            'Journey customer registration update failed. Customer prefix '
             . substr($customerId, 0, 20)
             . ' HTTP '
             . (int) ($result['status'] ?? 0)
@@ -358,6 +476,8 @@ $name = clean_text((string) ($body['name'] ?? ''));
 $cpf = digits((string) ($body['cpf'] ?? ''));
 $email = strtolower(trim((string) ($body['email'] ?? '')));
 $phone = national_phone((string) ($body['whatsapp'] ?? ''));
+$birthDate = trim((string) ($body['birthDate'] ?? ''));
+$discoverySource = clean_text((string) ($body['discoverySource'] ?? ''));
 $postalCode = digits((string) ($body['postalCode'] ?? ''));
 $addressLine = clean_text((string) ($body['address'] ?? ''));
 $addressNumber = clean_text((string) ($body['addressNumber'] ?? ''));
@@ -373,6 +493,8 @@ if (
     || filter_var($email, FILTER_VALIDATE_EMAIL) === false
     || mb_strlen($email) > 150
     || !valid_phone($phone)
+    || !valid_birth_date($birthDate)
+    || !valid_discovery_source($discoverySource)
     || !valid_cep($postalCode)
     || mb_strlen($addressLine) < 3
     || mb_strlen($addressLine) > 180
@@ -395,6 +517,7 @@ $address = [
     'complement' => $complement,
     'province' => $province,
 ];
+$observations = journey_observations_block($birthDate, $discoverySource);
 
 $key = trim((string) ($config['asaas_api_key'] ?? ''));
 $base = rtrim(
@@ -440,11 +563,18 @@ if (is_array($found['payment'])) {
         );
     }
 
-    if (!update_customer_address($base, $key, $customerId, $address)) {
+    if (!update_customer_registration(
+        $base,
+        $key,
+        $customerId,
+        $address,
+        $birthDate,
+        $discoverySource
+    )) {
         reply(
             [
                 'message' =>
-                    'Localizamos sua inscrição, mas não conseguimos atualizar o endereço para a emissão fiscal. Tente novamente.',
+                    'Localizamos sua inscrição, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal. Tente novamente.',
             ],
             502
         );
@@ -494,11 +624,18 @@ $customer = (string) $resolved['id'];
 $existingCustomer = $customer !== '';
 
 if ($customer !== '') {
-    if (!update_customer_address($base, $key, $customer, $address)) {
+    if (!update_customer_registration(
+        $base,
+        $key,
+        $customer,
+        $address,
+        $birthDate,
+        $discoverySource
+    )) {
         reply(
             [
                 'message' =>
-                    'Seu cadastro foi localizado, mas não conseguimos atualizar o endereço necessário para a emissão fiscal.',
+                    'Seu cadastro foi localizado, mas não conseguimos atualizar os dados necessários para a inscrição e emissão fiscal.',
             ],
             502
         );
@@ -514,6 +651,7 @@ if ($customer !== '') {
             'email' => $email,
             'mobilePhone' => $phone,
             ...$address,
+            'observations' => $observations,
             'externalReference' => customer_ref($cpf),
             'notificationDisabled' => false,
         ]
