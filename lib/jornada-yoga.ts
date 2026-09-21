@@ -56,6 +56,14 @@ export function isValidEmail(value: string) {
   return email.length <= 150 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
 }
 
+export function isValidCep(value: string) {
+  return /^\d{8}$/.test(onlyDigits(value));
+}
+
+export function formatCep(value: string) {
+  return onlyDigits(value).slice(0, 8).replace(/(\d{5})(\d)/, "$1-$2");
+}
+
 export function formatCpf(value: string) {
   return onlyDigits(value).slice(0,11).replace(/(\d{3})(\d)/,"$1.$2").replace(/(\d{3})(\d)/,"$1.$2").replace(/(\d{3})(\d{1,2})$/,"$1-$2");
 }
