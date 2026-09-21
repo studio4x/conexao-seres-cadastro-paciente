@@ -1,5 +1,5 @@
 {
-  "name": "Conexão Seres | Jornada de Expansão Mental e Corporal | v1.3",
+  "name": "Conexão Seres | Jornada de Expansão Mental e Corporal | v1.4",
   "nodes": [
     {
       "parameters": {
@@ -122,7 +122,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const i = $input.first().json || {};\nconst paymentId = String(i.paymentId || '').trim();\nconst rawWhatsapp = String(i.customerWhatsapp || '').trim();\nconst rawUrl = String(i.invoiceUrl || '').trim();\nif (!paymentId) throw new Error('paymentId não informado.');\nconst digits = rawWhatsapp.replace(/\\D/g,'');\nlet whatsappNumber = '';\nif (digits.length === 13 && digits.startsWith('55')) whatsappNumber = '+' + digits;\nelse if (digits.length === 11) whatsappNumber = '+55' + digits;\nelse throw new Error('WhatsApp inválido. Informe DDD + número móvel brasileiro.');\nlet safeUrl = false;\ntry { const u = new URL(rawUrl); const h = u.hostname.toLowerCase(); safeUrl = u.protocol === 'https:' && (h === 'asaas.com' || h.endsWith('.asaas.com')); } catch {}\nif (!safeUrl) throw new Error('Link de pagamento inválido.');\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.jornadaYogaRegistrationMessages || typeof staticData.jornadaYogaRegistrationMessages !== 'object') staticData.jornadaYogaRegistrationMessages = {};\nconst sent = staticData.jornadaYogaRegistrationMessages;\nconst now = Date.now();\nconst retentionMs = 120 * 24 * 60 * 60 * 1000;\nfor (const [id,timestamp] of Object.entries(sent)) { const savedAt=Number(timestamp); if (!Number.isFinite(savedAt) || now-savedAt>retentionMs) delete sent[id]; }\nif (sent[paymentId]) return [];\nsent[paymentId] = now;\nreturn [{json:{...i,whatsappNumber}}];"
+        "jsCode": "const i = $input.first().json || {};\nconst paymentId = String(i.paymentId || '').trim();\nconst rawWhatsapp = String(i.customerWhatsapp || '').trim();\nconst rawUrl = String(i.invoiceUrl || '').trim();\nif (!paymentId) throw new Error('paymentId não informado.');\nconst digits = rawWhatsapp.replace(/\\D/g,'');\nlet whatsappNumber = '';\nif (digits.length === 13 && digits.startsWith('55')) whatsappNumber = '+' + digits;\nelse if (digits.length === 11) whatsappNumber = '+55' + digits;\nelse throw new Error('WhatsApp inválido. Informe DDD + número móvel brasileiro.');\nconst safeUrl = /^https:\\/\\/(?:[a-z0-9-]+\\.)*asaas\\.com(?:\\/|$)/i.test(rawUrl);\nif (!safeUrl) throw new Error('Link de pagamento inválido.');\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.jornadaYogaRegistrationMessages || typeof staticData.jornadaYogaRegistrationMessages !== 'object') staticData.jornadaYogaRegistrationMessages = {};\nconst sent = staticData.jornadaYogaRegistrationMessages;\nconst now = Date.now();\nconst retentionMs = 120 * 24 * 60 * 60 * 1000;\nfor (const [id,timestamp] of Object.entries(sent)) { const savedAt=Number(timestamp); if (!Number.isFinite(savedAt) || now-savedAt>retentionMs) delete sent[id]; }\nif (sent[paymentId]) return [];\nsent[paymentId] = now;\nreturn [{json:{...i,whatsappNumber}}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -341,7 +341,8 @@
   "meta": {
     "templateCredsSetupCompleted": true,
     "messageTemplatesVersion": "approved-no-provider-brand-2026-09-21",
-    "referenceWorkflow": "Conexão Seres | Cadastro + E-mail + Pagamento Grupo + Confirmação Agendamento + Contrato | v1.14"
+    "referenceWorkflow": "Conexão Seres | Cadastro + E-mail + Pagamento Grupo + Confirmação Agendamento + Contrato | v1.14",
+    "paymentLinkValidationFix": "regex-no-URL-global-2026-09-21"
   },
   "tags": []
 }
