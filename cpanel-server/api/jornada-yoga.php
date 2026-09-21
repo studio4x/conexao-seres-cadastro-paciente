@@ -233,46 +233,64 @@ function journey_observations_within_safety_budget(string $value): bool
 
 function api(string $method, string $url, string $key, ?array $payload = null): array
 {
-    $curl = curl_init($url);
-    if (!$curl) {
-        return ['ok' => false, 'status' => 0, 'data' => []];
+    $method = strtoupper($method);
+    $maxAttempts = in_array($method, ['GET', 'PUT'], true) ? 2 : 1;
+    $last = ['ok' => false, 'status' => 0, 'data' => [], 'curlError' => ''];
+
+    for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+        $curl = curl_init($url);
+        if (!$curl) {
+            return ['ok' => false, 'status' => 0, 'data' => [], 'curlError' => 'curl_init failed'];
+        }
+
+        $options = [
+            CURLOPT_CUSTOMREQUEST => $method,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT => 15,
+            CURLOPT_HTTPHEADER => [
+                'Accept: application/json',
+                'Content-Type: application/json',
+                'User-Agent: ConexaoSeresJornadaYoga/1.0',
+                'access_token: ' . $key,
+            ],
+        ];
+
+        if ($payload !== null) {
+            $options[CURLOPT_POSTFIELDS] = json_encode(
+                $payload,
+                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+            );
+        }
+
+        curl_setopt_array($curl, $options);
+        $raw = curl_exec($curl);
+        $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+        $errorNumber = curl_errno($curl);
+        $errorMessage = curl_error($curl);
+        curl_close($curl);
+
+        $parsed = is_string($raw) ? json_decode($raw, true) : null;
+        $last = [
+            'ok' => $errorNumber === 0 && $status >= 200 && $status < 300,
+            'status' => $status,
+            'data' => is_array($parsed) ? $parsed : [],
+            'curlError' => $errorMessage,
+        ];
+
+        if ($last['ok']) {
+            return $last;
+        }
+
+        $retryable = $errorNumber !== 0 || $status === 429 || $status >= 500;
+        if (!$retryable || $attempt >= $maxAttempts) {
+            break;
+        }
+
+        usleep(250000);
     }
 
-    $options = [
-        CURLOPT_CUSTOMREQUEST => $method,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_CONNECTTIMEOUT => 8,
-        CURLOPT_TIMEOUT => 20,
-        CURLOPT_HTTPHEADER => [
-            'Accept: application/json',
-            'Content-Type: application/json',
-            'User-Agent: ConexaoSeresJornadaYoga/1.0',
-            'access_token: ' . $key,
-        ],
-    ];
-
-    if ($payload !== null) {
-        $options[CURLOPT_POSTFIELDS] = json_encode(
-            $payload,
-            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
-        );
-    }
-
-    curl_setopt_array($curl, $options);
-    $raw = curl_exec($curl);
-    $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-    $errorNumber = curl_errno($curl);
-    $errorMessage = curl_error($curl);
-    curl_close($curl);
-
-    $parsed = is_string($raw) ? json_decode($raw, true) : null;
-
-    return [
-        'ok' => $errorNumber === 0 && $status >= 200 && $status < 300,
-        'status' => $status,
-        'data' => is_array($parsed) ? $parsed : [],
-        'curlError' => $errorMessage,
-    ];
+    return $last;
 }
 
 function api_error_summary(array $result): string
@@ -692,8 +710,9 @@ if (!$found['ok']) {
             'success' => false,
             'message' => 'Não conseguimos confirmar sua inscrição agora.',
             'code' => 'JOURNEY_PAYMENT_LOOKUP_FAILED',
+            'stage' => $journeyStage,
         ],
-        502
+        424
     );
 }
 
@@ -708,10 +727,13 @@ if (is_array($found['payment'])) {
     if ($customerId === '') {
         reply(
             [
+                'success' => false,
                 'message' =>
                     'Localizamos sua inscrição, mas não conseguimos identificar o cadastro necessário para processá-la.',
+                'code' => 'JOURNEY_PAYMENT_CUSTOMER_MISSING',
+                'stage' => $journeyStage,
             ],
-            502
+            424
         );
     }
 
@@ -736,8 +758,9 @@ if (is_array($found['payment'])) {
                 'code' => $tooLong
                     ? 'JOURNEY_OBSERVATIONS_TOO_LONG'
                     : 'JOURNEY_EXISTING_REGISTRATION_UPDATE_FAILED',
+                'stage' => $journeyStage,
             ],
-            $tooLong ? 409 : 502
+            $tooLong ? 409 : 424
         );
     }
 
@@ -773,8 +796,9 @@ if ($cpfMatches === null || $emailMatches === null) {
             'success' => false,
             'message' => 'Não conseguimos consultar seu cadastro agora.',
             'code' => 'JOURNEY_CUSTOMER_LOOKUP_FAILED',
+            'stage' => $journeyStage,
         ],
-        502
+        424
     );
 }
 
@@ -814,8 +838,9 @@ if ($customer !== '') {
                 'code' => $tooLong
                     ? 'JOURNEY_OBSERVATIONS_TOO_LONG'
                     : 'JOURNEY_CUSTOMER_UPDATE_FAILED',
+                'stage' => $journeyStage,
             ],
-            $tooLong ? 409 : 502
+            $tooLong ? 409 : 424
         );
     }
 } else {
@@ -844,8 +869,9 @@ if ($customer !== '') {
                 'success' => false,
                 'message' => 'Não conseguimos concluir seu cadastro agora.',
                 'code' => 'JOURNEY_CUSTOMER_CREATE_FAILED',
+                'stage' => $journeyStage,
             ],
-            502
+            424
         );
     }
 }
@@ -858,8 +884,9 @@ if (!$charge['ok']) {
             'success' => false,
             'message' => 'Não conseguimos gerar a cobrança agora.',
             'code' => 'JOURNEY_CHARGE_LOOKUP_FAILED',
+            'stage' => $journeyStage,
         ],
-        502
+        424
     );
 }
 
@@ -895,8 +922,9 @@ if (!is_array($charge['payment'])) {
                     'success' => false,
                     'message' => 'Não conseguimos gerar a cobrança da Jornada agora.',
                     'code' => 'JOURNEY_CHARGE_CREATE_FAILED',
+                    'stage' => $journeyStage,
                 ],
-                502
+                424
             );
         }
         $charge['payment'] = $reconcile['payment'];
