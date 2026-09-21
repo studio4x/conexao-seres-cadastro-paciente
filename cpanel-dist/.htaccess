@@ -6,6 +6,13 @@ RewriteRule ^api/cep/?$ api/cep.php [L,QSA]
 RewriteRule ^api/turnstile/?$ api/turnstile.php [L]
 RewriteRule ^api/patients/?$ api/patients.php [L]
 RewriteRule ^api/asaas/webhook/?$ api/asaas-webhook.php [L]
+RewriteRule ^api/jornada-yoga/?$ api/jornada-yoga.php [L]
+RewriteRule ^api/jornada-yoga/admin/login/?$ api/jornada-admin-login.php [L]
+RewriteRule ^api/jornada-yoga/admin/logout/?$ api/jornada-admin-logout.php [L]
+RewriteRule ^api/jornada-yoga/admin/registrations/?$ api/jornada-admin-registrations.php [L]
+
+RewriteRule ^jornada-yoga/?$ index.html [L]
+RewriteRule ^admin/jornada-yoga/?$ index.html [L]
 
 <IfModule mod_headers.c>
   Header always set X-Content-Type-Options "nosniff"
