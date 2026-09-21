@@ -101,17 +101,21 @@ As variáveis equivalentes são `N8N_CONEXAO_SERES_PAGAMENTO_WEBHOOK_URL` e `N8N
 
 A rota pública `/jornada-yoga` usa o mesmo endpoint de CEP já publicado no cPanel e envia a inscrição para `/api/jornada-yoga`.
 
-Para preparar o cadastro do pagador para emissão fiscal, o formulário exige:
+Para preparar a inscrição e a emissão fiscal, o formulário exige:
 
+- data de nascimento de participante adulto;
+- origem da inscrição em “Como ficou sabendo da Jornada?”;
 - CEP;
 - logradouro;
 - número;
 - complemento opcional;
 - bairro.
 
-O backend PHP normaliza e valida esses campos. Em cliente novo, envia `postalCode`, `address`, `addressNumber`, `complement` e `province` em `POST /v3/customers`. Quando o cliente já existe no Asaas, executa uma atualização parcial por `PUT /v3/customers/{id}` antes de criar ou retornar a cobrança de R$ 297,00 da Jornada. Se a atualização do endereço falhar, a cobrança não é criada por esse envio.
+A consulta do CEP é automática assim que os 8 dígitos são informados; não existe botão manual de busca. Logradouro, número, complemento e bairro permanecem editáveis. Cidade/UF são exibidos a partir do ViaCEP.
 
-A consulta de CEP apenas auxilia o preenchimento; logradouro, número, complemento e bairro permanecem editáveis. Cidade/UF são exibidos a partir do ViaCEP, enquanto o Asaas usa o CEP para completar os dados geográficos do cadastro.
+O backend PHP normaliza e valida os campos. Em cliente novo, envia `postalCode`, `address`, `addressNumber`, `complement`, `province` e `observations` em `POST /v3/customers`. As observações recebem um bloco da Jornada com a data de nascimento em `DD/MM/AAAA` e a origem informada.
+
+Quando o cliente já existe, o backend consulta o cadastro atual e preserva outras observações já existentes. O bloco da Jornada é adicionado ou atualizado de forma idempotente junto com o endereço por `PUT /v3/customers/{id}` antes de criar ou retornar a cobrança de R$ 297,00. Se essa atualização falhar, a cobrança não é criada por esse envio.
 
 O webhook fiscal da Jornada continua em `/api/asaas/webhook`, compartilhando o mesmo mecanismo de emissão idempotente da NFS-e após `PAYMENT_CONFIRMED` ou `PAYMENT_RECEIVED`.
 
