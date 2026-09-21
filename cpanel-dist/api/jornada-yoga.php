@@ -450,6 +450,25 @@ if (is_array($found['payment'])) {
         );
     }
 
+    post_n8n(
+        trim((string) ($config['n8n_jornada_webhook_url'] ?? '')),
+        trim((string) ($config['n8n_jornada_webhook_token'] ?? '')),
+        [
+            'eventType' => 'jornada_yoga_registration_created',
+            'eventId' => 'jornada-yoga-2026',
+            'customerName' => $name,
+            'customerEmail' => $email,
+            'customerWhatsapp' => $phone,
+            'asaasCustomerId' => $customerId,
+            'paymentId' => (string) ($payment['id'] ?? ''),
+            'invoiceUrl' => (string) ($payment['invoiceUrl'] ?? ''),
+            'value' => 297,
+            'status' => (string) ($payment['status'] ?? 'PENDING'),
+            'externalReference' => $reference,
+            'existingCustomer' => true,
+        ]
+    );
+
     reply(payment_payload($payment, true, true));
 }
 
