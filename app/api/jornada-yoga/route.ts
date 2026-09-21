@@ -215,13 +215,6 @@ async function getCustomer(
   customerId: string,
   signal: AbortSignal,
 ) {
-  if (!jornadaObservationsWithinSafetyBudget(observations)) {
-    console.error("Journey customer observations exceed safety budget", {
-      utf8Bytes: jornadaObservationsUtf8Bytes(observations),
-    });
-    return { ok: false as const, code: "observations-too-long" as const };
-  }
-
   const response = await fetch(base + "/customers/" + encodeURIComponent(customerId), {
     headers: headers(key),
     signal,
@@ -253,6 +246,13 @@ async function updateCustomerRegistration(
     discoverySource,
     discoveryOther,
   );
+
+  if (!jornadaObservationsWithinSafetyBudget(observations)) {
+    console.error("Journey customer observations exceed safety budget", {
+      utf8Bytes: jornadaObservationsUtf8Bytes(observations),
+    });
+    return { ok: false as const, code: "observations-too-long" as const };
+  }
 
   const response = await fetch(base + "/customers/" + encodeURIComponent(customerId), {
     method: "PUT",
@@ -468,8 +468,9 @@ export async function POST(request: Request) {
           success: false,
           message: "Não conseguimos confirmar sua inscrição agora.",
           code: "JOURNEY_PAYMENT_LOOKUP_FAILED",
+          stage: "payment-lookup",
         },
-        { status: 502 },
+        { status: 424 },
       );
     }
 
@@ -482,8 +483,13 @@ export async function POST(request: Request) {
 
       if (!customerId) {
         return NextResponse.json(
-          { message: "Localizamos sua inscrição, mas não conseguimos identificar o cadastro necessário para processá-la." },
-          { status: 502 },
+          {
+            success: false,
+            message: "Localizamos sua inscrição, mas não conseguimos identificar o cadastro necessário para processá-la.",
+            code: "JOURNEY_PAYMENT_CUSTOMER_MISSING",
+            stage: "payment-customer",
+          },
+          { status: 424 },
         );
       }
 
@@ -509,8 +515,9 @@ export async function POST(request: Request) {
               updated.code === "observations-too-long"
                 ? "JOURNEY_OBSERVATIONS_TOO_LONG"
                 : "JOURNEY_EXISTING_REGISTRATION_UPDATE_FAILED",
+            stage: "existing-registration-customer-update",
           },
-          { status: updated.code === "observations-too-long" ? 409 : 502 },
+          { status: updated.code === "observations-too-long" ? 409 : 424 },
         );
       }
 
@@ -543,8 +550,9 @@ export async function POST(request: Request) {
           success: false,
           message: "Não conseguimos consultar seu cadastro agora.",
           code: "JOURNEY_CUSTOMER_LOOKUP_FAILED",
+          stage: "customer-lookup",
         },
-        { status: 502 },
+        { status: 424 },
       );
     }
 
@@ -585,8 +593,9 @@ export async function POST(request: Request) {
               updated.code === "observations-too-long"
                 ? "JOURNEY_OBSERVATIONS_TOO_LONG"
                 : "JOURNEY_CUSTOMER_UPDATE_FAILED",
+            stage: "customer-update",
           },
-          { status: updated.code === "observations-too-long" ? 409 : 502 },
+          { status: updated.code === "observations-too-long" ? 409 : 424 },
         );
       }
     } else {
@@ -626,8 +635,9 @@ export async function POST(request: Request) {
             success: false,
             message: "Não conseguimos concluir seu cadastro agora.",
             code: "JOURNEY_CUSTOMER_CREATE_FAILED",
+            stage: "customer-create",
           },
-          { status: 502 },
+          { status: 424 },
         );
       }
     }
