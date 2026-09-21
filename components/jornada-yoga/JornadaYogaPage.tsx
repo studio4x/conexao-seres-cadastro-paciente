@@ -221,7 +221,8 @@ export function JornadaYogaPage() {
       }
 
       if (!response.ok || !payload.success) {
-        const suffix = payload.code ? ` [${payload.code}]` : "";
+        const technical = [payload.code, payload.stage].filter(Boolean).join(" · ");
+        const suffix = technical ? ` [${technical}]` : "";
         throw new Error(
           `${payload.message || "Não foi possível concluir sua inscrição."}${suffix}`,
         );
@@ -397,7 +398,7 @@ export function JornadaYogaPage() {
                 {formatCurrency(JORNADA_YOGA_AMOUNT)}.
               </p>
 
-              <form onSubmit={submit} className="mt-7 space-y-5">
+              <form onSubmit={submit} autoComplete="on" className="mt-7 space-y-5">
                 <label className="block">
                   <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-[#514821]">
                     <UserRound className="size-4" />
@@ -405,6 +406,7 @@ export function JornadaYogaPage() {
                   </span>
                   <input
                     className={input}
+                    name="name"
                     autoComplete="name"
                     value={form.name}
                     onChange={(event) => setForm({ ...form, name: event.target.value })}
@@ -416,6 +418,7 @@ export function JornadaYogaPage() {
                     <span className="mb-2 block text-sm font-semibold text-[#514821]">CPF</span>
                     <input
                       className={input}
+                      name="cpf"
                       inputMode="numeric"
                       value={form.cpf}
                       onChange={(event) =>
@@ -432,6 +435,7 @@ export function JornadaYogaPage() {
                     <input
                       className={input}
                       type="date"
+                      name="birthDate"
                       autoComplete="bday"
                       max={maxAdultBirthDate()}
                       value={form.birthDate}
@@ -448,7 +452,10 @@ export function JornadaYogaPage() {
                     </span>
                     <input
                       className={input}
+                      type="tel"
+                      name="tel"
                       inputMode="tel"
+                      autoComplete="tel"
                       value={form.whatsapp}
                       onChange={(event) =>
                         setForm({ ...form, whatsapp: formatWhatsapp(event.target.value) })
@@ -464,6 +471,7 @@ export function JornadaYogaPage() {
                     <input
                       className={input}
                       type="email"
+                      name="email"
                       autoComplete="email"
                       value={form.email}
                       onChange={(event) => setForm({ ...form, email: event.target.value })}
@@ -477,6 +485,7 @@ export function JornadaYogaPage() {
                   </span>
                   <select
                     className={input}
+                    name="discoverySource"
                     value={form.discoverySource}
                     onChange={(event) => {
                       const discoverySource = event.target.value;
@@ -504,7 +513,9 @@ export function JornadaYogaPage() {
                     </span>
                     <input
                       className={input}
+                      name="discoveryOther"
                       maxLength={160}
+                      autoComplete="off"
                       value={form.discoveryOther}
                       onChange={(event) =>
                         setForm({ ...form, discoveryOther: event.target.value })
@@ -529,6 +540,7 @@ export function JornadaYogaPage() {
                         <div className="relative">
                           <input
                             className={`${input} pr-11`}
+                            name="postalCode"
                             inputMode="numeric"
                             autoComplete="postal-code"
                             value={form.postalCode}
@@ -563,6 +575,7 @@ export function JornadaYogaPage() {
                         </span>
                         <input
                           className={input}
+                          name="address"
                           autoComplete="address-line1"
                           value={form.address}
                           onChange={(event) => setForm({ ...form, address: event.target.value })}
@@ -582,7 +595,7 @@ export function JornadaYogaPage() {
                         </span>
                         <input
                           className={input}
-                          autoComplete="address-line2"
+                          name="addressNumber"
                           value={form.addressNumber}
                           onChange={(event) =>
                             setForm({ ...form, addressNumber: event.target.value })
@@ -596,6 +609,8 @@ export function JornadaYogaPage() {
                         </span>
                         <input
                           className={input}
+                          name="complement"
+                          autoComplete="address-line2"
                           maxLength={255}
                           value={form.complement}
                           onChange={(event) =>
@@ -613,6 +628,8 @@ export function JornadaYogaPage() {
                         </span>
                         <input
                           className={input}
+                          name="province"
+                          autoComplete="address-level3"
                           value={form.province}
                           onChange={(event) =>
                             setForm({ ...form, province: event.target.value })
@@ -635,6 +652,7 @@ export function JornadaYogaPage() {
 
                 <input
                   className="sr-only"
+                  name="website"
                   tabIndex={-1}
                   autoComplete="off"
                   value={form.website}
@@ -644,6 +662,7 @@ export function JornadaYogaPage() {
                 <label className="flex gap-3 rounded-lg border border-[#dfe4db] bg-[#fafbf9] p-4 text-sm leading-6 text-[#566451]">
                   <input
                     type="checkbox"
+                    name="consent"
                     className="mt-1 accent-[#005000]"
                     checked={form.consent}
                     onChange={(event) => setForm({ ...form, consent: event.target.checked })}
