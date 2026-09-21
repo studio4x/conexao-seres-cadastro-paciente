@@ -10,6 +10,23 @@ export const JORNADA_YOGA_DATES = [
   "04/11/2026", "11/11/2026", "18/11/2026", "25/11/2026",
 ] as const;
 
+export const JORNADA_YOGA_DISCOVERY_OPTIONS = [
+  "Instagram",
+  "Facebook",
+  "WhatsApp",
+  "Google / pesquisa na internet",
+  "Site da Conexão Seres",
+  "Indicação de amigo(a) ou familiar",
+  "Indicação de profissional",
+  "Já conhecia a Conexão Seres",
+  "Outro",
+] as const;
+
+export type JornadaYogaDiscoverySource = (typeof JORNADA_YOGA_DISCOVERY_OPTIONS)[number];
+
+const JORNADA_OBSERVATIONS_START = "[JORNADA DE EXPANSÃO MENTAL E CORPORAL 2026]";
+const JORNADA_OBSERVATIONS_END = "[/JORNADA DE EXPANSÃO MENTAL E CORPORAL 2026]";
+
 const AREA_CODES = new Set([
   "11","12","13","14","15","16","17","18","19","21","22","24","27","28",
   "31","32","33","34","35","37","38","41","42","43","44","45","46","47","48","49",
@@ -58,6 +75,82 @@ export function isValidEmail(value: string) {
 
 export function isValidCep(value: string) {
   return /^\d{8}$/.test(onlyDigits(value));
+}
+
+export function isValidAdultBirthDate(value: string, now = new Date()) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const birthDate = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    birthDate.getUTCFullYear() !== year ||
+    birthDate.getUTCMonth() !== month - 1 ||
+    birthDate.getUTCDate() !== day ||
+    year < 1900
+  ) {
+    return false;
+  }
+
+  const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  if (birthDate > today) return false;
+
+  let age = today.getUTCFullYear() - birthDate.getUTCFullYear();
+  const birthdayThisYear = new Date(
+    Date.UTC(today.getUTCFullYear(), birthDate.getUTCMonth(), birthDate.getUTCDate()),
+  );
+  if (birthdayThisYear > today) age -= 1;
+
+  return age >= 18 && age <= 120;
+}
+
+export function maxAdultBirthDate(now = new Date()) {
+  const year = now.getFullYear() - 18;
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function formatBirthDateBr(value: string) {
+  const [year, month, day] = value.split("-");
+  return year && month && day ? `${day}/${month}/${year}` : value;
+}
+
+export function isValidJornadaDiscoverySource(value: string): value is JornadaYogaDiscoverySource {
+  return (JORNADA_YOGA_DISCOVERY_OPTIONS as readonly string[]).includes(value);
+}
+
+export function buildJornadaObservations(
+  birthDate: string,
+  discoverySource: JornadaYogaDiscoverySource,
+) {
+  return [
+    JORNADA_OBSERVATIONS_START,
+    `Data de nascimento: ${formatBirthDateBr(birthDate)}`,
+    `Como ficou sabendo da Jornada: ${discoverySource}`,
+    JORNADA_OBSERVATIONS_END,
+  ].join("\n");
+}
+
+export function mergeJornadaObservations(
+  current: string | undefined,
+  birthDate: string,
+  discoverySource: JornadaYogaDiscoverySource,
+) {
+  const block = buildJornadaObservations(birthDate, discoverySource);
+  const existing = (current || "").trim();
+  if (!existing) return block;
+
+  const start = existing.indexOf(JORNADA_OBSERVATIONS_START);
+  const end = existing.indexOf(JORNADA_OBSERVATIONS_END);
+
+  if (start >= 0 && end >= start) {
+    const after = end + JORNADA_OBSERVATIONS_END.length;
+    return `${existing.slice(0, start).trim()}\n\n${block}\n\n${existing.slice(after).trim()}`
+      .trim()
+      .replace(/\n{3,}/g, "\n\n");
+  }
+
+  return `${existing}\n\n${block}`;
 }
 
 export function formatCep(value: string) {
