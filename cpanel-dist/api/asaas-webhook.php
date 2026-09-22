@@ -227,7 +227,7 @@ function parse_first_session_from_observations(mixed $observations): array
         }
         if (
             preg_match(
-                '/^(?:Primeira sessão|1ª sessão): (\d{2}\/\d{2}\/\d{4}) às ((?:[01]\d|2[0-3]):[0-5]\d)$/u',
+                '/^(?:Primeira sessão|1[ªa] sessão): (\d{2}\/\d{2}\/\d{4}) às ((?:[01]\d|2[0-3]):[0-5]\d)$/u',
                 $line,
                 $matches
             ) === 1
@@ -239,12 +239,14 @@ function parse_first_session_from_observations(mixed $observations): array
         }
         if ($line === 'Modalidade da primeira sessão: Presencial'
             || $line === 'Modalidade da primeira sessão: Presencial, na clínica Conexão Seres'
-            || $line === 'Modo 1ª sessão: Presencial, na clínica Conexão Seres') {
+            || $line === 'Modo 1ª sessão: Presencial, na clínica Conexão Seres'
+            || $line === 'Modo 1a sessão: Presencial, na clínica Conexão Seres') {
             $firstSessionMode = 'IN_PERSON';
         } elseif (
             $line === 'Modalidade da primeira sessão: Online via Google Meet'
             || $line === 'Modalidade da primeira sessão: Online'
             || $line === 'Modo 1ª sessão: Online via Google Meet'
+            || $line === 'Modo 1a sessão: Online via Google Meet'
         ) {
             $firstSessionMode = 'ONLINE';
         }
@@ -306,8 +308,8 @@ function notify_n8n_first_session_paid_safely(
             'asaasEvent' => $event,
             'observationsPresent' => $observations !== '',
             'observationsUtf8Bytes' => strlen($observations),
-            'hasSessionMarker' => preg_match('/(?:^|\\r?\\n)\\s*(?:Primeira sessão|1ª sessão)\\s*:/u', $observations) === 1,
-            'hasModeMarker' => preg_match('/(?:^|\\r?\\n)\\s*(?:Modalidade da primeira sessão|Modo 1ª sessão)\\s*:/u', $observations) === 1,
+            'hasSessionMarker' => preg_match('/(?:^|\\r?\\n)\\s*(?:Primeira sessão|1[ªa] sessão)\\s*:/u', $observations) === 1,
+            'hasModeMarker' => preg_match('/(?:^|\\r?\\n)\\s*(?:Modalidade da primeira sessão|Modo 1[ªa] sessão)\\s*:/u', $observations) === 1,
             'missingFields' => $missingAppointmentFields,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
