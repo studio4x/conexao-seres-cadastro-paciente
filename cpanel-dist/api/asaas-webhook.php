@@ -292,6 +292,25 @@ function notify_n8n_first_session_paid_safely(
     $phone = is_string($customer['data']['phone'] ?? null) ? trim($customer['data']['phone']) : '';
     $customerWhatsapp = $mobilePhone !== '' ? $mobilePhone : $phone;
     $firstSession = parse_first_session_from_observations($customer['data']['observations'] ?? null);
+    $missingAppointmentFields = [];
+    foreach (['firstSessionDate', 'firstSessionTime', 'firstSessionMode'] as $field) {
+        if (($firstSession[$field] ?? '') === '') {
+            $missingAppointmentFields[] = $field;
+        }
+    }
+    if ($missingAppointmentFields !== []) {
+        $observations = is_string($customer['data']['observations'] ?? null)
+            ? $customer['data']['observations'] : '';
+        error_log('n8n first-session-paid appointment data unavailable. ' . json_encode([
+            'paymentId' => $paymentId,
+            'asaasEvent' => $event,
+            'observationsPresent' => $observations !== '',
+            'observationsUtf8Bytes' => strlen($observations),
+            'hasSessionMarker' => preg_match('/(?:^|\\r?\\n)\\s*(?:Primeira sessão|1ª sessão)\\s*:/u', $observations) === 1,
+            'hasModeMarker' => preg_match('/(?:^|\\r?\\n)\\s*(?:Modalidade da primeira sessão|Modo 1ª sessão)\\s*:/u', $observations) === 1,
+            'missingFields' => $missingAppointmentFields,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
     $patientName = $firstSession['patientName'] !== ''
         ? $firstSession['patientName']
         : ($firstSession['patientNameLinePresent'] ? '' : $customerName);
