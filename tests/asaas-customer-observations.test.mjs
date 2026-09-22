@@ -233,6 +233,36 @@ test("parses both compact and legacy first-session observations", () => {
   }
 });
 
+test("accepts Asaas observations with ASCII 1a instead of ordinal 1ª", () => {
+  const observed = [
+    "Paciente: Pessoa de Teste",
+    "Idade: 67 anos",
+    "1a sessão: 23/09/2026 às 10:00",
+    "Modo 1a sessão: Presencial, na clínica Conexão Seres",
+  ].join("\n");
+  assert.deepEqual(parseFirstSessionFromObservations(observed), {
+    patientName: "Pessoa de Teste",
+    patientNameLinePresent: true,
+    firstSessionDate: "23/09/2026",
+    firstSessionTime: "10:00",
+    firstSessionMode: "IN_PERSON",
+    patientAge: 67,
+  });
+
+  for (const ordinal of ["1ª", "1a"]) {
+    const result = parseFirstSessionFromObservations(
+      ["Paciente: Pessoa de Teste", ordinal + " sessão: 23/09/2026 às 10:00",
+        "Modo " + ordinal + " sessão: Online via Google Meet"].join("\n"),
+    );
+    assert.equal(result.firstSessionDate, "23/09/2026");
+    assert.equal(result.firstSessionTime, "10:00");
+    assert.equal(result.firstSessionMode, "ONLINE");
+  }
+  assert.match(phpWebhook, /1\[ªa\] sessão/);
+  assert.match(phpWebhook, /Modo 1a sessão: Presencial, na clínica Conexão Seres/);
+  assert.match(phpWebhook, /Modo 1a sessão: Online via Google Meet/);
+});
+
 test("classifies the attended patient by a valid observation age", () => {
   const cases = [
     [36, "ADULT"],
