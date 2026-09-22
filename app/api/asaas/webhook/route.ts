@@ -273,8 +273,8 @@ async function notifyN8nFirstSessionPaid(
       asaasEvent: event,
       observationsPresent: observations.length > 0,
       observationsUtf8Bytes: new TextEncoder().encode(observations).byteLength,
-      hasSessionMarker: /(?:^|\r?\n)\s*(?:Primeira sessão|1ª sessão)\s*:/u.test(observations),
-      hasModeMarker: /(?:^|\r?\n)\s*(?:Modalidade da primeira sessão|Modo 1ª sessão)\s*:/u.test(observations),
+      hasSessionMarker: /(?:^|\r?\n)\s*(?:Primeira sessão|1[ªa] sessão)\s*:/u.test(observations),
+      hasModeMarker: /(?:^|\r?\n)\s*(?:Modalidade da primeira sessão|Modo 1[ªa] sessão)\s*:/u.test(observations),
       missingFields: missingAppointmentFields,
     });
   }
