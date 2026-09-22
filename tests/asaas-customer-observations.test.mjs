@@ -304,3 +304,14 @@ test("redacts an unformatted Brazilian mobile phone before the generic CPF patte
     assert.ok(sanitizer.indexOf("[PHONE_REDACTED]") < sanitizer.indexOf("[CPF_REDACTED]"));
   }
 });
+
+
+test("logs only sanitized diagnostics when first-session metadata cannot be extracted", () => {
+  for (const [source, label] of [[typescriptWebhook, "TypeScript"], [phpWebhook, "PHP"]]) {
+    assert.match(source, /n8n first-session-paid appointment data unavailable/, label);
+    for (const field of ["observationsPresent", "observationsUtf8Bytes", "hasSessionMarker", "hasModeMarker", "missingFields"]) {
+      assert.ok(source.includes(field), `${label} missing diagnostic field: ${field}`);
+    }
+    assert.doesNotMatch(source, /(?:console\\.warn|error_log)\\([^;]*?observations\\s*[,)]/s, label);
+  }
+});
