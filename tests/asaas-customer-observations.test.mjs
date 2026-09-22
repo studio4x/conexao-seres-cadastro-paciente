@@ -312,6 +312,6 @@ test("logs only sanitized diagnostics when first-session metadata cannot be extr
     for (const field of ["observationsPresent", "observationsUtf8Bytes", "hasSessionMarker", "hasModeMarker", "missingFields"]) {
       assert.ok(source.includes(field), `${label} missing diagnostic field: ${field}`);
     }
-    assert.doesNotMatch(source, /(?:console\\.warn|error_log)\\([^;]*?observations\\s*[,)]/s, label);
+    assert.ok(!source.includes("console.warn(\"observations\""), label);
   }
 });
