@@ -263,6 +263,21 @@ async function notifyN8nFirstSessionPaid(
   const phone = typeof customerResult.data.phone === "string" ? customerResult.data.phone.trim() : "";
   const customerWhatsapp = mobilePhone || phone;
   const firstSession = parseFirstSessionFromObservations(customerResult.data.observations);
+  const missingAppointmentFields = (["firstSessionDate", "firstSessionTime", "firstSessionMode"] as const)
+    .filter((field) => !firstSession[field]);
+  if (missingAppointmentFields.length > 0) {
+    const observations = typeof customerResult.data.observations === "string"
+      ? customerResult.data.observations : "";
+    console.warn("n8n first-session-paid appointment data unavailable", {
+      paymentId,
+      asaasEvent: event,
+      observationsPresent: observations.length > 0,
+      observationsUtf8Bytes: new TextEncoder().encode(observations).byteLength,
+      hasSessionMarker: /(?:^|\r?\n)\s*(?:Primeira sessão|1[ªa] sessão)\s*:/u.test(observations),
+      hasModeMarker: /(?:^|\r?\n)\s*(?:Modalidade da primeira sessão|Modo 1[ªa] sessão)\s*:/u.test(observations),
+      missingFields: missingAppointmentFields,
+    });
+  }
   const patientName = firstSession.patientName || (!firstSession.patientNameLinePresent ? customerName : "");
   const patientAge = firstSession.patientAge;
   const contractType = patientAge === null ? null : patientAge >= 18 ? "ADULT" : "CHILD_ADOLESCENT";
